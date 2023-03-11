@@ -60,24 +60,32 @@ def translate_ros_camera_name_to_bosdyn(camera_source: str, camera_type: str):
         else:  # self._camera_type == "depth_registered":
             return "right_depth_in_visual_frame"
 
-    raise ValueError(f"Invalid camera source {camera_source} or camera_type {camera_type} supplied")
+    raise ValueError(
+        f"Invalid camera source {camera_source} or camera_type {camera_type} supplied"
+    )
 
 
 class SpotImagePublisher(rclpy.node.Node):
     def __init__(self):
         super().__init__(f"spot_image_publisher")
-        self.declare_parameter('spot_name', '')
-        self._spot_name = self.get_parameter('spot_name').value
+        self.declare_parameter("spot_name", "")
+        self._spot_name = self.get_parameter("spot_name").value
 
-        self._username = get_from_env_and_fall_back_to_param("BOSDYN_CLIENT_USERNAME", self, "username", "user")
-        self._password = get_from_env_and_fall_back_to_param("BOSDYN_CLIENT_PASSWORD", self, "password", "password")
-        self._robot_hostname = get_from_env_and_fall_back_to_param("SPOT_IP", self, "hostname", "10.0.0.3")
+        self._username = get_from_env_and_fall_back_to_param(
+            "BOSDYN_CLIENT_USERNAME", self, "username", "user"
+        )
+        self._password = get_from_env_and_fall_back_to_param(
+            "BOSDYN_CLIENT_PASSWORD", self, "password", "password"
+        )
+        self._robot_hostname = get_from_env_and_fall_back_to_param(
+            "SPOT_IP", self, "hostname", "10.0.0.3"
+        )
 
         self.declare_parameter("image_service", ImageClient.default_service_name)
         self._image_service = self.get_parameter("image_service").value
 
         try:
-            self._sdk = bosdyn.client.create_standard_sdk('image_publisher')
+            self._sdk = bosdyn.client.create_standard_sdk("image_publisher")
         except Exception as e:
             self._logger.error("Error creating SDK object: %s", e)
             self._valid = False
@@ -94,7 +102,7 @@ class SpotImagePublisher(rclpy.node.Node):
             self._valid = False
             return
 
-        sdk = bosdyn.client.create_standard_sdk('image_capture')
+        sdk = bosdyn.client.create_standard_sdk("image_capture")
         robot = sdk.create_robot(self._robot_hostname)
         bosdyn.client.util.authenticate(robot)
         robot.sync_with_directory()
@@ -107,10 +115,12 @@ class SpotImagePublisher(rclpy.node.Node):
         self.declare_parameter("camera_type", "")
         self._camera_type = self.get_parameter("camera_type").value
         if self._camera_type not in ["camera", "depth", "depth_registered"]:
-            raise ValueError(f"camera_source must be in [\"camera\", \"depth\", \"depth_registered\"], "
-                             f"received {self._camera_type} instead")
+            raise ValueError(
+                f'camera_source must be in ["camera", "depth", "depth_registered"], '
+                f"received {self._camera_type} instead"
+            )
 
-        self._frame_prefix = ''
+        self._frame_prefix = ""
         if self._spot_name != "":
             self._frame_prefix = f"{self._spot_name}/"
 
@@ -124,8 +134,12 @@ class SpotImagePublisher(rclpy.node.Node):
                 pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
             else:
                 pixel_format = image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
-            bosdyn_camera_source = translate_ros_camera_name_to_bosdyn(camera_source, self._camera_type)
-            image_request = build_image_request(bosdyn_camera_source, pixel_format=pixel_format)
+            bosdyn_camera_source = translate_ros_camera_name_to_bosdyn(
+                camera_source, self._camera_type
+            )
+            image_request = build_image_request(
+                bosdyn_camera_source, pixel_format=pixel_format
+            )
             print(bosdyn_camera_source)
             self._image_requests.append(image_request)
 
@@ -141,7 +155,9 @@ class SpotImagePublisher(rclpy.node.Node):
                 10,
             )
 
-        self._image_publisher_timer = self.create_timer(1/self._image_publish_rate, self.publish_image)
+        self._image_publisher_timer = self.create_timer(
+            1 / self._image_publish_rate, self.publish_image
+        )
 
     def robotToLocalTime(self, timestamp):
         """Takes a timestamp and an estimated skew and return seconds and nano seconds in local time
@@ -180,7 +196,9 @@ class SpotImagePublisher(rclpy.node.Node):
         image_msg = Image()
         local_time = self.robotToLocalTime(data.shot.acquisition_time)
         image_msg.header.stamp = Time(sec=local_time.seconds, nanosec=local_time.nanos)
-        image_msg.header.frame_id = self._frame_prefix + data.shot.frame_name_image_sensor
+        image_msg.header.frame_id = (
+            self._frame_prefix + data.shot.frame_name_image_sensor
+        )
         image_msg.height = data.shot.image.rows
         image_msg.width = data.shot.image.cols
 
@@ -195,7 +213,10 @@ class SpotImagePublisher(rclpy.node.Node):
         # Uncompressed.  Requires pixel_format.
         if data.shot.image.format == image_pb2.Image.FORMAT_RAW:
             # One byte per pixel.
-            if data.shot.image.pixel_format == image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8:
+            if (
+                data.shot.image.pixel_format
+                == image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8
+            ):
                 image_msg.encoding = "mono8"
                 image_msg.is_bigendian = True
                 image_msg.step = data.shot.image.cols
@@ -257,7 +278,9 @@ class SpotImagePublisher(rclpy.node.Node):
         camera_info_msg.p[10] = 1
         camera_info_msg.p[11] = 0
         local_time = self.robotToLocalTime(data.shot.acquisition_time)
-        camera_info_msg.header.stamp = Time(sec=local_time.seconds, nanosec=local_time.nanos)
+        camera_info_msg.header.stamp = Time(
+            sec=local_time.seconds, nanosec=local_time.nanos
+        )
         camera_info_msg.header.frame_id = data.shot.frame_name_image_sensor
         camera_info_msg.height = data.shot.image.rows
         camera_info_msg.width = data.shot.image.cols
@@ -284,9 +307,13 @@ class SpotImagePublisher(rclpy.node.Node):
             return
 
         for image_response in image_responses:
-            image_msg, camera_info_msg = self.bosdyn_data_to_image_and_camera_info_msgs(image_response)
+            image_msg, camera_info_msg = self.bosdyn_data_to_image_and_camera_info_msgs(
+                image_response
+            )
             self._image_publishers[image_response.source.name].publish(image_msg)
-            self._camera_info_publishers[image_response.source.name].publish(camera_info_msg)
+            self._camera_info_publishers[image_response.source.name].publish(
+                camera_info_msg
+            )
         time2 = time.time()
         print(f"Time taken to publish responses is {time2-time1}s")
         print(f"Overall time taken is {time2-start_time}")
@@ -299,5 +326,5 @@ def main() -> None:
     rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     exit(main())

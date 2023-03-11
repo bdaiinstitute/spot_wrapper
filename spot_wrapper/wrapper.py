@@ -15,12 +15,21 @@ from bosdyn.client.graph_nav import GraphNavClient
 from bosdyn.client.frame_helpers import get_odom_tform_body
 from bosdyn.client.power import safe_power_off, PowerClient, power_on
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
-from bosdyn.client.image import ImageClient, build_image_request, UnsupportedPixelFormatRequestedError
+from bosdyn.client.image import (
+    ImageClient,
+    build_image_request,
+    UnsupportedPixelFormatRequestedError,
+)
 from bosdyn.api import image_pb2
 from bosdyn.api.graph_nav import graph_nav_pb2
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.api.graph_nav import nav_pb2
-from bosdyn.client.estop import EstopClient, EstopEndpoint, EstopKeepAlive, MotorsOnError
+from bosdyn.client.estop import (
+    EstopClient,
+    EstopEndpoint,
+    EstopKeepAlive,
+    MotorsOnError,
+)
 from bosdyn.client import frame_helpers
 from bosdyn.client import math_helpers
 from bosdyn.client.world_object import WorldObjectClient
@@ -29,6 +38,7 @@ MAX_COMMAND_DURATION = 1e5
 
 ### Release
 from . import graph_nav_util
+
 ### Debug
 # import graph_nav_util
 
@@ -41,7 +51,7 @@ CAMERA_IMAGE_SOURCES = [
     "frontright_fisheye_image",
     "left_fisheye_image",
     "right_fisheye_image",
-    "back_fisheye_image"
+    "back_fisheye_image",
 ]
 DEPTH_IMAGE_SOURCES = [
     "frontleft_depth",
@@ -57,22 +67,25 @@ DEPTH_REGISTERED_IMAGE_SOURCES = [
     "left_depth_in_visual_frame",
     "back_depth_in_visual_frame",
 ]
-ImageBundle = namedtuple("ImageBundle", ["frontleft", "frontright", "left", "right", "back"])
+ImageBundle = namedtuple(
+    "ImageBundle", ["frontleft", "frontright", "left", "right", "back"]
+)
 
 
 class AsyncRobotState(AsyncPeriodicQuery):
     """Class to get robot state at regular intervals.  get_robot_state_async query sent to the robot at every tick.  Callback registered to defined callback function.
 
-        Attributes:
-            client: The Client to a service on the robot
-            logger: Logger object
-            rate: Rate (Hz) to trigger the query
-            callback: Callback function to call when the results of the query are available
+    Attributes:
+        client: The Client to a service on the robot
+        logger: Logger object
+        rate: Rate (Hz) to trigger the query
+        callback: Callback function to call when the results of the query are available
     """
 
     def __init__(self, client, logger, rate, callback):
-        super(AsyncRobotState, self).__init__("robot-state", client, logger,
-                                              period_sec=1.0 / max(rate, 1.0))
+        super(AsyncRobotState, self).__init__(
+            "robot-state", client, logger, period_sec=1.0 / max(rate, 1.0)
+        )
         self._callback = None
         if rate > 0.0:
             self._callback = callback
@@ -87,16 +100,17 @@ class AsyncRobotState(AsyncPeriodicQuery):
 class AsyncMetrics(AsyncPeriodicQuery):
     """Class to get robot metrics at regular intervals.  get_robot_metrics_async query sent to the robot at every tick.  Callback registered to defined callback function.
 
-        Attributes:
-            client: The Client to a service on the robot
-            logger: Logger object
-            rate: Rate (Hz) to trigger the query
-            callback: Callback function to call when the results of the query are available
+    Attributes:
+        client: The Client to a service on the robot
+        logger: Logger object
+        rate: Rate (Hz) to trigger the query
+        callback: Callback function to call when the results of the query are available
     """
 
     def __init__(self, client, logger, rate, callback):
-        super(AsyncMetrics, self).__init__("robot-metrics", client, logger,
-                                           period_sec=1.0 / max(rate, 1.0))
+        super(AsyncMetrics, self).__init__(
+            "robot-metrics", client, logger, period_sec=1.0 / max(rate, 1.0)
+        )
         self._callback = None
         if rate > 0.0:
             self._callback = callback
@@ -111,16 +125,17 @@ class AsyncMetrics(AsyncPeriodicQuery):
 class AsyncLease(AsyncPeriodicQuery):
     """Class to get lease state at regular intervals.  list_leases_async query sent to the robot at every tick.  Callback registered to defined callback function.
 
-        Attributes:
-            client: The Client to a service on the robot
-            logger: Logger object
-            rate: Rate (Hz) to trigger the query
-            callback: Callback function to call when the results of the query are available
+    Attributes:
+        client: The Client to a service on the robot
+        logger: Logger object
+        rate: Rate (Hz) to trigger the query
+        callback: Callback function to call when the results of the query are available
     """
 
     def __init__(self, client, logger, rate, callback):
-        super(AsyncLease, self).__init__("lease", client, logger,
-                                         period_sec=1.0 / max(rate, 1.0))
+        super(AsyncLease, self).__init__(
+            "lease", client, logger, period_sec=1.0 / max(rate, 1.0)
+        )
         self._callback = None
         if rate > 0.0:
             self._callback = callback
@@ -135,16 +150,17 @@ class AsyncLease(AsyncPeriodicQuery):
 class AsyncImageService(AsyncPeriodicQuery):
     """Class to get images at regular intervals.  get_image_from_sources_async query sent to the robot at every tick.  Callback registered to defined callback function.
 
-        Attributes:
-            client: The Client to a service on the robot
-            logger: Logger object
-            rate: Rate (Hz) to trigger the query
-            callback: Callback function to call when the results of the query are available
+    Attributes:
+        client: The Client to a service on the robot
+        logger: Logger object
+        rate: Rate (Hz) to trigger the query
+        callback: Callback function to call when the results of the query are available
     """
 
     def __init__(self, client, logger, rate, callback, image_requests):
-        super(AsyncImageService, self).__init__("robot_image_service", client, logger,
-                                                period_sec=1.0 / max(rate, 1.0))
+        super(AsyncImageService, self).__init__(
+            "robot_image_service", client, logger, period_sec=1.0 / max(rate, 1.0)
+        )
         self._callback = None
         if rate > 0.0:
             self._callback = callback
@@ -160,26 +176,29 @@ class AsyncImageService(AsyncPeriodicQuery):
 class AsyncIdle(AsyncPeriodicQuery):
     """Class to check if the robot is moving, and if not, command a stand with the set mobility parameters
 
-        Attributes:
-            client: The Client to a service on the robot
-            logger: Logger object
-            rate: Rate (Hz) to trigger the query
-            spot_wrapper: A handle to the wrapper library
+    Attributes:
+        client: The Client to a service on the robot
+        logger: Logger object
+        rate: Rate (Hz) to trigger the query
+        spot_wrapper: A handle to the wrapper library
     """
 
     def __init__(self, client, logger, rate, spot_wrapper):
-        super(AsyncIdle, self).__init__("idle", client, logger,
-                                        period_sec=1.0 / rate)
+        super(AsyncIdle, self).__init__("idle", client, logger, period_sec=1.0 / rate)
 
         self._spot_wrapper = spot_wrapper
 
     def _start_query(self):
         if self._spot_wrapper._last_stand_command != None:
             try:
-                response = self._client.robot_command_feedback(self._spot_wrapper._last_stand_command)
+                response = self._client.robot_command_feedback(
+                    self._spot_wrapper._last_stand_command
+                )
                 self._spot_wrapper._is_sitting = False
-                if (response.feedback.synchronized_feedback.mobility_command_feedback.stand_feedback.status ==
-                        basic_command_pb2.StandCommand.Feedback.STATUS_IS_STANDING):
+                if (
+                    response.feedback.synchronized_feedback.mobility_command_feedback.stand_feedback.status
+                    == basic_command_pb2.StandCommand.Feedback.STATUS_IS_STANDING
+                ):
                     self._spot_wrapper._is_standing = True
                     self._spot_wrapper._last_stand_command = None
                 else:
@@ -191,9 +210,13 @@ class AsyncIdle(AsyncPeriodicQuery):
         if self._spot_wrapper._last_sit_command != None:
             try:
                 self._spot_wrapper._is_standing = False
-                response = self._client.robot_command_feedback(self._spot_wrapper._last_sit_command)
-                if (response.feedback.synchronized_feedback.mobility_command_feedback.sit_feedback.status ==
-                        basic_command_pb2.SitCommand.Feedback.STATUS_IS_SITTING):
+                response = self._client.robot_command_feedback(
+                    self._spot_wrapper._last_sit_command
+                )
+                if (
+                    response.feedback.synchronized_feedback.mobility_command_feedback.sit_feedback.status
+                    == basic_command_pb2.SitCommand.Feedback.STATUS_IS_SITTING
+                ):
                     self._spot_wrapper._is_sitting = True
                     self._spot_wrapper._last_sit_command = None
                 else:
@@ -212,19 +235,35 @@ class AsyncIdle(AsyncPeriodicQuery):
 
         if self._spot_wrapper._last_trajectory_command != None:
             try:
-                response = self._client.robot_command_feedback(self._spot_wrapper._last_trajectory_command)
-                status = response.feedback.synchronized_feedback.mobility_command_feedback.se2_trajectory_feedback.status
+                response = self._client.robot_command_feedback(
+                    self._spot_wrapper._last_trajectory_command
+                )
+                status = (
+                    response.feedback.synchronized_feedback.mobility_command_feedback.se2_trajectory_feedback.status
+                )
                 # STATUS_AT_GOAL always means that the robot reached the goal. If the trajectory command did not
                 # request precise positioning, then STATUS_NEAR_GOAL also counts as reaching the goal
-                if status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_AT_GOAL or \
-                        (status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_NEAR_GOAL and
-                         not self._spot_wrapper._last_trajectory_command_precise):
+                if (
+                    status
+                    == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_AT_GOAL
+                    or (
+                        status
+                        == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_NEAR_GOAL
+                        and not self._spot_wrapper._last_trajectory_command_precise
+                    )
+                ):
                     self._spot_wrapper._at_goal = True
                     # Clear the command once at the goal
                     self._spot_wrapper._last_trajectory_command = None
-                elif status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_GOING_TO_GOAL:
+                elif (
+                    status
+                    == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_GOING_TO_GOAL
+                ):
                     is_moving = True
-                elif status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_NEAR_GOAL:
+                elif (
+                    status
+                    == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_NEAR_GOAL
+                ):
                     is_moving = True
                     self._spot_wrapper._near_goal = True
                 else:
@@ -239,15 +278,17 @@ class AsyncIdle(AsyncPeriodicQuery):
 class AsyncWorldObjects(AsyncPeriodicQuery):
     """Class to get world objects.  list_world_objects_async query sent to the robot at every tick.  Callback registered to defined callback function.
 
-        Attributes:
-            client: The Client to a service on the robot
-            logger: Logger object
-            rate: Rate (Hz) to trigger the query
-            callback: Callback function to call when the results of the query are available
+    Attributes:
+        client: The Client to a service on the robot
+        logger: Logger object
+        rate: Rate (Hz) to trigger the query
+        callback: Callback function to call when the results of the query are available
     """
 
     def __init__(self, client, logger, rate, callback):
-        super(AsyncWorldObjects, self).__init__("world-objects", client, logger, period_sec=1.0 / max(rate, 1.0))
+        super(AsyncWorldObjects, self).__init__(
+            "world-objects", client, logger, period_sec=1.0 / max(rate, 1.0)
+        )
         self._callback = None
         if rate > 0.0:
             self._callback = callback
@@ -262,15 +303,25 @@ class AsyncWorldObjects(AsyncPeriodicQuery):
 class SpotWrapper:
     """Generic wrapper class to encompass release 1.1.4 API features as well as maintaining leases automatically"""
 
-    def __init__(self, username, password, hostname, robot_name, logger, start_estop, estop_timeout=9.0,
-                 rates=None, callbacks=None):
+    def __init__(
+        self,
+        username,
+        password,
+        hostname,
+        robot_name,
+        logger,
+        start_estop,
+        estop_timeout=9.0,
+        rates=None,
+        callbacks=None,
+    ):
         self._username = username
         self._password = password
         self._hostname = hostname
         self._robot_name = robot_name
-        self._frame_prefix = ''
+        self._frame_prefix = ""
         if robot_name is not None:
-            self._frame_prefix = robot_name + '/'
+            self._frame_prefix = robot_name + "/"
         self._logger = logger
         self._rates = rates
         if rates is None:
@@ -299,27 +350,33 @@ class SpotWrapper:
 
         self._camera_image_requests = []
         for camera_source in CAMERA_IMAGE_SOURCES:
-            self._camera_image_requests.append(build_image_request(
-                camera_source,
-                image_format=image_pb2.Image.FORMAT_JPEG,
-                pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                quality_percent=50,
-            ))
+            self._camera_image_requests.append(
+                build_image_request(
+                    camera_source,
+                    image_format=image_pb2.Image.FORMAT_JPEG,
+                    pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                    quality_percent=50,
+                )
+            )
 
         self._depth_image_requests = []
         for camera_source in DEPTH_IMAGE_SOURCES:
-            self._depth_image_requests.append(build_image_request(
-                camera_source, pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
-            ))
+            self._depth_image_requests.append(
+                build_image_request(
+                    camera_source, pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
+                )
+            )
 
         self._depth_registered_image_requests = []
         for camera_source in DEPTH_REGISTERED_IMAGE_SOURCES:
-            self._depth_registered_image_requests.append(build_image_request(
-                camera_source, pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
-            ))
+            self._depth_registered_image_requests.append(
+                build_image_request(
+                    camera_source, pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
+                )
+            )
 
         try:
-            self._sdk = create_standard_sdk('ros_spot')
+            self._sdk = create_standard_sdk("ros_spot")
         except Exception as e:
             self._logger.error("Error creating SDK object: %s", e)
             self._valid = False
@@ -335,21 +392,39 @@ class SpotWrapper:
             self._valid = False
             return
 
-        self._logger.info("Establishing time sync with robot - this could take some time.")
+        self._logger.info(
+            "Establishing time sync with robot - this could take some time."
+        )
         self._robot.time_sync.wait_for_sync(10.0)
 
         if self._robot:
             # Clients
             try:
-                self._robot_state_client = self._robot.ensure_client(RobotStateClient.default_service_name)
-                self._world_objects_client = self._robot.ensure_client(WorldObjectClient.default_service_name)
-                self._robot_command_client = self._robot.ensure_client(RobotCommandClient.default_service_name)
-                self._graph_nav_client = self._robot.ensure_client(GraphNavClient.default_service_name)
-                self._power_client = self._robot.ensure_client(PowerClient.default_service_name)
-                self._lease_client = self._robot.ensure_client(LeaseClient.default_service_name)
+                self._robot_state_client = self._robot.ensure_client(
+                    RobotStateClient.default_service_name
+                )
+                self._world_objects_client = self._robot.ensure_client(
+                    WorldObjectClient.default_service_name
+                )
+                self._robot_command_client = self._robot.ensure_client(
+                    RobotCommandClient.default_service_name
+                )
+                self._graph_nav_client = self._robot.ensure_client(
+                    GraphNavClient.default_service_name
+                )
+                self._power_client = self._robot.ensure_client(
+                    PowerClient.default_service_name
+                )
+                self._lease_client = self._robot.ensure_client(
+                    LeaseClient.default_service_name
+                )
                 self._lease_wallet = self._lease_client.lease_wallet
-                self._image_client = self._robot.ensure_client(ImageClient.default_service_name)
-                self._estop_client = self._robot.ensure_client(EstopClient.default_service_name)
+                self._image_client = self._robot.ensure_client(
+                    ImageClient.default_service_name
+                )
+                self._estop_client = self._robot.ensure_client(
+                    EstopClient.default_service_name
+                )
             except Exception as e:
                 self._logger.error("Unable to create client service: %s", e)
                 self._valid = False
@@ -363,27 +438,45 @@ class SpotWrapper:
             self._current_annotation_name_to_wp_id = dict()
 
             # Async Tasks
-            self._robot_state_task = AsyncRobotState(self._robot_state_client, self._logger,
-                                                     max(0.0, self._rates.get("robot_state", 0.0)),
-                                                     self._callbacks.get("robot_state", None))
-            self._robot_metrics_task = AsyncMetrics(self._robot_state_client, self._logger,
-                                                    max(0.0, self._rates.get("metrics", 0.0)),
-                                                    self._callbacks.get("metrics", None))
-            self._lease_task = AsyncLease(self._lease_client, self._logger, max(0.0, self._rates.get("lease", 0.0)),
-                                          self._callbacks.get("lease", None))
-            self._idle_task = AsyncIdle(self._robot_command_client, self._logger, 10.0, self)
-            self._world_objects_task = AsyncWorldObjects(self._world_objects_client, self._logger, 10.0,
-                                                         self._callbacks.get("world_objects", None))
+            self._robot_state_task = AsyncRobotState(
+                self._robot_state_client,
+                self._logger,
+                max(0.0, self._rates.get("robot_state", 0.0)),
+                self._callbacks.get("robot_state", None),
+            )
+            self._robot_metrics_task = AsyncMetrics(
+                self._robot_state_client,
+                self._logger,
+                max(0.0, self._rates.get("metrics", 0.0)),
+                self._callbacks.get("metrics", None),
+            )
+            self._lease_task = AsyncLease(
+                self._lease_client,
+                self._logger,
+                max(0.0, self._rates.get("lease", 0.0)),
+                self._callbacks.get("lease", None),
+            )
+            self._idle_task = AsyncIdle(
+                self._robot_command_client, self._logger, 10.0, self
+            )
+            self._world_objects_task = AsyncWorldObjects(
+                self._world_objects_client,
+                self._logger,
+                10.0,
+                self._callbacks.get("world_objects", None),
+            )
 
             self._estop_endpoint = None
 
-            self._async_tasks = AsyncTasks([
-                self._robot_state_task,
-                self._robot_metrics_task,
-                self._lease_task,
-                self._idle_task,
-                self._world_objects_task,
-            ])
+            self._async_tasks = AsyncTasks(
+                [
+                    self._robot_state_task,
+                    self._robot_metrics_task,
+                    self._lease_task,
+                    self._idle_task,
+                    self._world_objects_task,
+                ]
+            )
 
             self._robot_id = None
             self._lease = None
@@ -530,7 +623,9 @@ class SpotWrapper:
 
     def resetEStop(self):
         """Get keepalive for eStop"""
-        self._estop_endpoint = EstopEndpoint(self._estop_client, 'ros', self._estop_timeout)
+        self._estop_endpoint = EstopEndpoint(
+            self._estop_client, "ros", self._estop_timeout
+        )
         self._estop_endpoint.force_simple_setup()  # Set this endpoint as the robot's sole estop.
         self._estop_keepalive = EstopKeepAlive(self._estop_endpoint)
 
@@ -601,12 +696,17 @@ class SpotWrapper:
             timesync_endpoint: (optional) Time sync endpoint
         """
         try:
-            id = self._robot_command_client.robot_command(lease=None, command=command_proto,
-                                                          end_time_secs=end_time_secs,
-                                                          timesync_endpoint=timesync_endpoint)
+            id = self._robot_command_client.robot_command(
+                lease=None,
+                command=command_proto,
+                end_time_secs=end_time_secs,
+                timesync_endpoint=timesync_endpoint,
+            )
             return True, "Success", id
         except Exception as e:
-            self._logger.error("Unable to execute robot command, exception was" + str(e))
+            self._logger.error(
+                "Unable to execute robot command, exception was" + str(e)
+            )
             return False, str(e), None
 
     def stop(self):
@@ -639,7 +739,9 @@ class SpotWrapper:
         response = self.power_on(allow_already_powered=True)
         if not response[0]:
             return response
-        response = self._robot_command(RobotCommandBuilder.synchro_stand_command(params=self._mobility_params))
+        response = self._robot_command(
+            RobotCommandBuilder.synchro_stand_command(params=self._mobility_params)
+        )
         if monitor_command:
             self._last_stand_command = response[2]
         return response[0], response[1]
@@ -650,9 +752,10 @@ class SpotWrapper:
             return response
         if self._is_sitting:
             response = self._robot_command(
-                RobotCommandBuilder.battery_change_pose_command(1))  # 1: Rightside
+                RobotCommandBuilder.battery_change_pose_command(1)
+            )  # 1: Rightside
             return response[0], response[1]
-        return False, 'Call /sit first'
+        return False, "Call /sit first"
 
     def safe_power_off(self):
         """Stop the robot's motion and sit if possible.  Once sitting, disable motor power."""
@@ -665,14 +768,16 @@ class SpotWrapper:
     def clear_behavior_fault(self, id):
         """Clear the behavior fault defined by id."""
         try:
-            rid = self._robot_command_client.clear_behavior_fault(behavior_fault_id=id, lease=None)
+            rid = self._robot_command_client.clear_behavior_fault(
+                behavior_fault_id=id, lease=None
+            )
             return True, "Success", rid
         except Exception as e:
             return False, str(e), None
 
     def power_on(self, allow_already_powered=False):
         """Enble the motor power if e-stop is enabled."""
-        self._logger.info('Powering on')
+        self._logger.info("Powering on")
         self.claim()
         if self._start_estop:
             try:
@@ -695,12 +800,13 @@ class SpotWrapper:
         self._mobility_params = mobility_params
 
     def get_mobility_params(self):
-        """Get mobility params
-        """
+        """Get mobility params"""
         return self._mobility_params
 
     def list_world_objects(self, object_types, time_start_point):
-        return self._world_objects_client.list_world_objects(object_types, time_start_point)
+        return self._world_objects_client.list_world_objects(
+            object_types, time_start_point
+        )
 
     def velocity_cmd(self, v_x, v_y, v_rot, cmd_duration=0.125):
         """Send a velocity motion command to the robot.
@@ -712,14 +818,26 @@ class SpotWrapper:
             cmd_duration: (optional) Time-to-live for the command in seconds.  Default is 125ms (assuming 10Hz command rate).
         """
         end_time = time.time() + cmd_duration
-        response = self._robot_command(RobotCommandBuilder.synchro_velocity_command(
-            v_x=v_x, v_y=v_y, v_rot=v_rot, params=self._mobility_params),
-            end_time_secs=end_time, timesync_endpoint=self._robot.time_sync.endpoint)
+        response = self._robot_command(
+            RobotCommandBuilder.synchro_velocity_command(
+                v_x=v_x, v_y=v_y, v_rot=v_rot, params=self._mobility_params
+            ),
+            end_time_secs=end_time,
+            timesync_endpoint=self._robot.time_sync.endpoint,
+        )
         self._last_velocity_command_time = end_time
         return response[0], response[1]
 
-    def trajectory_cmd(self, goal_x, goal_y, goal_heading, cmd_duration, frame_name='odom', precise_position=False,
-                       mobility_params=None):
+    def trajectory_cmd(
+        self,
+        goal_x,
+        goal_y,
+        goal_heading,
+        cmd_duration,
+        frame_name="odom",
+        precise_position=False,
+        mobility_params=None,
+    ):
         """Send a trajectory motion command to the robot.
 
         Args:
@@ -739,11 +857,13 @@ class SpotWrapper:
         self._last_trajectory_command_precise = precise_position
         self._logger.info("got command duration of {}".format(cmd_duration))
         end_time = time.time() + cmd_duration
-        if frame_name == 'vision':
+        if frame_name == "vision":
             vision_tform_body = frame_helpers.get_vision_tform_body(
-                self._robot_state_client.get_robot_state().kinematic_state.transforms_snapshot)
-            body_tform_goal = math_helpers.SE3Pose(x=goal_x, y=goal_y, z=0,
-                                                   rot=math_helpers.Quat.from_yaw(goal_heading))
+                self._robot_state_client.get_robot_state().kinematic_state.transforms_snapshot
+            )
+            body_tform_goal = math_helpers.SE3Pose(
+                x=goal_x, y=goal_y, z=0, rot=math_helpers.Quat.from_yaw(goal_heading)
+            )
             vision_tform_goal = vision_tform_body * body_tform_goal
             response = self._robot_command(
                 RobotCommandBuilder.synchro_se2_trajectory_point_command(
@@ -751,14 +871,17 @@ class SpotWrapper:
                     goal_y=vision_tform_goal.y,
                     goal_heading=vision_tform_goal.rot.to_yaw(),
                     frame_name=frame_helpers.VISION_FRAME_NAME,
-                    params=mobility_params),
-                end_time_secs=end_time
+                    params=mobility_params,
+                ),
+                end_time_secs=end_time,
             )
-        elif frame_name == 'odom':
+        elif frame_name == "odom":
             odom_tform_body = frame_helpers.get_odom_tform_body(
-                self._robot_state_client.get_robot_state().kinematic_state.transforms_snapshot)
-            body_tform_goal = math_helpers.SE3Pose(x=goal_x, y=goal_y, z=0,
-                                                   rot=math_helpers.Quat.from_yaw(goal_heading))
+                self._robot_state_client.get_robot_state().kinematic_state.transforms_snapshot
+            )
+            body_tform_goal = math_helpers.SE3Pose(
+                x=goal_x, y=goal_y, z=0, rot=math_helpers.Quat.from_yaw(goal_heading)
+            )
             odom_tform_goal = odom_tform_body * body_tform_goal
             response = self._robot_command(
                 RobotCommandBuilder.synchro_se2_trajectory_point_command(
@@ -766,19 +889,23 @@ class SpotWrapper:
                     goal_y=odom_tform_goal.y,
                     goal_heading=odom_tform_goal.rot.to_yaw(),
                     frame_name=frame_helpers.ODOM_FRAME_NAME,
-                    params=mobility_params),
-                end_time_secs=end_time
+                    params=mobility_params,
+                ),
+                end_time_secs=end_time,
             )
         else:
-            raise ValueError('frame_name must be \'vision\' or \'odom\'')
+            raise ValueError("frame_name must be 'vision' or 'odom'")
         if response[0]:
             self._last_trajectory_command = response[2]
         return response[0], response[1]
 
     def robot_command(self, robot_command):
         end_time = time.time() + MAX_COMMAND_DURATION
-        return self._robot_command(robot_command, end_time_secs=end_time,
-                                   timesync_endpoint=self._robot.time_sync.endpoint)
+        return self._robot_command(
+            robot_command,
+            end_time_secs=end_time,
+            timesync_endpoint=self._robot.time_sync.endpoint,
+        )
 
     def get_robot_command_feedback(self, cmd_id):
         return self._robot_command_client.robot_command_feedback(cmd_id)
@@ -790,13 +917,21 @@ class SpotWrapper:
         """
         ids, eds = self._list_graph_waypoint_and_edge_ids()
         # skip waypoint_ for v2.2.1, skip waypiont for < v2.2
-        return [v for k, v in sorted(ids.items(), key=lambda id: int(id[0].replace('waypoint_', '')))]
+        return [
+            v
+            for k, v in sorted(
+                ids.items(), key=lambda id: int(id[0].replace("waypoint_", ""))
+            )
+        ]
 
-    def navigate_to(self, upload_path,
-                    navigate_to,
-                    initial_localization_fiducial=True,
-                    initial_localization_waypoint=None):
-        """ navigate with graph nav.
+    def navigate_to(
+        self,
+        upload_path,
+        navigate_to,
+        initial_localization_fiducial=True,
+        initial_localization_waypoint=None,
+    ):
+        """navigate with graph nav.
 
         Args:
            upload_path : Path to the root directory of the map.
@@ -812,7 +947,7 @@ class SpotWrapper:
 
         # Boolean indicating the robot's power state.
         power_state = self._robot_state_client.get_robot_state().power_state
-        self._started_powered_on = (power_state.motor_power_state == power_state.STATE_ON)
+        self._started_powered_on = power_state.motor_power_state == power_state.STATE_ON
         self._powered_on = self._started_powered_on
 
         # FIX ME somehow,,,, if the robot is stand, need to sit the robot before starting garph nav
@@ -836,20 +971,27 @@ class SpotWrapper:
     def _get_localization_state(self, *args):
         """Get the current localization and state of the robot."""
         state = self._graph_nav_client.get_localization_state()
-        self._logger.info('Got localization: \n%s' % str(state.localization))
-        odom_tform_body = get_odom_tform_body(state.robot_kinematics.transforms_snapshot)
-        self._logger.info('Got robot state in kinematic odometry frame: \n%s' % str(odom_tform_body))
+        self._logger.info("Got localization: \n%s" % str(state.localization))
+        odom_tform_body = get_odom_tform_body(
+            state.robot_kinematics.transforms_snapshot
+        )
+        self._logger.info(
+            "Got robot state in kinematic odometry frame: \n%s" % str(odom_tform_body)
+        )
 
     def _set_initial_localization_fiducial(self, *args):
         """Trigger localization when near a fiducial."""
         robot_state = self._robot_state_client.get_robot_state()
         current_odom_tform_body = get_odom_tform_body(
-            robot_state.kinematic_state.transforms_snapshot).to_proto()
+            robot_state.kinematic_state.transforms_snapshot
+        ).to_proto()
         # Create an empty instance for initial localization since we are asking it to localize
         # based on the nearest fiducial.
         localization = nav_pb2.Localization()
-        self._graph_nav_client.set_localization(initial_guess_localization=localization,
-                                                ko_tform_body=current_odom_tform_body)
+        self._graph_nav_client.set_localization(
+            initial_guess_localization=localization,
+            ko_tform_body=current_odom_tform_body,
+        )
 
     def _set_initial_localization_waypoint(self, *args):
         """Trigger localization to a waypoint."""
@@ -859,14 +1001,19 @@ class SpotWrapper:
             self._logger.error("No waypoint specified to initialize to.")
             return
         destination_waypoint = graph_nav_util.find_unique_waypoint_id(
-            args[0][0], self._current_graph, self._current_annotation_name_to_wp_id, self._logger)
+            args[0][0],
+            self._current_graph,
+            self._current_annotation_name_to_wp_id,
+            self._logger,
+        )
         if not destination_waypoint:
             # Failed to find the unique waypoint id.
             return
 
         robot_state = self._robot_state_client.get_robot_state()
         current_odom_tform_body = get_odom_tform_body(
-            robot_state.kinematic_state.transforms_snapshot).to_proto()
+            robot_state.kinematic_state.transforms_snapshot
+        ).to_proto()
         # Create an initial localization to the specified waypoint as the identity.
         localization = nav_pb2.Localization()
         localization.waypoint_id = destination_waypoint
@@ -877,7 +1024,8 @@ class SpotWrapper:
             max_distance=0.2,
             max_yaw=20.0 * math.pi / 180.0,
             fiducial_init=graph_nav_pb2.SetLocalizationRequest.FIDUCIAL_INIT_NO_FIDUCIAL,
-            ko_tform_body=current_odom_tform_body)
+            ko_tform_body=current_odom_tform_body,
+        )
 
     def _list_graph_waypoint_and_edge_ids(self, *args):
         """List the waypoint ids and edge ids of the graph currently on the robot."""
@@ -889,11 +1037,17 @@ class SpotWrapper:
             return
         self._current_graph = graph
 
-        localization_id = self._graph_nav_client.get_localization_state().localization.waypoint_id
+        localization_id = (
+            self._graph_nav_client.get_localization_state().localization.waypoint_id
+        )
 
         # Update and print waypoints and edges
-        self._current_annotation_name_to_wp_id, self._current_edges = graph_nav_util.update_waypoints_and_edges(
-            graph, localization_id, self._logger)
+        (
+            self._current_annotation_name_to_wp_id,
+            self._current_edges,
+        ) = graph_nav_util.update_waypoints_and_edges(
+            graph, localization_id, self._logger
+        )
         return self._current_annotation_name_to_wp_id, self._current_edges
 
     def _upload_graph_and_snapshots(self, upload_filepath):
@@ -904,26 +1058,35 @@ class SpotWrapper:
             data = graph_file.read()
             self._current_graph = map_pb2.Graph()
             self._current_graph.ParseFromString(data)
-            self._logger.info("Loaded graph has {} waypoints and {} edges".format(
-                len(self._current_graph.waypoints), len(self._current_graph.edges)))
+            self._logger.info(
+                "Loaded graph has {} waypoints and {} edges".format(
+                    len(self._current_graph.waypoints), len(self._current_graph.edges)
+                )
+            )
         for waypoint in self._current_graph.waypoints:
             # Load the waypoint snapshots from disk.
-            with open(upload_filepath + "/waypoint_snapshots/{}".format(waypoint.snapshot_id),
-                      "rb") as snapshot_file:
+            with open(
+                upload_filepath + "/waypoint_snapshots/{}".format(waypoint.snapshot_id),
+                "rb",
+            ) as snapshot_file:
                 waypoint_snapshot = map_pb2.WaypointSnapshot()
                 waypoint_snapshot.ParseFromString(snapshot_file.read())
-                self._current_waypoint_snapshots[waypoint_snapshot.id] = waypoint_snapshot
+                self._current_waypoint_snapshots[
+                    waypoint_snapshot.id
+                ] = waypoint_snapshot
         for edge in self._current_graph.edges:
             # Load the edge snapshots from disk.
-            with open(upload_filepath + "/edge_snapshots/{}".format(edge.snapshot_id),
-                      "rb") as snapshot_file:
+            with open(
+                upload_filepath + "/edge_snapshots/{}".format(edge.snapshot_id), "rb"
+            ) as snapshot_file:
                 edge_snapshot = map_pb2.EdgeSnapshot()
                 edge_snapshot.ParseFromString(snapshot_file.read())
                 self._current_edge_snapshots[edge_snapshot.id] = edge_snapshot
         # Upload the graph to the robot.
         self._logger.info("Uploading the graph and snapshots to the robot...")
-        self._graph_nav_client.upload_graph(lease=self._lease.lease_proto,
-                                            graph=self._current_graph)
+        self._graph_nav_client.upload_graph(
+            lease=self._lease.lease_proto, graph=self._current_graph
+        )
         # Upload the snapshots to the robot.
         for waypoint_snapshot in self._current_waypoint_snapshots.values():
             self._graph_nav_client.upload_waypoint_snapshot(waypoint_snapshot)
@@ -939,8 +1102,9 @@ class SpotWrapper:
         if not localization_state.localization.waypoint_id:
             # The robot is not localized to the newly uploaded graph.
             self._logger.info(
-                "Upload complete! The robot is currently not localized to the map; please localize", \
-                "the robot using commands (2) or (3) before attempting a navigation command.")
+                "Upload complete! The robot is currently not localized to the map; please localize",
+                "the robot using commands (2) or (3) before attempting a navigation command.",
+            )
 
     def _navigate_to(self, *args):
         """Navigate to a specific waypoint."""
@@ -952,12 +1116,18 @@ class SpotWrapper:
 
         self._lease = self._lease_wallet.get_lease()
         destination_waypoint = graph_nav_util.find_unique_waypoint_id(
-            args[0][0], self._current_graph, self._current_annotation_name_to_wp_id, self._logger)
+            args[0][0],
+            self._current_graph,
+            self._current_annotation_name_to_wp_id,
+            self._logger,
+        )
         if not destination_waypoint:
             # Failed to find the appropriate unique waypoint id for the navigation command.
             return
         if not self.toggle_power(should_power_on=True):
-            self._logger.info("Failed to power on the robot, and cannot complete navigate to request.")
+            self._logger.info(
+                "Failed to power on the robot, and cannot complete navigate to request."
+            )
             return
 
         # Stop the lease keepalive and create a new sublease for graph nav.
@@ -971,9 +1141,10 @@ class SpotWrapper:
         while not is_finished:
             # Issue the navigation command about twice a second such that it is easy to terminate the
             # navigation command (with estop or killing the program).
-            nav_to_cmd_id = self._graph_nav_client.navigate_to(destination_waypoint, 1.0,
-                                                               leases=[sublease.lease_proto])
-            time.sleep(.5)  # Sleep for half a second to allow for command execution.
+            nav_to_cmd_id = self._graph_nav_client.navigate_to(
+                destination_waypoint, 1.0, leases=[sublease.lease_proto]
+            )
+            time.sleep(0.5)  # Sleep for half a second to allow for command execution.
             # Poll the robot for feedback to determine if the navigation command is complete. Then sit
             # the robot down once it is finished.
             is_finished = self._check_success(nav_to_cmd_id)
@@ -987,13 +1158,25 @@ class SpotWrapper:
             self.toggle_power(should_power_on=False)
 
         status = self._graph_nav_client.navigation_feedback(nav_to_cmd_id)
-        if status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_REACHED_GOAL:
+        if (
+            status.status
+            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_REACHED_GOAL
+        ):
             return True, "Successfully completed the navigation commands!"
         elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_LOST:
-            return False, "Robot got lost when navigating the route, the robot will now sit down."
+            return (
+                False,
+                "Robot got lost when navigating the route, the robot will now sit down.",
+            )
         elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_STUCK:
-            return False, "Robot got stuck when navigating the route, the robot will now sit down."
-        elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_ROBOT_IMPAIRED:
+            return (
+                False,
+                "Robot got stuck when navigating the route, the robot will now sit down.",
+            )
+        elif (
+            status.status
+            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_ROBOT_IMPAIRED
+        ):
             return False, "Robot is impaired."
         else:
             return False, "Navigation command is not complete yet."
@@ -1007,7 +1190,11 @@ class SpotWrapper:
         waypoint_ids = args[0]
         for i in range(len(waypoint_ids)):
             waypoint_ids[i] = graph_nav_util.find_unique_waypoint_id(
-                waypoint_ids[i], self._current_graph, self._current_annotation_name_to_wp_id, self._logger)
+                waypoint_ids[i],
+                self._current_graph,
+                self._current_annotation_name_to_wp_id,
+                self._logger,
+            )
             if not waypoint_ids[i]:
                 # Failed to find the unique waypoint id.
                 return
@@ -1024,7 +1211,12 @@ class SpotWrapper:
                 edge_ids_list.append(edge_id)
             else:
                 all_edges_found = False
-                self._logger.error("Failed to find an edge between waypoints: ", start_wp, " and ", end_wp)
+                self._logger.error(
+                    "Failed to find an edge between waypoints: ",
+                    start_wp,
+                    " and ",
+                    end_wp,
+                )
                 self._logger.error(
                     "List the graph's waypoints and edges to ensure pairs of waypoints has an edge."
                 )
@@ -1033,7 +1225,9 @@ class SpotWrapper:
         self._lease = self._lease_wallet.get_lease()
         if all_edges_found:
             if not self.toggle_power(should_power_on=True):
-                self._logger.error("Failed to power on the robot, and cannot complete navigate route request.")
+                self._logger.error(
+                    "Failed to power on the robot, and cannot complete navigate route request."
+                )
                 return
 
             # Stop the lease keepalive and create a new sublease for graph nav.
@@ -1048,8 +1242,11 @@ class SpotWrapper:
                 # Issue the route command about twice a second such that it is easy to terminate the
                 # navigation command (with estop or killing the program).
                 nav_route_command_id = self._graph_nav_client.navigate_route(
-                    route, cmd_duration=1.0, leases=[sublease.lease_proto])
-                time.sleep(.5)  # Sleep for half a second to allow for command execution.
+                    route, cmd_duration=1.0, leases=[sublease.lease_proto]
+                )
+                time.sleep(
+                    0.5
+                )  # Sleep for half a second to allow for command execution.
                 # Poll the robot for feedback to determine if the route is complete. Then sit
                 # the robot down once it is finished.
                 is_finished = self._check_success(nav_route_command_id)
@@ -1075,12 +1272,17 @@ class SpotWrapper:
             motors_on = False
             while not motors_on:
                 future = self._robot_state_client.get_robot_state_async()
-                state_response = future.result(timeout=10)  # 10 second timeout for waiting for the state response.
-                if state_response.power_state.motor_power_state == robot_state_pb2.PowerState.STATE_ON:
+                state_response = future.result(
+                    timeout=10
+                )  # 10 second timeout for waiting for the state response.
+                if (
+                    state_response.power_state.motor_power_state
+                    == robot_state_pb2.PowerState.STATE_ON
+                ):
                     motors_on = True
                 else:
                     # Motors are not yet fully powered on.
-                    time.sleep(.25)
+                    time.sleep(0.25)
         elif is_powered_on and not should_power_on:
             # Safe power off (robot will sit then power down) when it is in a
             # powered-on state.
@@ -1095,7 +1297,7 @@ class SpotWrapper:
     def check_is_powered_on(self):
         """Determine if the robot is powered on or off."""
         power_state = self._robot_state_client.get_robot_state().power_state
-        self._powered_on = (power_state.motor_power_state == power_state.STATE_ON)
+        self._powered_on = power_state.motor_power_state == power_state.STATE_ON
         return self._powered_on
 
     def _check_success(self, command_id=-1):
@@ -1104,16 +1306,26 @@ class SpotWrapper:
             # No command, so we have not status to check.
             return False
         status = self._graph_nav_client.navigation_feedback(command_id)
-        if status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_REACHED_GOAL:
+        if (
+            status.status
+            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_REACHED_GOAL
+        ):
             # Successfully completed the navigation commands!
             return True
         elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_LOST:
-            self._logger.error("Robot got lost when navigating the route, the robot will now sit down.")
+            self._logger.error(
+                "Robot got lost when navigating the route, the robot will now sit down."
+            )
             return True
         elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_STUCK:
-            self._logger.error("Robot got stuck when navigating the route, the robot will now sit down.")
+            self._logger.error(
+                "Robot got stuck when navigating the route, the robot will now sit down."
+            )
             return True
-        elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_ROBOT_IMPAIRED:
+        elif (
+            status.status
+            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_ROBOT_IMPAIRED
+        ):
             self._logger.error("Robot is impaired.")
             return True
         else:
@@ -1127,48 +1339,89 @@ class SpotWrapper:
             for edge_from_id in current_edges[edge_to_id]:
                 if (waypoint1 == edge_to_id) and (waypoint2 == edge_from_id):
                     # This edge matches the pair of waypoints! Add it the edge list and continue.
-                    return map_pb2.Edge.Id(from_waypoint=waypoint2, to_waypoint=waypoint1)
+                    return map_pb2.Edge.Id(
+                        from_waypoint=waypoint2, to_waypoint=waypoint1
+                    )
                 elif (waypoint2 == edge_to_id) and (waypoint1 == edge_from_id):
                     # This edge matches the pair of waypoints! Add it the edge list and continue.
-                    return map_pb2.Edge.Id(from_waypoint=waypoint1, to_waypoint=waypoint2)
+                    return map_pb2.Edge.Id(
+                        from_waypoint=waypoint1, to_waypoint=waypoint2
+                    )
         return None
 
     def get_frontleft_rgb_image(self):
         try:
-            return self._image_client.get_image([build_image_request(
-                "frontleft_fisheye_image", pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8, quality_percent=50)])[0]
+            return self._image_client.get_image(
+                [
+                    build_image_request(
+                        "frontleft_fisheye_image",
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                        quality_percent=50,
+                    )
+                ]
+            )[0]
         except UnsupportedPixelFormatRequestedError as e:
             return None
 
     def get_frontright_rgb_image(self):
         try:
-            return self._image_client.get_image([build_image_request(
-                "frontright_fisheye_image", pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8, quality_percent=50)])[0]
+            return self._image_client.get_image(
+                [
+                    build_image_request(
+                        "frontright_fisheye_image",
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                        quality_percent=50,
+                    )
+                ]
+            )[0]
         except UnsupportedPixelFormatRequestedError as e:
             return None
 
     def get_left_rgb_image(self):
         try:
-            return self._image_client.get_image([build_image_request(
-                "left_fisheye_image", pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8, quality_percent=50)])[0]
+            return self._image_client.get_image(
+                [
+                    build_image_request(
+                        "left_fisheye_image",
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                        quality_percent=50,
+                    )
+                ]
+            )[0]
         except UnsupportedPixelFormatRequestedError as e:
             return None
 
     def get_right_rgb_image(self):
         try:
-            return self._image_client.get_image([build_image_request(
-                "right_fisheye_image", pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8, quality_percent=50)])[0]
+            return self._image_client.get_image(
+                [
+                    build_image_request(
+                        "right_fisheye_image",
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                        quality_percent=50,
+                    )
+                ]
+            )[0]
         except UnsupportedPixelFormatRequestedError as e:
             return None
 
     def get_back_rgb_image(self):
         try:
-            return self._image_client.get_image([build_image_request(
-                "back_fisheye_image", pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8, quality_percent=50)])[0]
+            return self._image_client.get_image(
+                [
+                    build_image_request(
+                        "back_fisheye_image",
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                        quality_percent=50,
+                    )
+                ]
+            )[0]
         except UnsupportedPixelFormatRequestedError as e:
             return None
 
-    def get_images(self, image_requests: list[image_pb2.ImageRequest]) -> Optional[ImageBundle]:
+    def get_images(
+        self, image_requests: list[image_pb2.ImageRequest]
+    ) -> Optional[ImageBundle]:
         try:
             image_responses = self._image_client.get_image(image_requests)
         except UnsupportedPixelFormatRequestedError as e:
