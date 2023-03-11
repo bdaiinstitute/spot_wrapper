@@ -1,7 +1,5 @@
 from setuptools import setup, find_packages
 
-print(find_packages)
-
 setup(
     name="spot_wrapper",
     version="1.0.0",

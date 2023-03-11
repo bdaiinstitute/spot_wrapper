@@ -52,6 +52,53 @@ from google.protobuf.timestamp_pb2 import Timestamp
 from bosdyn.api import manipulation_api_pb2
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 
+import math
+import time
+import traceback
+from collections import namedtuple
+from typing import Optional
+
+import cv2
+import numpy as np
+from bosdyn.client import create_standard_sdk, ResponseError, RpcError
+from bosdyn.client.async_tasks import AsyncPeriodicQuery, AsyncTasks
+
+from bosdyn.client.robot_state import RobotStateClient
+from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
+from bosdyn.client.graph_nav import GraphNavClient
+from bosdyn.client.frame_helpers import get_odom_tform_body
+from bosdyn.client.power import safe_power_off, PowerClient, power_on
+from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
+from bosdyn.client.image import (
+    ImageClient,
+    build_image_request,
+    UnsupportedPixelFormatRequestedError,
+)
+from bosdyn.api import image_pb2
+from bosdyn.api.graph_nav import graph_nav_pb2
+from bosdyn.api.graph_nav import map_pb2
+from bosdyn.api.graph_nav import nav_pb2
+from bosdyn.client.estop import (
+    EstopClient,
+    EstopEndpoint,
+    EstopKeepAlive,
+    MotorsOnError,
+)
+from bosdyn.client import frame_helpers
+from bosdyn.client import math_helpers
+from bosdyn.client.world_object import WorldObjectClient
+
+MAX_COMMAND_DURATION = 1e5
+
+### Release
+from . import graph_nav_util
+
+### Debug
+# import graph_nav_util
+
+from bosdyn.api import basic_command_pb2
+from google.protobuf.timestamp_pb2 import Timestamp
+
 front_image_sources = [
     "frontleft_fisheye_image",
     "frontright_fisheye_image",
@@ -79,6 +126,33 @@ hand_image_sources = [
     "hand_depth_in_hand_color_frame",
 ]
 """List of image sources for hand image periodic query"""
+
+
+# TODO: Missing Hand images
+CAMERA_IMAGE_SOURCES = [
+    "frontleft_fisheye_image",
+    "frontright_fisheye_image",
+    "left_fisheye_image",
+    "right_fisheye_image",
+    "back_fisheye_image",
+]
+DEPTH_IMAGE_SOURCES = [
+    "frontleft_depth",
+    "frontright_depth",
+    "left_depth",
+    "right_depth",
+    "back_depth",
+]
+DEPTH_REGISTERED_IMAGE_SOURCES = [
+    "frontleft_depth_in_visual_frame",
+    "frontright_depth_in_visual_frame",
+    "right_depth_in_visual_frame",
+    "left_depth_in_visual_frame",
+    "back_depth_in_visual_frame",
+]
+ImageBundle = namedtuple(
+    "ImageBundle", ["frontleft", "frontright", "left", "right", "back"]
+)
 
 
 class AsyncRobotState(AsyncPeriodicQuery):
@@ -382,6 +456,29 @@ class AsyncEStopMonitor(AsyncPeriodicQuery):
             # estop keepalive is ok
             pass
 
+class AsyncWorldObjects(AsyncPeriodicQuery):
+    """Class to get world objects.  list_world_objects_async query sent to the robot at every tick.  Callback registered to defined callback function.
+
+    Attributes:
+        client: The Client to a service on the robot
+        logger: Logger object
+        rate: Rate (Hz) to trigger the query
+        callback: Callback function to call when the results of the query are available
+    """
+
+    def __init__(self, client, logger, rate, callback):
+        super(AsyncWorldObjects, self).__init__(
+            "world-objects", client, logger, period_sec=1.0 / max(rate, 1.0)
+        )
+        self._callback = None
+        if rate > 0.0:
+            self._callback = callback
+
+    def _start_query(self):
+        if self._callback:
+            callback_future = self._client.list_world_objects_async()
+            callback_future.add_done_callback(self._callback)
+            return callback_future
 
 class SpotWrapper:
     """Generic wrapper class to encompass release 1.1.4 API features as well as maintaining leases automatically"""
@@ -391,18 +488,27 @@ class SpotWrapper:
         username,
         password,
         hostname,
+        robot_name,
         logger,
+        start_estop,
         estop_timeout=9.0,
-        rates={},
-        callbacks={},
+        rates=None,
+        callbacks=None,
     ):
         self._username = username
         self._password = password
         self._hostname = hostname
+        self._robot_name = robot_name
+        self._frame_prefix = ""
+        if robot_name is not None:
+            self._frame_prefix = robot_name + "/"
         self._logger = logger
-        self._rates = rates
-        self._callbacks = callbacks
+        if rates is None:
+            self._rates = {}
+        if callbacks is None:
+            self._callbacks = {}
         self._estop_timeout = estop_timeout
+        self._start_estop = start_estop
         self._keep_alive = True
         self._valid = True
 
@@ -413,6 +519,7 @@ class SpotWrapper:
         self._at_goal = False
         self._near_goal = False
         self._trajectory_status_unknown = False
+        self._last_robot_command_feedback = False
         self._last_stand_command = None
         self._last_sit_command = None
         self._last_trajectory_command = None
@@ -446,6 +553,32 @@ class SpotWrapper:
         for source in hand_image_sources:
             self._hand_image_requests.append(
                 build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
+
+        self._camera_image_requests = []
+        for camera_source in CAMERA_IMAGE_SOURCES:
+            self._camera_image_requests.append(
+                build_image_request(
+                    camera_source,
+                    image_format=image_pb2.Image.FORMAT_JPEG,
+                    pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                    quality_percent=50,
+                )
+            )
+
+        self._depth_image_requests = []
+        for camera_source in DEPTH_IMAGE_SOURCES:
+            self._depth_image_requests.append(
+                build_image_request(
+                    camera_source, pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
+                )
+            )
+
+        self._depth_registered_image_requests = []
+        for camera_source in DEPTH_REGISTERED_IMAGE_SOURCES:
+            self._depth_registered_image_requests.append(
+                build_image_request(
+                    camera_source, pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
+                )
             )
 
         try:
@@ -496,6 +629,9 @@ class SpotWrapper:
                     self._robot_state_client = self._robot.ensure_client(
                         RobotStateClient.default_service_name
                     )
+                    self._world_objects_client = self._robot.ensure_client(
+                            WorldObjectClient.default_service_name
+                            )
                     self._robot_command_client = self._robot.ensure_client(
                         RobotCommandClient.default_service_name
                     )
@@ -588,11 +724,18 @@ class SpotWrapper:
                 self._callbacks.get("hand_image", lambda: None),
                 self._hand_image_requests,
             )
+
             self._idle_task = AsyncIdle(
                 self._robot_command_client, self._logger, 10.0, self
             )
             self._estop_monitor = AsyncEStopMonitor(
                 self._estop_client, self._logger, 20.0, self
+            )
+            self._world_objects_task = AsyncWorldObjects(
+                self._world_objects_client,
+                self._logger,
+                10.0,
+                self._callbacks.get("world_objects", lambda: None),
             )
 
             self._estop_endpoint = None
@@ -605,6 +748,7 @@ class SpotWrapper:
                 self._front_image_task,
                 self._idle_task,
                 self._estop_monitor,
+                self._world_objects_task,
             ]
 
             if self._point_cloud_client:
@@ -628,6 +772,14 @@ class SpotWrapper:
 
             self._robot_id = None
             self._lease = None
+
+    @property
+    def robot_name(self):
+        return self._robot_name
+
+    @property
+    def frame_prefix(self):
+        return self._frame_prefix
 
     @property
     def logger(self):
@@ -658,6 +810,11 @@ class SpotWrapper:
     def lease(self):
         """Return latest proto from the _lease_task"""
         return self._lease_task.proto
+
+    @property
+    def world_objects(self):
+        """Return most recent proto from _world_objects_task"""
+        return self._world_objects_task.proto
 
     @property
     def front_images(self):
@@ -707,6 +864,9 @@ class SpotWrapper:
     def at_goal(self):
         return self._at_goal
 
+    def is_estopped(self, timeout=None):
+        return self._robot.is_estopped(timeout=timeout)
+
     @property
     def time_skew(self):
         """Return the time skew between local and spot time"""
@@ -752,6 +912,9 @@ class SpotWrapper:
             return True, "Success"
         except (ResponseError, RpcError) as err:
             self._logger.error("Failed to initialize robot communication: %s", err)
+            return False, str(err)
+        except Exception as err:
+            print(traceback.format_exc(), flush=True)
             return False, str(err)
 
     def updateTasks(self):
@@ -844,6 +1007,9 @@ class SpotWrapper:
             )
             return True, "Success", id
         except Exception as e:
+            self._logger.error(
+                "Unable to execute robot command, exception was" + str(e)
+            )
             return False, str(e), None
 
     def stop(self):
@@ -860,6 +1026,18 @@ class SpotWrapper:
         """Stop the robot's motion and sit down if able."""
         response = self._robot_command(RobotCommandBuilder.synchro_sit_command())
         self._last_sit_command = response[2]
+        return response[0], response[1]
+
+    def simple_stand(self, monitor_command=True):
+        """If the e-stop is enabled, and the motor power is enabled, stand the robot up."""
+        response = self.power_on(allow_already_powered=True)
+        if not response[0]:
+            return response
+        response = self._robot_command(
+            RobotCommandBuilder.synchro_stand_command(params=self._mobility_params)
+        )
+        if monitor_command:
+            self._last_stand_command = response[2]
         return response[0], response[1]
 
     def stand(
@@ -897,6 +1075,17 @@ class SpotWrapper:
             self._last_stand_command = response[2]
         return response[0], response[1]
 
+    def rollover(self):
+        response = self.power_on(allow_already_powered=True)
+        if not response[0]:
+            return response
+        if self._is_sitting:
+            response = self._robot_command(
+                RobotCommandBuilder.battery_change_pose_command(1)
+            )  # 1: Rightside
+            return response[0], response[1]
+        return False, "Call /sit first"
+
     def safe_power_off(self):
         """Stop the robot's motion and sit if possible.  Once sitting, disable motor power."""
         response = self._robot_command(RobotCommandBuilder.safe_power_off_command())
@@ -920,6 +1109,22 @@ class SpotWrapper:
         except Exception as e:
             return False, str(e)
 
+    def ros2_power_on(self, allow_already_powered=False):
+        """Enble the motor power if e-stop is enabled."""
+        self._logger.info("Powering on")
+        self.claim()
+        if self._start_estop:
+            try:
+                self.resetEStop()
+            except MotorsOnError as e:
+                if not allow_already_powered:
+                    return False, str(e)
+        try:
+            self._robot.power_on()
+        except Exception as e:
+            return False, str(e)
+        return True, "Success"
+
     def set_mobility_params(self, mobility_params):
         """Set Params for mobility and movement
 
@@ -931,6 +1136,11 @@ class SpotWrapper:
     def get_mobility_params(self):
         """Get mobility params"""
         return self._mobility_params
+
+    def list_world_objects(self, object_types, time_start_point):
+        return self._world_objects_client.list_world_objects(
+            object_types, time_start_point
+        )
 
     def velocity_cmd(self, v_x, v_y, v_rot, cmd_duration=0.125):
         """Send a velocity motion command to the robot.
@@ -960,6 +1170,7 @@ class SpotWrapper:
         cmd_duration,
         frame_name="odom",
         precise_position=False,
+        mobility_params=None,
     ):
         """Send a trajectory motion command to the robot.
 
@@ -975,9 +1186,10 @@ class SpotWrapper:
 
         Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
         """
+        if mobility_params is None:
+            mobility_params = self._mobility_params
         self._at_goal = False
         self._near_goal = False
-        self._trajectory_status_unknown = False
         self._last_trajectory_command_precise = precise_position
         self._logger.info("got command duration of {}".format(cmd_duration))
         end_time = time.time() + cmd_duration
@@ -995,7 +1207,7 @@ class SpotWrapper:
                     goal_y=vision_tform_goal.y,
                     goal_heading=vision_tform_goal.rot.to_yaw(),
                     frame_name=frame_helpers.VISION_FRAME_NAME,
-                    params=self._mobility_params,
+                    params=mobility_params,
                 ),
                 end_time_secs=end_time,
             )
@@ -1013,7 +1225,7 @@ class SpotWrapper:
                     goal_y=odom_tform_goal.y,
                     goal_heading=odom_tform_goal.rot.to_yaw(),
                     frame_name=frame_helpers.ODOM_FRAME_NAME,
-                    params=self._mobility_params,
+                    params=mobility_params,
                 ),
                 end_time_secs=end_time,
             )
@@ -1022,6 +1234,17 @@ class SpotWrapper:
         if response[0]:
             self._last_trajectory_command = response[2]
         return response[0], response[1]
+
+    def robot_command(self, robot_command):
+        end_time = time.time() + MAX_COMMAND_DURATION
+        return self._robot_command(
+            robot_command,
+            end_time_secs=end_time,
+            timesync_endpoint=self._robot.time_sync.endpoint,
+        )
+
+    def get_robot_command_feedback(self, cmd_id):
+        return self._robot_command_client.robot_command_feedback(cmd_id)
 
     def list_graph(self, upload_path):
         """List waypoint ids of garph_nav
@@ -1844,7 +2067,7 @@ class SpotWrapper:
                 )  # 10 second timeout for waiting for the state response.
                 if (
                     state_response.power_state.motor_power_state
-                    == robot_state_proto.PowerState.STATE_ON
+                    == robot_state_pb2.PowerState.STATE_ON
                 ):
                     motors_on = True
                 else:
@@ -1966,3 +2189,96 @@ class SpotWrapper:
             return
 
         self._async_tasks.add_task(self.camera_task_name_to_task_mapping[image_name])
+    def get_frontleft_rgb_image(self):
+        try:
+            return self._image_client.get_image(
+                [
+                    build_image_request(
+                        "frontleft_fisheye_image",
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                        quality_percent=50,
+                    )
+                ]
+            )[0]
+        except UnsupportedPixelFormatRequestedError as e:
+            return None
+
+    def get_frontright_rgb_image(self):
+        try:
+            return self._image_client.get_image(
+                [
+                    build_image_request(
+                        "frontright_fisheye_image",
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                        quality_percent=50,
+                    )
+                ]
+            )[0]
+        except UnsupportedPixelFormatRequestedError as e:
+            return None
+
+    def get_left_rgb_image(self):
+        try:
+            return self._image_client.get_image(
+                [
+                    build_image_request(
+                        "left_fisheye_image",
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                        quality_percent=50,
+                    )
+                ]
+            )[0]
+        except UnsupportedPixelFormatRequestedError as e:
+            return None
+
+    def get_right_rgb_image(self):
+        try:
+            return self._image_client.get_image(
+                [
+                    build_image_request(
+                        "right_fisheye_image",
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                        quality_percent=50,
+                    )
+                ]
+            )[0]
+        except UnsupportedPixelFormatRequestedError as e:
+            return None
+
+    def get_back_rgb_image(self):
+        try:
+            return self._image_client.get_image(
+                [
+                    build_image_request(
+                        "back_fisheye_image",
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                        quality_percent=50,
+                    )
+                ]
+            )[0]
+        except UnsupportedPixelFormatRequestedError as e:
+            return None
+
+    def get_images(
+        self, image_requests: list[image_pb2.ImageRequest]
+    ) -> Optional[ImageBundle]:
+        try:
+            image_responses = self._image_client.get_image(image_requests)
+        except UnsupportedPixelFormatRequestedError as e:
+            return None
+        return ImageBundle(
+            frontleft=image_responses[0],
+            frontright=image_responses[1],
+            left=image_responses[2],
+            right=image_responses[3],
+            back=image_responses[4],
+        )
+
+    def get_camera_images(self) -> ImageBundle:
+        return self.get_images(self._camera_image_requests)
+
+    def get_depth_images(self) -> ImageBundle:
+        return self.get_images(self._depth_image_requests)
+
+    def get_depth_registered_images(self) -> ImageBundle:
+        return self.get_images(self._depth_registered_image_requests)
