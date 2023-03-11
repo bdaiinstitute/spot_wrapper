@@ -1,9 +1,11 @@
-from setuptools import setup
+from setuptools import setup, find_packages
+
+print(find_packages)
 
 setup(
     name="spot_wrapper",
     version="1.0.0",
     description="Wrapper for Boston Dynamics Spot SDK",
     packages=["spot_wrapper"],
-    package_dir={"": "src"},
+    install_requires=["bosdyn-client", "bosdyn-api", "bosdyn-mission", "bosdyn-core"],
 )

@@ -3,10 +3,10 @@ name: Black formatting
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     branches:
-      - master
+      - main
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -14,4 +14,4 @@ jobs:
       - uses: actions/checkout@v2
       - uses: psf/black@stable
         with:
-          src: "spot_driver/src spot_driver/scripts"
+          src: "spot_wrapper"
