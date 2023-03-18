@@ -10,7 +10,7 @@ To install this package clone it and run
 pip3 install -e .
 ```
 
-The `-e` flag means that you will not have to reinstall the package when there are updates.
+The `-e` flag means that you will not have to reinstall the package when pulling or making changes.
 
 # Updating
 

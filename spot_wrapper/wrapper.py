@@ -1,92 +1,51 @@
-import time
-import math
-
-import bosdyn.client.auth
-from bosdyn.client import create_standard_sdk, ResponseError, RpcError
-from bosdyn.client import robot_command
-from bosdyn.client.async_tasks import AsyncPeriodicQuery, AsyncTasks
-from bosdyn.geometry import EulerZXY
-
-from bosdyn.client.robot_state import RobotStateClient
-from bosdyn.client.robot_command import (
-    RobotCommandClient,
-    RobotCommandBuilder,
-    blocking_stand,
-)
-from bosdyn.client.graph_nav import GraphNavClient
-from bosdyn.client.frame_helpers import (
-    get_odom_tform_body,
-    ODOM_FRAME_NAME,
-    BODY_FRAME_NAME,
-)
-from bosdyn.client.power import safe_power_off, PowerClient, power_on
-from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
-from bosdyn.client.image import ImageClient, build_image_request
-from bosdyn.client.docking import DockingClient, blocking_dock_robot, blocking_undock
-from bosdyn.api import image_pb2
-from bosdyn.client.point_cloud import PointCloudClient, build_pc_request
-from bosdyn.api import estop_pb2, image_pb2
-from bosdyn.api.graph_nav import graph_nav_pb2
-from bosdyn.api.graph_nav import map_pb2
-from bosdyn.api.graph_nav import nav_pb2
-from bosdyn.client.estop import EstopClient, EstopEndpoint, EstopKeepAlive
-from bosdyn.client import power
-from bosdyn.client import frame_helpers
-from bosdyn.client import math_helpers
-from bosdyn.client import robot_command
-from bosdyn.client.exceptions import InternalServerError
-
-from . import graph_nav_util
-
-from bosdyn.api import arm_command_pb2
-import bosdyn.api.robot_state_pb2 as robot_state_proto
-from bosdyn.api import basic_command_pb2
-from bosdyn.api import synchronized_command_pb2
-from bosdyn.api import robot_command_pb2
-from bosdyn.api import geometry_pb2
-from bosdyn.api import trajectory_pb2
-from bosdyn.util import seconds_to_duration
-from google.protobuf.duration_pb2 import Duration
-from google.protobuf.timestamp_pb2 import Timestamp
-
-from bosdyn.api import manipulation_api_pb2
-from bosdyn.client.manipulation_api_client import ManipulationApiClient
-
 import math
 import time
 import traceback
+import typing
 from collections import namedtuple
-from typing import Optional
 
-import cv2
-import numpy as np
-from bosdyn.client import create_standard_sdk, ResponseError, RpcError
-from bosdyn.client.async_tasks import AsyncPeriodicQuery, AsyncTasks
-
-from bosdyn.client.robot_state import RobotStateClient
-from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
-from bosdyn.client.graph_nav import GraphNavClient
-from bosdyn.client.frame_helpers import get_odom_tform_body
-from bosdyn.client.power import safe_power_off, PowerClient, power_on
-from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
-from bosdyn.client.image import (
-    ImageClient,
-    build_image_request,
-    UnsupportedPixelFormatRequestedError,
-)
+import bosdyn.client.auth
+from bosdyn.api import arm_command_pb2
+from bosdyn.api import geometry_pb2
 from bosdyn.api import image_pb2
+from bosdyn.api import manipulation_api_pb2
+from bosdyn.api import robot_command_pb2
+from bosdyn.api import robot_state_pb2
+from bosdyn.api import synchronized_command_pb2
+from bosdyn.api import trajectory_pb2
 from bosdyn.api.graph_nav import graph_nav_pb2
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.api.graph_nav import nav_pb2
+from bosdyn.client import create_standard_sdk, ResponseError, RpcError
+from bosdyn.client import frame_helpers
+from bosdyn.client import math_helpers
+from bosdyn.client import power
+from bosdyn.client import robot_command
+from bosdyn.client.async_tasks import AsyncPeriodicQuery, AsyncTasks
+from bosdyn.client.docking import DockingClient, blocking_dock_robot, blocking_undock
 from bosdyn.client.estop import (
     EstopClient,
     EstopEndpoint,
     EstopKeepAlive,
     MotorsOnError,
 )
-from bosdyn.client import frame_helpers
-from bosdyn.client import math_helpers
+from bosdyn.client.frame_helpers import get_odom_tform_body
+from bosdyn.client.graph_nav import GraphNavClient
+from bosdyn.client.image import (
+    ImageClient,
+    build_image_request,
+    UnsupportedPixelFormatRequestedError,
+)
+from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
+from bosdyn.client.manipulation_api_client import ManipulationApiClient
+from bosdyn.client.point_cloud import build_pc_request
+from bosdyn.client.power import safe_power_off, PowerClient, power_on
+from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
+from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.world_object import WorldObjectClient
+from bosdyn.geometry import EulerZXY
+from bosdyn.util import seconds_to_duration
+from google.protobuf.duration_pb2 import Duration
 
 MAX_COMMAND_DURATION = 1e5
 
@@ -456,6 +415,7 @@ class AsyncEStopMonitor(AsyncPeriodicQuery):
             # estop keepalive is ok
             pass
 
+
 class AsyncWorldObjects(AsyncPeriodicQuery):
     """Class to get world objects.  list_world_objects_async query sent to the robot at every tick.  Callback registered to defined callback function.
 
@@ -479,6 +439,7 @@ class AsyncWorldObjects(AsyncPeriodicQuery):
             callback_future = self._client.list_world_objects_async()
             callback_future.add_done_callback(self._callback)
             return callback_future
+
 
 class SpotWrapper:
     """Generic wrapper class to encompass release 1.1.4 API features as well as maintaining leases automatically"""
@@ -505,8 +466,12 @@ class SpotWrapper:
         self._logger = logger
         if rates is None:
             self._rates = {}
+        else:
+            self._rates = rates
         if callbacks is None:
             self._callbacks = {}
+        else:
+            self._callbacks = callbacks
         self._estop_timeout = estop_timeout
         self._start_estop = start_estop
         self._keep_alive = True
@@ -553,6 +518,7 @@ class SpotWrapper:
         for source in hand_image_sources:
             self._hand_image_requests.append(
                 build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
+            )
 
         self._camera_image_requests = []
         for camera_source in CAMERA_IMAGE_SOURCES:
@@ -630,8 +596,8 @@ class SpotWrapper:
                         RobotStateClient.default_service_name
                     )
                     self._world_objects_client = self._robot.ensure_client(
-                            WorldObjectClient.default_service_name
-                            )
+                        WorldObjectClient.default_service_name
+                    )
                     self._robot_command_client = self._robot.ensure_client(
                         RobotCommandClient.default_service_name
                     )
@@ -2189,6 +2155,7 @@ class SpotWrapper:
             return
 
         self._async_tasks.add_task(self.camera_task_name_to_task_mapping[image_name])
+
     def get_frontleft_rgb_image(self):
         try:
             return self._image_client.get_image(
@@ -2260,8 +2227,8 @@ class SpotWrapper:
             return None
 
     def get_images(
-        self, image_requests: list[image_pb2.ImageRequest]
-    ) -> Optional[ImageBundle]:
+        self, image_requests: typing.List[image_pb2.ImageRequest]
+    ) -> typing.Optional[ImageBundle]:
         try:
             image_responses = self._image_client.get_image(image_requests)
         except UnsupportedPixelFormatRequestedError as e:
