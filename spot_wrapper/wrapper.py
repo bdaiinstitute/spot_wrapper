@@ -442,6 +442,38 @@ class AsyncWorldObjects(AsyncPeriodicQuery):
             return callback_future
 
 
+def try_claim(func=None, *, power_on=False):
+    """
+    Decorator which tries to acquire the lease before executing the wrapped function
+
+    the _func=None and * args are required to allow this decorator to be used with or without arguments
+
+    Args:
+        func: Function that is being wrapped
+        power_on: If true, power on after claiming the lease
+
+    Returns:
+        Decorator which will wrap the decorated function
+    """
+    # If this decorator is being used without the power_on arg, return it as if it was called with that arg specified
+    if func is None:
+        return functools.partial(try_claim, power_on=power_on)
+
+    @functools.wraps(func)
+    def wrapper_try_claim(self, *args, **kwargs):
+        if self._get_lease_on_action:
+            if power_on:
+                # Power on is also wrapped by this decorator so if we request power on the lease will also be claimed
+                response = self.power_on()
+            else:
+                response = self.claim()
+            if not response[0]:
+                return response
+        return func(self, *args, **kwargs)
+
+    return wrapper_try_claim
+
+
 class SpotWrapper:
     """Generic wrapper class to encompass release 1.1.4 API features as well as maintaining leases automatically"""
 
@@ -473,7 +505,8 @@ class SpotWrapper:
             use_take_lease: Use take instead of acquire to get leases. This will forcefully take the lease from any
                             other lease owner.
             get_lease_on_action: If true, attempt to acquire a lease when performing an action which requires a
-                                 lease. Otherwise, the user must manually take the lease.
+                                 lease. Otherwise, the user must manually take the lease. This will also attempt to
+                                 power on the robot for commands which require it - stand, rollover, self-right.
         """
         self._username = username
         self._password = password
@@ -760,35 +793,6 @@ class SpotWrapper:
             self._robot_id = None
             self._lease = None
 
-    def try_claim(self, power_on=False):
-        """
-        Decorator which tries to acquire the lease before executing the wrapped function
-
-        Args:
-            power_on: If true, power on after claiming the lease
-
-        Returns:
-            Decorator which will wrap the decorated function
-        """
-
-        def decorator_try_claim(func):
-            @functools.wraps(func)
-            def wrapper_try_claim(*args, **kwargs):
-                if self._get_lease_on_action:
-                    if power_on:
-                        # Power on is also wrapped by this decorator so if we request power on the lease will also be
-                        # claimed
-                        response = self.power_on(allow_already_powered=True)
-                    else:
-                        response = self.claim()
-                    if not response[0]:
-                        return response
-                return func(*args, **kwargs)
-
-            return wrapper_try_claim
-
-        return decorator_try_claim
-
     @property
     def robot_name(self):
         return self._robot_name
@@ -921,10 +925,16 @@ class SpotWrapper:
 
     def claim(self):
         """Get a lease for the robot, a handle on the estop endpoint, and the ID of the robot."""
+        if self._lease and self._lease.is_valid_lease():
+            return True, "We already claimed the lease"
         try:
             self._robot_id = self._robot.get_id()
             self.getLease()
-            if self._start_estop:
+            if self._start_estop and not self.check_is_powered_on():
+                # If we are requested to start the estop, and the robot is not already powered on, then we reset the
+                # estop. The robot already being powered on is relevant when the lease is being taken from someone
+                # else who may already have the motor cut power authority - in this case we cannot take that
+                # authority as the robot would have to sit down.
                 self.resetEStop()
             return True, "Success"
         except (ResponseError, RpcError) as err:
@@ -983,9 +993,10 @@ class SpotWrapper:
     def getLease(self):
         """Get a lease for the robot and keep the lease alive automatically."""
         if self._use_take_lease:
-            self._lease = self._lease_client.acquire()
-        else:
             self._lease = self._lease_client.take()
+        else:
+            self._lease = self._lease_client.acquire()
+
         self._lease_keepalive = LeaseKeepAlive(self._lease_client)
 
     def releaseLease(self):
@@ -1129,20 +1140,22 @@ class SpotWrapper:
             return False, str(e), None
 
     @try_claim
-    def power_on(self, allow_already_powered=False):
+    def power_on(self):
         """Enble the motor power if e-stop is enabled."""
-        self._logger.info("Powering on")
-        if self._start_estop:
-            try:
+        # Don't bother trying to power on if we are already powered on
+        if not self.check_is_powered_on():
+            # If we are requested to start the estop, we have to acquire it when powering on.
+            if self._start_estop:
                 self.resetEStop()
-            except MotorsOnError as e:
-                if not allow_already_powered:
-                    return False, str(e)
-        try:
-            self._robot.power_on()
-        except Exception as e:
-            return False, str(e)
-        return True, "Success"
+            try:
+                self._logger.info("Powering on")
+                self._robot.power_on()
+            except Exception as e:
+                return False, str(e)
+
+            return True, "Success"
+
+        return True, "Was already powered on"
 
     def set_mobility_params(self, mobility_params):
         """Set Params for mobility and movement
