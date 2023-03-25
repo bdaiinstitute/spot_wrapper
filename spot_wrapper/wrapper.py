@@ -1,4 +1,5 @@
 import logging
+import functools
 import math
 import time
 import traceback
@@ -279,7 +280,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                 ):
                     self._spot_wrapper._is_standing = False
                 else:
-                    self._logger.warn("Stand command in unknown state")
+                    self._logger.warning("Stand command in unknown state")
                     self._spot_wrapper._is_standing = False
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
@@ -457,6 +458,7 @@ class SpotWrapper:
         rates: typing.Optional[typing.Dict] = None,
         callbacks: typing.Optional[typing.Dict] = None,
         use_take_lease: bool = False,
+        get_lease_on_action: bool = False,
     ):
         """
         Args:
@@ -471,12 +473,15 @@ class SpotWrapper:
             callbacks: Dictionary of callbacks which should be called when certain data is retrieved # TODO this should be an object to be unambiguous
             use_take_lease: Use take instead of acquire to get leases. This will forcefully take the lease from any
                             other lease owner.
+            get_lease_on_action: If true, attempt to acquire a lease when performing an action which requires a
+                                 lease. Otherwise, the user must manually take the lease.
         """
         self._username = username
         self._password = password
         self._hostname = hostname
         self._robot_name = robot_name
         self._use_take_lease = use_take_lease
+        self._get_lease_on_action = get_lease_on_action
         self._frame_prefix = ""
         if robot_name is not None:
             self._frame_prefix = robot_name + "/"
@@ -584,7 +589,7 @@ class SpotWrapper:
                 authenticated = True
             except RpcError as err:
                 sleep_secs = 15
-                self._logger.warn(
+                self._logger.warning(
                     "Failed to communicate with robot: {}\nEnsure the robot is powered on and you can "
                     "ping {}. Robot may still be booting. Will retry in {} seconds".format(
                         err, self._hostname, sleep_secs
@@ -601,7 +606,7 @@ class SpotWrapper:
                 )
             except Exception as e:
                 self._point_cloud_client = None
-                self._logger.warn("No point cloud services are available.")
+                self._logger.warning("No point cloud services are available.")
 
         if self._robot:
             # Clients
@@ -644,7 +649,7 @@ class SpotWrapper:
                     initialised = True
                 except Exception as e:
                     sleep_secs = 15
-                    self._logger.warn(
+                    self._logger.warning(
                         "Unable to create client service: {}. This usually means the robot hasn't "
                         "finished booting yet. Will wait {} seconds and try again.".format(
                             e, sleep_secs
@@ -755,6 +760,27 @@ class SpotWrapper:
 
             self._robot_id = None
             self._lease = None
+
+    def try_claim(self, func):
+        """
+        Decorator which tries to acquire the lease before executing the wrapped function
+
+        Args:
+            func: function to wrap
+
+        Returns:
+            Return value of the wrapped function
+        """
+
+        @functools.wraps(func)
+        def wrapper_try_claim(*args, **kwargs):
+            if self._get_lease_on_action:
+                response = self.claim()
+                if not response[0]:
+                    return response
+            return func(*args, **kwargs)
+
+        return wrapper_try_claim
 
     @property
     def robot_name(self):
@@ -998,22 +1024,26 @@ class SpotWrapper:
             )
             return False, str(e), None
 
+    @try_claim
     def stop(self):
         """Stop the robot's motion."""
         response = self._robot_command(RobotCommandBuilder.stop_command())
         return response[0], response[1]
 
+    @try_claim
     def self_right(self):
         """Have the robot self-right itself."""
         response = self._robot_command(RobotCommandBuilder.selfright_command())
         return response[0], response[1]
 
+    @try_claim
     def sit(self):
         """Stop the robot's motion and sit down if able."""
         response = self._robot_command(RobotCommandBuilder.synchro_sit_command())
         self._last_sit_command = response[2]
         return response[0], response[1]
 
+    @try_claim
     def simple_stand(self, monitor_command=True):
         """If the e-stop is enabled, and the motor power is enabled, stand the robot up."""
         response = self.power_on(allow_already_powered=True)
@@ -1026,6 +1056,7 @@ class SpotWrapper:
             self._last_stand_command = response[2]
         return response[0], response[1]
 
+    @try_claim
     def stand(
         self, monitor_command=True, body_height=0, body_yaw=0, body_pitch=0, body_roll=0
     ):
@@ -1061,6 +1092,7 @@ class SpotWrapper:
             self._last_stand_command = response[2]
         return response[0], response[1]
 
+    @try_claim
     def rollover(self):
         response = self.power_on(allow_already_powered=True)
         if not response[0]:
@@ -1072,6 +1104,7 @@ class SpotWrapper:
             return response[0], response[1]
         return False, "Call /sit first"
 
+    @try_claim
     def safe_power_off(self):
         """Stop the robot's motion and sit if possible.  Once sitting, disable motor power."""
         response = self._robot_command(RobotCommandBuilder.safe_power_off_command())
@@ -1087,18 +1120,10 @@ class SpotWrapper:
         except Exception as e:
             return False, str(e), None
 
-    def power_on(self):
-        """Enble the motor power if e-stop is enabled."""
-        try:
-            power.power_on(self._power_client)
-            return True, "Success"
-        except Exception as e:
-            return False, str(e)
-
-    def ros2_power_on(self, allow_already_powered=False):
+    @try_claim
+    def power_on(self, allow_already_powered=False):
         """Enble the motor power if e-stop is enabled."""
         self._logger.info("Powering on")
-        self.claim()
         if self._start_estop:
             try:
                 self.resetEStop()
@@ -1128,6 +1153,7 @@ class SpotWrapper:
             object_types, time_start_point
         )
 
+    @try_claim
     def velocity_cmd(self, v_x, v_y, v_rot, cmd_duration=0.125):
         """Send a velocity motion command to the robot.
 
@@ -1148,6 +1174,7 @@ class SpotWrapper:
         self._last_velocity_command_time = end_time
         return response[0], response[1]
 
+    @try_claim
     def trajectory_cmd(
         self,
         goal_x,
@@ -1246,6 +1273,7 @@ class SpotWrapper:
             )
         ]
 
+    @try_claim
     def battery_change_pose(self, dir_hint=1):
         """Robot sit down and roll on to it its side for easier battery access"""
         response = self._robot_command(
@@ -1253,6 +1281,7 @@ class SpotWrapper:
         )
         return response[0], response[1]
 
+    @try_claim
     def navigate_to(
         self,
         upload_path,
@@ -1297,6 +1326,7 @@ class SpotWrapper:
         return resp
 
     # Arm ############################################
+    @try_claim
     def ensure_arm_power_and_stand(self):
         if not self._robot.has_arm():
             return False, "Spot with an arm is required for this service"
@@ -1323,6 +1353,7 @@ class SpotWrapper:
 
         return True, "Spot has an arm, is powered on, and standing"
 
+    @try_claim
     def arm_stow(self):
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -1343,6 +1374,7 @@ class SpotWrapper:
 
         return True, "Stow arm success"
 
+    @try_claim
     def arm_unstow(self):
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -1363,6 +1395,7 @@ class SpotWrapper:
 
         return True, "Unstow arm success"
 
+    @try_claim
     def arm_carry(self):
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -1401,6 +1434,7 @@ class SpotWrapper:
         )
         return RobotCommandBuilder.build_synchro_command(arm_sync_robot_cmd)
 
+    @try_claim
     def arm_joint_move(self, joint_targets):
         # All perspectives are given when looking at the robot from behind after the unstow service is called
         # Joint1: 0.0 arm points to the front. positive: turn left, negative: turn right)
@@ -1418,27 +1452,27 @@ class SpotWrapper:
         # Values after unstow are: [0.0, -0.9, 1.8, 0.0, -0.9, 0.0]
         if abs(joint_targets[0]) > 3.14:
             msg = "Joint 1 has to be between -3.14 and 3.14"
-            self._logger.warn(msg)
+            self._logger.warning(msg)
             return False, msg
         elif joint_targets[1] > 0.4 or joint_targets[1] < -3.13:
             msg = "Joint 2 has to be between -3.13 and 0.4"
-            self._logger.warn(msg)
+            self._logger.warning(msg)
             return False, msg
         elif joint_targets[2] > 3.14 or joint_targets[2] < 0.0:
             msg = "Joint 3 has to be between 0.0 and 3.14"
-            self._logger.warn(msg)
+            self._logger.warning(msg)
             return False, msg
         elif abs(joint_targets[3]) > 2.79253:
             msg = "Joint 4 has to be between -2.79253 and 2.79253"
-            self._logger.warn(msg)
+            self._logger.warning(msg)
             return False, msg
         elif abs(joint_targets[4]) > 1.8326:
             msg = "Joint 5 has to be between -1.8326 and 1.8326"
-            self._logger.warn(msg)
+            self._logger.warning(msg)
             return False, msg
         elif abs(joint_targets[5]) > 2.87:
             msg = "Joint 6 has to be between -2.87 and 2.87"
-            self._logger.warn(msg)
+            self._logger.warning(msg)
             return False, msg
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -1481,6 +1515,7 @@ class SpotWrapper:
         except Exception as e:
             return False, "Exception occured during arm movement: " + str(e)
 
+    @try_claim
     def force_trajectory(self, data):
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -1550,6 +1585,7 @@ class SpotWrapper:
 
         return True, "Moved arm successfully"
 
+    @try_claim
     def gripper_open(self):
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -1570,6 +1606,7 @@ class SpotWrapper:
 
         return True, "Open gripper success"
 
+    @try_claim
     def gripper_close(self):
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -1590,6 +1627,7 @@ class SpotWrapper:
 
         return True, "Closed gripper successfully"
 
+    @try_claim
     def gripper_angle_open(self, gripper_ang):
         # takes an angle between 0 (closed) and 90 (fully opened) and opens the
         # gripper at this angle
@@ -1618,6 +1656,7 @@ class SpotWrapper:
 
         return True, "Opened gripper successfully"
 
+    @try_claim
     def hand_pose(self, data):
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -1688,6 +1727,7 @@ class SpotWrapper:
 
         return True, "Moved arm successfully"
 
+    @try_claim
     def grasp_3d(self, frame, object_rt_frame):
         try:
             frm = str(frame)
@@ -1881,7 +1921,7 @@ class SpotWrapper:
                 "Upload complete! The robot is currently not localized to the map; please localize",
                 "the robot using commands (2) or (3) before attempting a navigation command.",
             )
-
+    @try_claim
     def _navigate_to(self, *args):
         """Navigate to a specific waypoint."""
         # Take the first argument as the destination waypoint.
@@ -1957,6 +1997,7 @@ class SpotWrapper:
         else:
             return False, "Navigation command is not complete yet."
 
+    @try_claim
     def _navigate_route(self, *args):
         """Navigate through a specific route of waypoints."""
         if len(args) < 1:
@@ -2039,6 +2080,7 @@ class SpotWrapper:
         """Clear the state of the map on the robot, removing all waypoints and edges."""
         return self._graph_nav_client.clear_graph(lease=self._lease.lease_proto)
 
+    @try_claim
     def toggle_power(self, should_power_on):
         """Power the robot on/off dependent on the current power state."""
         is_powered_on = self.check_is_powered_on()
@@ -2125,6 +2167,7 @@ class SpotWrapper:
                     )
         return None
 
+    @try_claim
     def dock(self, dock_id):
         """Dock the robot to the docking station with fiducial ID [dock_id]."""
         try:
@@ -2141,6 +2184,7 @@ class SpotWrapper:
         except Exception as e:
             return False, str(e)
 
+    @try_claim
     def undock(self, timeout=20):
         """Power motors on and undock the robot from the station."""
         try:
@@ -2163,13 +2207,13 @@ class SpotWrapper:
         task_to_add = self.camera_task_name_to_task_mapping[image_name]
 
         if task_to_add == self._hand_image_task and not self._robot.has_arm():
-            self._logger.warn(
+            self._logger.warning(
                 "Robot has no arm, therefore the arm image task can not be added"
             )
             return
 
         if task_to_add in self._async_tasks._tasks:
-            self._logger.warn(
+            self._logger.warning(
                 f"Task {image_name} already in async task list, will not be added again"
             )
             return
