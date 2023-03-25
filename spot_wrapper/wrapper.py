@@ -1019,13 +1019,13 @@ class SpotWrapper:
             timesync_endpoint: (optional) Time sync endpoint
         """
         try:
-            id = self._robot_command_client.robot_command(
+            command_id = self._robot_command_client.robot_command(
                 lease=None,
                 command=command_proto,
                 end_time_secs=end_time_secs,
                 timesync_endpoint=timesync_endpoint,
             )
-            return True, "Success", id
+            return True, "Success", command_id
         except Exception as e:
             self._logger.error(
                 "Unable to execute robot command, exception was" + str(e)
@@ -1255,14 +1255,6 @@ class SpotWrapper:
         if response[0]:
             self._last_trajectory_command = response[2]
         return response[0], response[1]
-
-    def robot_command(self, robot_command):
-        end_time = time.time() + MAX_COMMAND_DURATION
-        return self._robot_command(
-            robot_command,
-            end_time_secs=end_time,
-            timesync_endpoint=self._robot.time_sync.endpoint,
-        )
 
     def get_robot_command_feedback(self, cmd_id):
         return self._robot_command_client.robot_command_feedback(cmd_id)
