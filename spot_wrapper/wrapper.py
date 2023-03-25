@@ -1,3 +1,4 @@
+import logging
 import math
 import time
 import traceback
@@ -446,20 +447,36 @@ class SpotWrapper:
 
     def __init__(
         self,
-        username,
-        password,
-        hostname,
-        robot_name,
-        logger,
-        start_estop,
-        estop_timeout=9.0,
-        rates=None,
-        callbacks=None,
+        username: str,
+        password: str,
+        hostname: str,
+        robot_name: str,
+        logger: logging.Logger,
+        start_estop: bool = True,
+        estop_timeout: float = 9.0,
+        rates: typing.Optional[typing.Dict] = None,
+        callbacks: typing.Optional[typing.Dict] = None,
+        use_take_lease: bool = False,
     ):
+        """
+        Args:
+            username: Username for authentication with the robot
+            password: Password for authentication with the robot
+            hostname: ip address or hostname of the robot
+            robot_name: Optional name of the robot
+            start_estop: If true, the wrapper will be an estop endpoint
+            estop_timeout: Timeout for the estop in seconds. The SDK will check in with the wrapper at a rate of
+                           estop_timeout/3 and if there is no communication the robot will execute a gentle stop.
+            rates: Dictionary of rates to apply when retrieving various data from the robot # TODO this should be an object to be unambiguous
+            callbacks: Dictionary of callbacks which should be called when certain data is retrieved # TODO this should be an object to be unambiguous
+            use_take_lease: Use take instead of acquire to get leases. This will forcefully take the lease from any
+                            other lease owner.
+        """
         self._username = username
         self._password = password
         self._hostname = hostname
         self._robot_name = robot_name
+        self._use_take_lease = use_take_lease
         self._frame_prefix = ""
         if robot_name is not None:
             self._frame_prefix = robot_name + "/"
@@ -931,7 +948,10 @@ class SpotWrapper:
 
     def getLease(self):
         """Get a lease for the robot and keep the lease alive automatically."""
-        self._lease = self._lease_client.acquire()
+        if self._use_take_lease:
+            self._lease = self._lease_client.acquire()
+        else:
+            self._lease = self._lease_client.take()
         self._lease_keepalive = LeaseKeepAlive(self._lease_client)
 
     def releaseLease(self):
