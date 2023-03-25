@@ -648,46 +648,46 @@ class SpotWrapper:
                 self._robot_state_client,
                 self._logger,
                 max(0.0, self._rates.get("robot_state", 0.0)),
-                self._callbacks.get("robot_state", lambda: None),
+                self._callbacks.get("robot_state", None),
             )
             self._robot_metrics_task = AsyncMetrics(
                 self._robot_state_client,
                 self._logger,
                 max(0.0, self._rates.get("metrics", 0.0)),
-                self._callbacks.get("metrics", lambda: None),
+                self._callbacks.get("metrics", None),
             )
             self._lease_task = AsyncLease(
                 self._lease_client,
                 self._logger,
                 max(0.0, self._rates.get("lease", 0.0)),
-                self._callbacks.get("lease", lambda: None),
+                self._callbacks.get("lease", None),
             )
             self._front_image_task = AsyncImageService(
                 self._image_client,
                 self._logger,
                 max(0.0, self._rates.get("front_image", 0.0)),
-                self._callbacks.get("front_image", lambda: None),
+                self._callbacks.get("front_image", None),
                 self._front_image_requests,
             )
             self._side_image_task = AsyncImageService(
                 self._image_client,
                 self._logger,
                 max(0.0, self._rates.get("side_image", 0.0)),
-                self._callbacks.get("side_image", lambda: None),
+                self._callbacks.get("side_image", None),
                 self._side_image_requests,
             )
             self._rear_image_task = AsyncImageService(
                 self._image_client,
                 self._logger,
                 max(0.0, self._rates.get("rear_image", 0.0)),
-                self._callbacks.get("rear_image", lambda: None),
+                self._callbacks.get("rear_image", None),
                 self._rear_image_requests,
             )
             self._hand_image_task = AsyncImageService(
                 self._image_client,
                 self._logger,
                 max(0.0, self._rates.get("hand_image", 0.0)),
-                self._callbacks.get("hand_image", lambda: None),
+                self._callbacks.get("hand_image", None),
                 self._hand_image_requests,
             )
 
@@ -701,7 +701,7 @@ class SpotWrapper:
                 self._world_objects_client,
                 self._logger,
                 10.0,
-                self._callbacks.get("world_objects", lambda: None),
+                self._callbacks.get("world_objects", None),
             )
 
             self._estop_endpoint = None
@@ -722,7 +722,7 @@ class SpotWrapper:
                     self._point_cloud_client,
                     self._logger,
                     max(0.0, self._rates.get("point_cloud", 0.0)),
-                    self._callbacks.get("lidar_points", lambda: None),
+                    self._callbacks.get("lidar_points", None),
                     self._point_cloud_requests,
                 )
                 robot_tasks.append(self._point_cloud_task)
