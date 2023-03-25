@@ -1,5 +1,5 @@
-import logging
 import functools
+import logging
 import math
 import time
 import traceback
@@ -21,7 +21,6 @@ from bosdyn.api.graph_nav import nav_pb2
 from bosdyn.client import create_standard_sdk, ResponseError, RpcError
 from bosdyn.client import frame_helpers
 from bosdyn.client import math_helpers
-from bosdyn.client import power
 from bosdyn.client import robot_command
 from bosdyn.client.async_tasks import AsyncPeriodicQuery, AsyncTasks
 from bosdyn.client.docking import DockingClient, blocking_dock_robot, blocking_undock
@@ -761,26 +760,34 @@ class SpotWrapper:
             self._robot_id = None
             self._lease = None
 
-    def try_claim(self, func):
+    def try_claim(self, power_on=False):
         """
         Decorator which tries to acquire the lease before executing the wrapped function
 
         Args:
-            func: function to wrap
+            power_on: If true, power on after claiming the lease
 
         Returns:
-            Return value of the wrapped function
+            Decorator which will wrap the decorated function
         """
 
-        @functools.wraps(func)
-        def wrapper_try_claim(*args, **kwargs):
-            if self._get_lease_on_action:
-                response = self.claim()
-                if not response[0]:
-                    return response
-            return func(*args, **kwargs)
+        def decorator_try_claim(func):
+            @functools.wraps(func)
+            def wrapper_try_claim(*args, **kwargs):
+                if self._get_lease_on_action:
+                    if power_on:
+                        # Power on is also wrapped by this decorator so if we request power on the lease will also be
+                        # claimed
+                        response = self.power_on(allow_already_powered=True)
+                    else:
+                        response = self.claim()
+                    if not response[0]:
+                        return response
+                return func(*args, **kwargs)
 
-        return wrapper_try_claim
+            return wrapper_try_claim
+
+        return decorator_try_claim
 
     @property
     def robot_name(self):
@@ -1030,7 +1037,7 @@ class SpotWrapper:
         response = self._robot_command(RobotCommandBuilder.stop_command())
         return response[0], response[1]
 
-    @try_claim
+    @try_claim(power_on=True)
     def self_right(self):
         """Have the robot self-right itself."""
         response = self._robot_command(RobotCommandBuilder.selfright_command())
@@ -1043,12 +1050,9 @@ class SpotWrapper:
         self._last_sit_command = response[2]
         return response[0], response[1]
 
-    @try_claim
+    @try_claim(power_on=True)
     def simple_stand(self, monitor_command=True):
         """If the e-stop is enabled, and the motor power is enabled, stand the robot up."""
-        response = self.power_on(allow_already_powered=True)
-        if not response[0]:
-            return response
         response = self._robot_command(
             RobotCommandBuilder.synchro_stand_command(params=self._mobility_params)
         )
@@ -1056,7 +1060,7 @@ class SpotWrapper:
             self._last_stand_command = response[2]
         return response[0], response[1]
 
-    @try_claim
+    @try_claim(power_on=True)
     def stand(
         self, monitor_command=True, body_height=0, body_yaw=0, body_pitch=0, body_roll=0
     ):
@@ -1064,7 +1068,7 @@ class SpotWrapper:
         If the e-stop is enabled, and the motor power is enabled, stand the robot up.
         Executes a stand command, but one where the robot will assume the pose specified by the given parameters.
 
-        If no parameters are given this behave just as a normal stand command
+        If no parameters are given this behaves just as a normal stand command
 
         Args:
             monitor_command: Track the state of the command in the async idle, which sets is_standing
@@ -1092,17 +1096,20 @@ class SpotWrapper:
             self._last_stand_command = response[2]
         return response[0], response[1]
 
-    @try_claim
-    def rollover(self):
-        response = self.power_on(allow_already_powered=True)
-        if not response[0]:
-            return response
+    @try_claim(power_on=True)
+    def battery_change_pose(self, dir_hint: int = 1):
+        """
+        Put the robot into the battery change pose
+
+        Args:
+            dir_hint: 1 rolls to the right side of the robot, 2 to the left
+        """
         if self._is_sitting:
             response = self._robot_command(
-                RobotCommandBuilder.battery_change_pose_command(1)
-            )  # 1: Rightside
+                RobotCommandBuilder.battery_change_pose_command(dir_hint)
+            )
             return response[0], response[1]
-        return False, "Call /sit first"
+        return False, "Call sit before trying to roll over"
 
     @try_claim
     def safe_power_off(self):
@@ -1272,14 +1279,6 @@ class SpotWrapper:
                 ids.items(), key=lambda id: int(id[0].replace("waypoint_", ""))
             )
         ]
-
-    @try_claim
-    def battery_change_pose(self, dir_hint=1):
-        """Robot sit down and roll on to it its side for easier battery access"""
-        response = self._robot_command(
-            RobotCommandBuilder.battery_change_pose_command(dir_hint)
-        )
-        return response[0], response[1]
 
     @try_claim
     def navigate_to(
@@ -1921,6 +1920,7 @@ class SpotWrapper:
                 "Upload complete! The robot is currently not localized to the map; please localize",
                 "the robot using commands (2) or (3) before attempting a navigation command.",
             )
+
     @try_claim
     def _navigate_to(self, *args):
         """Navigate to a specific waypoint."""
