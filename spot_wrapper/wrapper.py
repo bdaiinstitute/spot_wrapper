@@ -616,7 +616,7 @@ class SpotWrapper:
             try:
                 self._logger.info("Trying to authenticate with robot...")
                 self._robot.authenticate(self._username, self._password)
-                self._robot.start_time_sync()
+                self._robot.time_sync.wait_for_sync(10)
                 self._logger.info("Successfully authenticated.")
                 authenticated = True
             except RpcError as err:
