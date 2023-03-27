@@ -1,6 +1,6 @@
 # Spot Wrapper
 
-This Python package is a wrapper around the Boston Dynamics Spot SDK, intended as a united point of entry to the SDK for use with the spot_ros and spot_ros2 packages.
+This Python package is a wrapper around the [Boston Dynamics Spot SDK](https://dev.bostondynamics.com), intended as a united point of entry to the SDK for use with the [spot_ros](https://github.com/heuristicus/spot_ros) and [spot_ros2](https://github.com/bdaiinstitute/spot_ros2) packages.
 
 # Installation
 
