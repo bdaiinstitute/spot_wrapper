@@ -491,7 +491,7 @@ class SpotWrapper:
         callbacks: typing.Optional[typing.Dict] = None,
         use_take_lease: bool = False,
         get_lease_on_action: bool = False,
-        continually_try_stand: bool = True
+        continually_try_stand: bool = True,
     ):
         """
         Args:
@@ -1276,8 +1276,11 @@ class SpotWrapper:
 
     def robot_command(self, robot_command):
         end_time = time.time() + MAX_COMMAND_DURATION
-        return self._robot_command(robot_command, end_time_secs=end_time,
-                                   timesync_endpoint=self._robot.time_sync.endpoint)
+        return self._robot_command(
+            robot_command,
+            end_time_secs=end_time,
+            timesync_endpoint=self._robot.time_sync.endpoint
+        )
 
     def get_robot_command_feedback(self, cmd_id):
         return self._robot_command_client.robot_command_feedback(cmd_id)
