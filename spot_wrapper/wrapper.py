@@ -1279,7 +1279,7 @@ class SpotWrapper:
         return self._robot_command(
             robot_command,
             end_time_secs=end_time,
-            timesync_endpoint=self._robot.time_sync.endpoint
+            timesync_endpoint=self._robot.time_sync.endpoint,
         )
 
     def get_robot_command_feedback(self, cmd_id):
