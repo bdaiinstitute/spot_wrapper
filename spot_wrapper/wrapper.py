@@ -88,7 +88,6 @@ hand_image_sources = [
 """List of image sources for hand image periodic query"""
 
 
-<<<<<<< HEAD:spot_wrapper/wrapper.py
 # TODO: Missing Hand images
 CAMERA_IMAGE_SOURCES = [
     "frontleft_fisheye_image",
@@ -114,7 +113,8 @@ DEPTH_REGISTERED_IMAGE_SOURCES = [
 ImageBundle = namedtuple(
     "ImageBundle", ["frontleft", "frontright", "left", "right", "back"]
 )
-=======
+
+
 def robotToLocalTime(timestamp, robot):
     """Takes a timestamp and an estimated skew and return seconds and nano seconds in local time
 
@@ -139,7 +139,6 @@ def robotToLocalTime(timestamp, robot):
         rtime.nanos = 0
 
     return rtime
->>>>>>> drs/feature/spot-cam:spot_driver/src/spot_driver/spot_wrapper.py
 
 
 class AsyncRobotState(AsyncPeriodicQuery):
@@ -643,34 +642,12 @@ class SpotWrapper:
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
 
-        authenticated = False
-        while not authenticated:
-            try:
-                self._logger.info("Trying to authenticate with robot...")
-                self._robot.authenticate(self._username, self._password)
-                self._robot.time_sync.wait_for_sync(10)
-                self._logger.info("Successfully authenticated.")
-                authenticated = True
-            except RpcError as err:
-                sleep_secs = 15
-                self._logger.warning(
-                    "Failed to communicate with robot: {}\nEnsure the robot is powered on and you can "
-                    "ping {}. Robot may still be booting. Will retry in {} seconds".format(
-                        err, self._hostname, sleep_secs
-                    )
-                )
-                time.sleep(sleep_secs)
-            except bosdyn.client.auth.InvalidLoginError as err:
-                self._logger.error("Failed to log in to robot: {}".format(err))
-                self._valid = False
-                return
-            try:
-                self._point_cloud_client = self._robot.ensure_client(
-                    VELODYNE_SERVICE_NAME
-                )
-            except Exception as e:
-                self._point_cloud_client = None
-                self._logger.warning("No point cloud services are available.")
+        authenticated = self.authenticate(
+            self._robot, self._username, self._password, self._logger
+        )
+        if not authenticated:
+            self._valid = False
+            return
 
         if self._robot:
             # Clients
@@ -706,6 +683,14 @@ class SpotWrapper:
                     self._docking_client = self._robot.ensure_client(
                         DockingClient.default_service_name
                     )
+                    try:
+                        self._point_cloud_client = self._robot.ensure_client(
+                            VELODYNE_SERVICE_NAME
+                        )
+                    except Exception as e:
+                        self._point_cloud_client = None
+                        self._logger.info("No point cloud services are available.")
+
                     if self._robot.has_arm():
                         self._manipulation_client = self._robot.ensure_client(
                             ManipulationApiClient.default_service_name
@@ -826,14 +811,13 @@ class SpotWrapper:
             self._lease = None
 
     @staticmethod
-    def authenticate(robot, hostname, username, password, logger):
+    def authenticate(robot, username, password, logger):
         """
         Authenticate with a robot through the bosdyn API. A blocking function which will wait until authenticated (if
         the robot is still booting) or login fails
 
         Args:
             robot: Robot object which we are authenticating with
-            hostname: Hostname or IP address of the robot
             username: Username to authenticate with
             password: Password for the given username
             logger: Logger with which to print messages
@@ -854,7 +838,7 @@ class SpotWrapper:
                 logger.warn(
                     "Failed to communicate with robot: {}\nEnsure the robot is powered on and you can "
                     "ping {}. Robot may still be booting. Will retry in {} seconds".format(
-                        err, hostname, sleep_secs
+                        err, robot.address, sleep_secs
                     )
                 )
                 time.sleep(sleep_secs)
