@@ -1,4 +1,0 @@
-# Name of the sound to play
-string name
-# Multiplier on the sound volume
-float32 gain

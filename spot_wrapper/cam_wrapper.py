@@ -24,8 +24,8 @@ from bosdyn.client.payload import PayloadClient
 from bosdyn.api.spot_cam.ptz_pb2 import PtzDescription, PtzVelocity, PtzPosition
 from bosdyn.api.spot_cam import audio_pb2
 
-from spot_cam.webrtc_client import WebRTCClient
-from spot_driver.spot_wrapper import SpotWrapper
+from spot_wrapper.cam_webrtc_client import WebRTCClient
+from spot_wrapper.wrapper import SpotWrapper
 
 
 class LightingWrapper:
