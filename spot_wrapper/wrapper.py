@@ -367,6 +367,7 @@ class AsyncIdle(AsyncPeriodicQuery):
         # command can cause other commands to be interrupted before they get to start
         if (
             self._spot_wrapper.is_standing
+            and self._spot_wrapper.continually_try_stand
             and not self._spot_wrapper.is_moving
             and self._spot_wrapper._last_trajectory_command is not None
             and self._spot_wrapper._last_stand_command is not None
@@ -490,6 +491,7 @@ class SpotWrapper:
         callbacks: typing.Optional[typing.Dict] = None,
         use_take_lease: bool = False,
         get_lease_on_action: bool = False,
+        continually_try_stand: bool = True,
     ):
         """
         Args:
@@ -507,6 +509,8 @@ class SpotWrapper:
             get_lease_on_action: If true, attempt to acquire a lease when performing an action which requires a
                                  lease. Otherwise, the user must manually take the lease. This will also attempt to
                                  power on the robot for commands which require it - stand, rollover, self-right.
+            continually_try_stand: If the robot expects to be standing and is not, command a stand.  This can result
+                                   in strange behavior if you use the wrapper and tablet together.
         """
         self._username = username
         self._password = password
@@ -514,6 +518,7 @@ class SpotWrapper:
         self._robot_name = robot_name
         self._use_take_lease = use_take_lease
         self._get_lease_on_action = get_lease_on_action
+        self._continually_try_stand = continually_try_stand
         self._frame_prefix = ""
         if robot_name is not None:
             self._frame_prefix = robot_name + "/"
@@ -1055,7 +1060,7 @@ class SpotWrapper:
         response = self._robot_command(RobotCommandBuilder.selfright_command())
         return response[0], response[1]
 
-    @try_claim
+    @try_claim(power_on=True)
     def sit(self):
         """Stop the robot's motion and sit down if able."""
         response = self._robot_command(RobotCommandBuilder.synchro_sit_command())
@@ -1268,6 +1273,14 @@ class SpotWrapper:
         if response[0]:
             self._last_trajectory_command = response[2]
         return response[0], response[1]
+
+    def robot_command(self, robot_command):
+        end_time = time.time() + MAX_COMMAND_DURATION
+        return self._robot_command(
+            robot_command,
+            end_time_secs=end_time,
+            timesync_endpoint=self._robot.time_sync.endpoint,
+        )
 
     def get_robot_command_feedback(self, cmd_id):
         return self._robot_command_client.robot_command_feedback(cmd_id)
