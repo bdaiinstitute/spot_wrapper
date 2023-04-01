@@ -643,7 +643,7 @@ class SpotCamWrapper:
 
         self.robot = self.sdk.create_robot(self._hostname)
         SpotWrapper.authenticate(
-            self.robot, self._hostname, self._username, self._password, self._logger
+            self.robot, self._username, self._password, self._logger
         )
 
         self.payload_client: PayloadClient = self.robot.ensure_client(
