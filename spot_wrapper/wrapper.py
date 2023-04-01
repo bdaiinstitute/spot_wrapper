@@ -88,6 +88,7 @@ hand_image_sources = [
 """List of image sources for hand image periodic query"""
 
 
+<<<<<<< HEAD:spot_wrapper/wrapper.py
 # TODO: Missing Hand images
 CAMERA_IMAGE_SOURCES = [
     "frontleft_fisheye_image",
@@ -113,6 +114,32 @@ DEPTH_REGISTERED_IMAGE_SOURCES = [
 ImageBundle = namedtuple(
     "ImageBundle", ["frontleft", "frontright", "left", "right", "back"]
 )
+=======
+def robotToLocalTime(timestamp, robot):
+    """Takes a timestamp and an estimated skew and return seconds and nano seconds in local time
+
+    Args:
+        timestamp: google.protobuf.Timestamp
+        robot: Robot handle to use to get the time skew
+    Returns:
+        google.protobuf.Timestamp
+    """
+
+    rtime = Timestamp()
+
+    rtime.seconds = timestamp.seconds - robot.time_sync.endpoint.clock_skew.seconds
+    rtime.nanos = timestamp.nanos - robot.time_sync.endpoint.clock_skew.nanos
+    if rtime.nanos < 0:
+        rtime.nanos = rtime.nanos + 1000000000
+        rtime.seconds = rtime.seconds - 1
+
+    # Workaround for timestamps being incomplete
+    if rtime.seconds < 0:
+        rtime.seconds = 0
+        rtime.nanos = 0
+
+    return rtime
+>>>>>>> drs/feature/spot-cam:spot_driver/src/spot_driver/spot_wrapper.py
 
 
 class AsyncRobotState(AsyncPeriodicQuery):
@@ -798,6 +825,44 @@ class SpotWrapper:
             self._robot_id = None
             self._lease = None
 
+    @staticmethod
+    def authenticate(robot, hostname, username, password, logger):
+        """
+        Authenticate with a robot through the bosdyn API. A blocking function which will wait until authenticated (if
+        the robot is still booting) or login fails
+
+        Args:
+            robot: Robot object which we are authenticating with
+            hostname: Hostname or IP address of the robot
+            username: Username to authenticate with
+            password: Password for the given username
+            logger: Logger with which to print messages
+
+        Returns:
+
+        """
+        authenticated = False
+        while not authenticated:
+            try:
+                logger.info("Trying to authenticate with robot...")
+                robot.authenticate(username, password)
+                robot.start_time_sync()
+                logger.info("Successfully authenticated.")
+                authenticated = True
+            except RpcError as err:
+                sleep_secs = 15
+                logger.warn(
+                    "Failed to communicate with robot: {}\nEnsure the robot is powered on and you can "
+                    "ping {}. Robot may still be booting. Will retry in {} seconds".format(
+                        err, hostname, sleep_secs
+                    )
+                )
+                time.sleep(sleep_secs)
+            except bosdyn.client.auth.InvalidLoginError as err:
+                logger.error("Failed to log in to robot: {}".format(err))
+
+        return authenticated
+
     @property
     def robot_name(self):
         return self._robot_name
@@ -912,21 +977,7 @@ class SpotWrapper:
         Returns:
             google.protobuf.Timestamp
         """
-
-        rtime = Timestamp()
-
-        rtime.seconds = timestamp.seconds - self.time_skew.seconds
-        rtime.nanos = timestamp.nanos - self.time_skew.nanos
-        if rtime.nanos < 0:
-            rtime.nanos = rtime.nanos + 1000000000
-            rtime.seconds = rtime.seconds - 1
-
-        # Workaround for timestamps being incomplete
-        if rtime.seconds < 0:
-            rtime.seconds = 0
-            rtime.nanos = 0
-
-        return rtime
+        return robotToLocalTime(timestamp, self._robot)
 
     def claim(self):
         """Get a lease for the robot, a handle on the estop endpoint, and the ID of the robot."""
