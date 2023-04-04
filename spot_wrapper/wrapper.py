@@ -830,7 +830,7 @@ class SpotWrapper:
             try:
                 logger.info("Trying to authenticate with robot...")
                 robot.authenticate(username, password)
-                robot.start_time_sync()
+                robot.time_sync.wait_for_sync(10)
                 logger.info("Successfully authenticated.")
                 authenticated = True
             except RpcError as err:
@@ -844,6 +844,7 @@ class SpotWrapper:
                 time.sleep(sleep_secs)
             except bosdyn.client.auth.InvalidLoginError as err:
                 logger.error("Failed to log in to robot: {}".format(err))
+                raise err
 
         return authenticated
 
