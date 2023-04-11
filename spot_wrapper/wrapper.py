@@ -393,7 +393,7 @@ class AsyncIdle(AsyncPeriodicQuery):
         # command can cause other commands to be interrupted before they get to start
         if (
             self._spot_wrapper.is_standing
-            and self._spot_wrapper.continually_try_stand
+            and self._spot_wrapper._continually_try_stand
             and not self._spot_wrapper.is_moving
             and self._spot_wrapper._last_trajectory_command is not None
             and self._spot_wrapper._last_stand_command is not None
@@ -504,6 +504,8 @@ def try_claim(func=None, *, power_on=False):
 class SpotWrapper:
     """Generic wrapper class to encompass release 1.1.4 API features as well as maintaining leases automatically"""
 
+    SPOT_CLIENT_NAME = "ros_spot"
+
     def __init__(
         self,
         username: str,
@@ -560,6 +562,7 @@ class SpotWrapper:
         self._estop_timeout = estop_timeout
         self._start_estop = start_estop
         self._keep_alive = True
+        self._lease_keepalive = None
         self._valid = True
 
         self._mobility_params = RobotCommandBuilder.mobility_params()
@@ -633,7 +636,7 @@ class SpotWrapper:
             )
 
         try:
-            self._sdk = create_standard_sdk("ros_spot")
+            self._sdk = create_standard_sdk(self.SPOT_CLIENT_NAME)
         except Exception as e:
             self._logger.error("Error creating SDK object: %s", e)
             self._valid = False
@@ -966,8 +969,13 @@ class SpotWrapper:
 
     def claim(self):
         """Get a lease for the robot, a handle on the estop endpoint, and the ID of the robot."""
-        if self._lease and self._lease.is_valid_lease():
-            return True, "We already claimed the lease"
+        for resource in self.lease:
+            if (
+                resource.resource == "all-leases"
+                and self.SPOT_CLIENT_NAME in resource.lease_owner.client_name
+            ):
+                return True, "We already claimed the lease"
+
         try:
             self._robot_id = self._robot.get_id()
             self.getLease()
@@ -995,7 +1003,7 @@ class SpotWrapper:
     def resetEStop(self):
         """Get keepalive for eStop"""
         self._estop_endpoint = EstopEndpoint(
-            self._estop_client, "ros", self._estop_timeout
+            self._estop_client, self.SPOT_CLIENT_NAME, self._estop_timeout
         )
         self._estop_endpoint.force_simple_setup()  # Set this endpoint as the robot's sole estop.
         self._estop_keepalive = EstopKeepAlive(self._estop_endpoint)
