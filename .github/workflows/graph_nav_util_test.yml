@@ -1,0 +1,27 @@
+name: graph_nav_util unit tests
+
+# Run on every push
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          path: $GITHUB_WORKSPACE
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: python3 -m unittest discover $GITHUB_WORKSPACE/spot_wrapper/spot_wrapper/tests
