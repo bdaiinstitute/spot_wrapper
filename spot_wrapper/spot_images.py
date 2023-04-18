@@ -53,7 +53,7 @@ class SpotImages:
                 )
             )
 
-    def get_frontleft_rgb_image(self) -> image_pb2.Image:
+    def get_frontleft_rgb_image(self) -> image_pb2.ImageResponse:
         try:
             return self._image_client.get_image(
                 [
@@ -67,7 +67,7 @@ class SpotImages:
         except UnsupportedPixelFormatRequestedError as e:
             return None
 
-    def get_frontright_rgb_image(self) -> image_pb2.Image:
+    def get_frontright_rgb_image(self) -> image_pb2.ImageResponse:
         try:
             return self._image_client.get_image(
                 [
@@ -81,7 +81,7 @@ class SpotImages:
         except UnsupportedPixelFormatRequestedError as e:
             return None
 
-    def get_left_rgb_image(self) -> image_pb2.Image:
+    def get_left_rgb_image(self) -> image_pb2.ImageResponse:
         try:
             return self._image_client.get_image(
                 [
@@ -95,7 +95,7 @@ class SpotImages:
         except UnsupportedPixelFormatRequestedError as e:
             return None
 
-    def get_right_rgb_image(self) -> image_pb2.Image:
+    def get_right_rgb_image(self) -> image_pb2.ImageResponse:
         try:
             return self._image_client.get_image(
                 [
@@ -109,7 +109,7 @@ class SpotImages:
         except UnsupportedPixelFormatRequestedError as e:
             return None
 
-    def get_back_rgb_image(self) -> image_pb2.Image:
+    def get_back_rgb_image(self) -> image_pb2.ImageResponse:
         try:
             return self._image_client.get_image(
                 [
