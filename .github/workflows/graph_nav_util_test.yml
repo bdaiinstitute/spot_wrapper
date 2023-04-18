@@ -11,9 +11,13 @@ jobs:
         shell: bash
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Make directory
+        run: mkdir -p /ros/spot_wrapper
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
         with:
-          path: $GITHUB_WORKSPACE
+          path: /ros/spot_wrapper
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -21,7 +25,7 @@ jobs:
           python-version: "3.8"
 
       - name: Install dependencies
-        run: pip install -r $GITHUB_WORKSPACE/spot_wrapper/requirements.txt
+        run: pip install -r /ros/spot_wrapper/requirements.txt
 
       - name: Run tests
-        run: python3 -m unittest discover $GITHUB_WORKSPACE/spot_wrapper/spot_wrapper/tests
+        run: python3 -m unittest discover /ros/spot_wrapper/spot_wrapper/tests
