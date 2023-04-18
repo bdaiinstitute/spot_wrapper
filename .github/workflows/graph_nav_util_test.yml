@@ -20,7 +20,7 @@ jobs:
           path: ~/spot_wrapper
 
       - name: Check files
-        run: ls -l ~/spot_wrapper
+        run: ls ~/spot_wrapper
 
       - name: Set up Python
         uses: actions/setup-python@v2
