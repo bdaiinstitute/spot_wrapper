@@ -28,7 +28,9 @@ jobs:
           python-version: "3.8"
 
       - name: Install dependencies
-        run: pip install -r spot_wrapper/requirements.txt
+        run: |
+          pip install -r spot_wrapper/requirements.txt
+          pip install -e spot_wrapper
 
       - name: Run tests
         run: python3 -m unittest discover spot_wrapper/spot_wrapper/tests
