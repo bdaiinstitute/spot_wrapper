@@ -19,10 +19,6 @@ from bosdyn.api import manipulation_api_pb2
 from bosdyn.api import image_pb2
 from google.protobuf.duration_pb2 import Duration
 
-
-from spot_msgs.srv import HandPoseRequest
-from spot_msgs.srv import ArmForceTrajectoryRequest
-
 from .spot_config import *
 
 
@@ -297,9 +293,7 @@ class SpotArm:
         except Exception as e:
             return False, "Exception occured during arm movement: " + str(e)
 
-    def force_trajectory(
-        self, data: ArmForceTrajectoryRequest
-    ) -> typing.Tuple[bool, str]:
+    def force_trajectory(self, data) -> typing.Tuple[bool, str]:
         try:
             success, msg = self.ensure_arm_power_and_stand()
             if not success:
@@ -436,7 +430,7 @@ class SpotArm:
 
         return True, "Opened gripper successfully"
 
-    def hand_pose(self, data: HandPoseRequest) -> typing.Tuple[bool, str]:
+    def hand_pose(self, data) -> typing.Tuple[bool, str]:
         try:
             success, msg = self.ensure_arm_power_and_stand()
             if not success:

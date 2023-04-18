@@ -3,7 +3,6 @@ import logging
 
 from bosdyn.client.async_tasks import AsyncPeriodicQuery
 from bosdyn.client.robot import Robot
-from bosdyn.client import robot_command
 from bosdyn.client.world_object import WorldObjectClient
 
 from .spot_config import *

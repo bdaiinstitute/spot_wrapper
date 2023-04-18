@@ -6,7 +6,6 @@ from bosdyn.client.point_cloud import PointCloudClient, build_pc_request
 from bosdyn.client.robot import Robot
 from bosdyn.client import robot_command
 
-
 from .spot_config import *
 
 
