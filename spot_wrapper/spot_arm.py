@@ -3,19 +3,12 @@ import typing
 import logging
 
 from bosdyn.util import seconds_to_duration
-from bosdyn.client.frame_helpers import (
-    ODOM_FRAME_NAME,
-    GRAV_ALIGNED_BODY_FRAME_NAME,
-    get_a_tform_b,
-)
-from bosdyn.client import robot_command, math_helpers
+from bosdyn.client.async_tasks import AsyncPeriodicQuery
+from bosdyn.client import robot_command
 from bosdyn.client.robot import Robot
 from bosdyn.client.robot_state import RobotStateClient
-from bosdyn.client.robot_command import (
-    RobotCommandBuilder,
-    RobotCommandClient,
-    block_until_arm_arrives,
-)
+from bosdyn.client.robot_command import RobotCommandBuilder, RobotCommandClient
+from bosdyn.client.image import ImageClient, build_image_request
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.api import robot_command_pb2
 from bosdyn.api import arm_command_pb2
@@ -23,15 +16,40 @@ from bosdyn.api import synchronized_command_pb2
 from bosdyn.api import geometry_pb2
 from bosdyn.api import trajectory_pb2
 from bosdyn.api import manipulation_api_pb2
+from bosdyn.api import image_pb2
 from google.protobuf.duration_pb2 import Duration
 
-from geometry_msgs.msg import Pose
-from spot_msgs.srv import HandPose, HandPoseResponse, HandPoseRequest
-from spot_msgs.srv import (
-    ArmForceTrajectory,
-    ArmForceTrajectoryResponse,
-    ArmForceTrajectoryRequest,
-)
+
+from spot_msgs.srv import HandPoseRequest
+from spot_msgs.srv import ArmForceTrajectoryRequest
+
+from .spot_config import *
+
+
+class AsyncImageService(AsyncPeriodicQuery):
+    """Class to get images at regular intervals.  get_image_from_sources_async query sent to the robot at every tick.  Callback registered to defined callback function.
+
+    Attributes:
+        client: The Client to a service on the robot
+        logger: Logger object
+        rate: Rate (Hz) to trigger the query
+        callback: Callback function to call when the results of the query are available
+    """
+
+    def __init__(self, client, logger, rate, callback, image_requests):
+        super(AsyncImageService, self).__init__(
+            "robot_image_service", client, logger, period_sec=1.0 / max(rate, 1.0)
+        )
+        self._callback = None
+        if rate > 0.0:
+            self._callback = callback
+        self._image_requests = image_requests
+
+    def _start_query(self):
+        if self._callback:
+            callback_future = self._client.get_image_async(self._image_requests)
+            callback_future.add_done_callback(self._callback)
+            return callback_future
 
 
 class SpotArm:
@@ -62,7 +80,37 @@ class SpotArm:
             "manipulation_client"
         ]
         self._robot_state_client: RobotStateClient = robot_clients["robot_state_client"]
+        self._image_client: ImageClient = robot_clients["image_client"]
         self._robot_command: typing.Callable = robot_clients["robot_command_method"]
+        self._rates: typing.Dict[str, float] = robot_params["rates"]
+        self._callbacks: typing.Dict[str, typing.Callable] = robot_params["callbacks"]
+
+        self._hand_image_task: AsyncImageService = None
+        self.initialize_hand_image_service()
+
+    def initialize_hand_image_service(self):
+        self._hand_image_requests = []
+
+        for source in HAND_IMAGE_SOURCES:
+            self._hand_image_requests.append(
+                build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
+            )
+
+        self._hand_image_task = AsyncImageService(
+            self._image_client,
+            self._logger,
+            max(0.0, self._rates.get("hand_image", 0.0)),
+            self._callbacks.get("hand_image", None),
+            self._hand_image_requests,
+        )
+
+        self.camera_task_name_to_task_mapping: typing.Dict[str, AsyncImageService] = {
+            "hand_image": self._hand_image_task,
+        }
+
+    @property
+    def hand_image_task(self):
+        return self._hand_image_task
 
     def ensure_arm_power_and_stand(self) -> typing.Tuple[bool, str]:
         if not self._robot.has_arm():
@@ -388,7 +436,7 @@ class SpotArm:
 
         return True, "Opened gripper successfully"
 
-    def hand_pose(self, data: HandPoseRequest):
+    def hand_pose(self, data: HandPoseRequest) -> typing.Tuple[bool, str]:
         try:
             success, msg = self.ensure_arm_power_and_stand()
             if not success:

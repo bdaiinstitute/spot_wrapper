@@ -612,15 +612,13 @@ class SpotWrapper:
         self.spot_image = SpotImages(
             self._robot, self._logger, self._robot_params, self._robot_clients
         )
-        robot_tasks.append(self.spot_image.front_image_task)
-        robot_tasks.append(self.spot_image.side_image_task)
-        robot_tasks.append(self.spot_image.rear_image_task)
 
         if self._robot.has_arm():
-            robot_tasks.append(self._hand_image_task)
             self._spot_arm = SpotArm(
                 self._robot, self._logger, self._robot_params, self._robot_clients
             )
+            self._hand_image_task = self._spot_arm.hand_image_task
+            robot_tasks.append(self._hand_image_task)
         else:
             self._spot_arm = None
 
@@ -633,7 +631,7 @@ class SpotWrapper:
         self._spot_check = SpotCheck(
             self._robot, self._logger, self._robot_params, self._robot_clients
         )
-        self._spot_image = SpotImages(
+        self._spot_images = SpotImages(
             self._robot, self._logger, self._robot_params, self._robot_clients
         )
 
@@ -665,7 +663,7 @@ class SpotWrapper:
     @property
     def spot_images(self) -> SpotImages:
         """Return SpotImages instance"""
-        return self._spot_image
+        return self._spot_images
 
     @property
     def spot_arm(self) -> SpotArm:
@@ -736,24 +734,9 @@ class SpotWrapper:
         return self.spot_world_objects.async_task.proto
 
     @property
-    def front_images(self) -> typing.List[image_pb2.ImageResponse]:
-        """Return latest proto from the _front_image_task"""
-        return self.spot_image.front_image_task.proto
-
-    @property
-    def side_images(self) -> typing.List[image_pb2.ImageResponse]:
-        """Return latest proto from the _side_image_task"""
-        return self.spot_image.side_image_task.proto
-
-    @property
-    def rear_images(self) -> typing.List[image_pb2.ImageResponse]:
-        """Return latest proto from the _rear_image_task"""
-        return self.spot_image.rear_image_task.proto
-
-    @property
     def hand_images(self) -> typing.List[image_pb2.ImageResponse]:
         """Return latest proto from the _hand_image_task"""
-        return self._hand_image_task.proto
+        return self.spot_arm.hand_image_task.proto
 
     @property
     def point_clouds(self) -> typing.List[point_cloud_pb2.PointCloudResponse]:
