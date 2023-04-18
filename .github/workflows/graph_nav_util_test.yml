@@ -17,10 +17,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          path: ~/spot_wrapper
+          path: spot_wrapper
 
       - name: Check files
-        run: ls ~/spot_wrapper
+        run: ls spot_wrapper
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -28,7 +28,7 @@ jobs:
           python-version: "3.8"
 
       - name: Install dependencies
-        run: pip install -r ~/spot_wrapper/requirements.txt
+        run: pip install -r spot_wrapper/requirements.txt
 
       - name: Run tests
-        run: python3 -m unittest discover ~/spot_wrapper/spot_wrapper/tests
+        run: python3 -m unittest discover spot_wrapper/spot_wrapper/tests
