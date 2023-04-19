@@ -149,24 +149,24 @@ class AsyncIdle(AsyncPeriodicQuery):
                 status = (
                     response.feedback.synchronized_feedback.mobility_command_feedback.stand_feedback.status
                 )
-                self._spot_wrapper._is_sitting = False
+                self._spot_wrapper._robot_params["is_sitting"] = False
                 if status == basic_command_pb2.StandCommand.Feedback.STATUS_IS_STANDING:
-                    self._spot_wrapper._is_standing = True
+                    self._spot_wrapper._robot_params["is_standing"] = True
                     self._spot_wrapper._last_stand_command = None
                 elif (
                     status == basic_command_pb2.StandCommand.Feedback.STATUS_IN_PROGRESS
                 ):
-                    self._spot_wrapper._is_standing = False
+                    self._spot_wrapper._robot_params["is_standing"] = False
                 else:
                     self._logger.warning("Stand command in unknown state")
-                    self._spot_wrapper._is_standing = False
+                    self._spot_wrapper._robot_params["is_standing"] = False
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper._last_stand_command = None
 
         if self._spot_wrapper._last_sit_command != None:
             try:
-                self._spot_wrapper._is_standing = False
+                self._spot_wrapper._robot_params["is_standing"] = False
                 response = self._client.robot_command_feedback(
                     self._spot_wrapper._last_sit_command
                 )
@@ -174,10 +174,10 @@ class AsyncIdle(AsyncPeriodicQuery):
                     response.feedback.synchronized_feedback.mobility_command_feedback.sit_feedback.status
                     == basic_command_pb2.SitCommand.Feedback.STATUS_IS_SITTING
                 ):
-                    self._spot_wrapper._is_sitting = True
+                    self._spot_wrapper._robot_params["is_sitting"] = True
                     self._spot_wrapper._last_sit_command = None
                 else:
-                    self._spot_wrapper._is_sitting = False
+                    self._spot_wrapper._robot_params["is_sitting"] = False
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper._last_sit_command = None
@@ -209,7 +209,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                         and not self._spot_wrapper._last_trajectory_command_precise
                     )
                 ):
-                    self._spot_wrapper._at_goal = True
+                    self._spot_wrapper._robot_params["at_goal"] = True
                     # Clear the command once at the goal
                     self._spot_wrapper._last_trajectory_command = None
                 elif (
@@ -222,7 +222,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                     == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_NEAR_GOAL
                 ):
                     is_moving = True
-                    self._spot_wrapper._near_goal = True
+                    self._spot_wrapper._robot_params["near_goal"] = True
                 elif (
                     status
                     == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_UNKNOWN
@@ -240,14 +240,14 @@ class AsyncIdle(AsyncPeriodicQuery):
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper._last_trajectory_command = None
 
-        self._spot_wrapper._is_moving = is_moving
+        self._spot_wrapper._robot_params["is_moving"] = is_moving
 
         # We must check if any command currently has a non-None value for its id. If we don't do this, this stand
         # command can cause other commands to be interrupted before they get to start
         if (
-            self._spot_wrapper.is_standing
+            self._spot_wrapper._robot_params["is_standing"]
             and self._spot_wrapper._continually_try_stand
-            and not self._spot_wrapper.is_moving
+            and not self._spot_wrapper._robot_params["is_moving"]
             and self._spot_wrapper._last_trajectory_command is not None
             and self._spot_wrapper._last_stand_command is not None
             and self._spot_wrapper._last_velocity_command_time is not None
@@ -399,15 +399,6 @@ class SpotWrapper:
         self._last_trajectory_command_precise = None
         self._last_velocity_command_time = None
         self._last_docking_command = None
-        self._robot_params = {
-            "is_standing": False,
-            "is_sitting": True,
-            "is_moving": False,
-            "robot_id": None,
-            "estop_timeout": self._estop_timeout,
-            "rates": self._rates,
-            "callbacks": self._callbacks,
-        }
 
         try:
             self._sdk = create_standard_sdk(SPOT_CLIENT_NAME)
@@ -566,6 +557,17 @@ class SpotWrapper:
         ]
 
         # Create component objects for different functionality
+        self._robot_params = {
+            "is_standing": self._is_standing,
+            "is_sitting": self._is_sitting,
+            "is_moving": self._is_moving,
+            "at_goal": self._at_goal,
+            "near_goal": self._near_goal,
+            "robot_id": self._robot_id,
+            "estop_timeout": self._estop_timeout,
+            "rates": self._rates,
+            "callbacks": self._callbacks,
+        }
         self.spot_image = SpotImages(
             self._robot, self._logger, self._robot_params, self._robot_clients
         )
@@ -668,7 +670,7 @@ class SpotWrapper:
     @property
     def id(self) -> str:
         """Return robot's ID"""
-        return self._robot_id
+        return self._robot_params["robot_id"]
 
     @property
     def robot_state(self) -> robot_state_pb2.RobotState:
@@ -703,25 +705,25 @@ class SpotWrapper:
     @property
     def is_standing(self) -> bool:
         """Return boolean of standing state"""
-        return self._is_standing
+        return self._robot_params["is_standing"]
 
     @property
     def is_sitting(self) -> bool:
         """Return boolean of standing state"""
-        return self._is_sitting
+        return self._robot_params["is_sitting"]
 
     @property
     def is_moving(self) -> bool:
         """Return boolean of walking state"""
-        return self._is_moving
+        return self._robot_params["is_moving"]
 
     @property
     def near_goal(self) -> bool:
-        return self._near_goal
+        return self._robot_params["near_goal"]
 
     @property
     def at_goal(self) -> bool:
-        return self._at_goal
+        return self._robot_params["at_goal"]
 
     def is_estopped(self, timeout=None) -> bool:
         return self._robot.is_estopped(timeout=timeout)
@@ -772,7 +774,7 @@ class SpotWrapper:
                 return True, "We already claimed the lease"
 
         try:
-            self._robot_id = self._robot.get_id()
+            self._robot_params["robot_id"] = self._robot.get_id()
             self.getLease()
             if self._start_estop and not self.check_is_powered_on():
                 # If we are requested to start the estop, and the robot is not already powered on, then we reset the
@@ -965,7 +967,7 @@ class SpotWrapper:
         Args:
             dir_hint: 1 rolls to the right side of the robot, 2 to the left
         """
-        if self._is_sitting:
+        if self._robot_params["is_sitting"]:
             response = self._robot_command(
                 RobotCommandBuilder.battery_change_pose_command(dir_hint)
             )
@@ -1072,8 +1074,8 @@ class SpotWrapper:
         """
         if mobility_params is None:
             mobility_params = self._mobility_params
-        self._at_goal = False
-        self._near_goal = False
+        self._robot_params["at_goal"] = False
+        self._robot_params["near_goal"] = False
         self._last_trajectory_command_precise = precise_position
         self._logger.info("got command duration of {}".format(cmd_duration))
         end_time = time.time() + cmd_duration
