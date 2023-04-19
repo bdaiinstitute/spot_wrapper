@@ -1,3 +1,4 @@
 bosdyn_core==3.2.2.post1
 protobuf==4.22.1
 setuptools==45.2.0
+pytest==7.3.1

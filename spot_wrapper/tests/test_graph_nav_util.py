@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-PKG = "graph_nav_util"
-NAME = "test_graph_nav_util"
-SUITE = "test_graph_nav_util.TestSuiteGraphNavUtil"
-
-import unittest
+import pytest
 import logging
 
 from bosdyn.api.graph_nav import map_pb2
@@ -20,95 +16,93 @@ class MockSpotGraphNav(SpotGraphNav):
 graph_nav_util = MockSpotGraphNav()
 
 
-class TestGraphNavUtilShortCode(unittest.TestCase):
+class TestGraphNavUtilShortCode:
     def test_id_to_short_code(self):
-        self.assertEqual(
-            graph_nav_util._id_to_short_code("ebony-pug-mUzxLNq.TkGlVIxga+UKAQ=="), "ep"
+        assert (
+            graph_nav_util._id_to_short_code("ebony-pug-mUzxLNq.TkGlVIxga+UKAQ==")
+            == "ep"
         )
-        self.assertEqual(
-            graph_nav_util._id_to_short_code("erose-simian-sug9xpxhCxgft7Mtbhr98A=="),
-            "es",
+        assert (
+            graph_nav_util._id_to_short_code("erose-simian-sug9xpxhCxgft7Mtbhr98A==")
+            == "es"
         )
 
 
-class TestGraphNavUtilFindUniqueWaypointId(unittest.TestCase):
-    def setUp(self):
+class TestGraphNavUtilFindUniqueWaypointId:
+    def test_short_code(self):
+        # Set up
+        self.logger = logging.Logger("test_graph_nav_util", level=logging.INFO)
+        self.graph = map_pb2.Graph()
+        self.name_to_id = {"ABCDE": "Node1"}
+        # Test normal short code
+        assert (
+            graph_nav_util._find_unique_waypoint_id(
+                "AC", self.graph, self.name_to_id, self.logger
+            )
+            == "AC"
+        )
+        # Test annotation name that is known
+        assert (
+            graph_nav_util._find_unique_waypoint_id(
+                "ABCDE", self.graph, self.name_to_id, self.logger
+            )
+            == "Node1"
+        )
+        # Test annotation name that is unknown
+        assert (
+            graph_nav_util._find_unique_waypoint_id(
+                "ABCDEF", self.graph, self.name_to_id, self.logger
+            )
+            == "ABCDEF"
+        )
+
+    def test_short_code_with_graph(self):
+        # Set up
         self.logger = logging.Logger("test_graph_nav_util", level=logging.INFO)
         self.graph = map_pb2.Graph()
         self.name_to_id = {"ABCDE": "Node1"}
 
-    def test_short_code(self):
-        # Test normal short code
-        self.assertEqual(
-            graph_nav_util._find_unique_waypoint_id(
-                "AC", self.graph, self.name_to_id, self.logger
-            ),
-            "AC",
-            "AC!=AC, normal short code",
-        )
-        # Test annotation name that is known
-        self.assertEqual(
-            graph_nav_util._find_unique_waypoint_id(
-                "ABCDE", self.graph, self.name_to_id, self.logger
-            ),
-            "Node1",
-            "ABCDE!=Node1, known annotation name",
-        )
-        # Test annotation name that is unknown
-        self.assertEqual(
-            graph_nav_util._find_unique_waypoint_id(
-                "ABCDEF", self.graph, self.name_to_id, self.logger
-            ),
-            "ABCDEF",
-            "ABCDEF!=ABCDEF, unknown annotation name",
-        )
-
-    def test_short_code_with_graph(self):
         # Test short code that is in graph
         self.graph.waypoints.add(id="AB-CD-EF")
-        self.assertEqual(
+        assert (
             graph_nav_util._find_unique_waypoint_id(
                 "AC", self.graph, self.name_to_id, self.logger
-            ),
-            "AB-CD-EF",
-            "AC!=AB-CD-EF, short code in graph",
+            )
+            == "AB-CD-EF"
         )
         # Test short code that is not in graph
-        self.assertEqual(
+        assert (
             graph_nav_util._find_unique_waypoint_id(
                 "AD", self.graph, self.name_to_id, self.logger
-            ),
-            "AD",
-            "AD!=AD, short code not in graph",
+            )
+            == "AD"
         )
         # Test multiple waypoints with the same short code
         self.graph.waypoints.add(id="AB-CD-EF-1")
-        self.assertEqual(
+        assert (
             graph_nav_util._find_unique_waypoint_id(
                 "AC", self.graph, self.name_to_id, self.logger
-            ),
-            "AC",
-            "AC!=AC, multiple waypoints with same short code",
+            )
+            == "AC"
         )
 
 
-class TestGraphNavUtilUpdateWaypointsEdges(unittest.TestCase):
-    def setUp(self):
+class TestGraphNavUtilUpdateWaypointsEdges:
+    def test_empty_graph(self):
         self.logger = logging.Logger("test_graph_nav_util", level=logging.INFO)
 
-    def test_empty_graph(self):
         # Test empty graph
         self.graph = map_pb2.Graph()
         self.localization_id = ""
         graph_nav_util._update_waypoints_and_edges(
             self.graph, self.localization_id, self.logger
         )
-        self.assertEqual(
-            len(self.graph.waypoints), 0, "Empty graph should have 0 waypoints"
-        )
-        self.assertEqual(len(self.graph.edges), 0, "Empty graph should have 0 edges")
+        assert len(self.graph.waypoints) == 0
+        assert len(self.graph.edges) == 0
 
     def test_one_waypoint(self):
+        self.logger = logging.Logger("test_graph_nav_util", level=logging.INFO)
+
         # Test graph with 1 waypoint
         self.localization_id = ""
         self.graph = map_pb2.Graph()
@@ -121,19 +115,15 @@ class TestGraphNavUtilUpdateWaypointsEdges(unittest.TestCase):
         self.name_to_id, self.edges = graph_nav_util._update_waypoints_and_edges(
             self.graph, self.localization_id, self.logger
         )
-        self.assertEqual(
-            len(self.graph.waypoints), 1, "Graph with 1 waypoint should have 1 waypoint"
-        )
-        self.assertEqual(
-            len(self.graph.edges), 0, "Graph with 1 waypoint should have 0 edges"
-        )
-        self.assertEqual(len(self.edges), 0, "Edges should have 0 entries")
-        self.assertEqual(len(self.name_to_id), 1, "Name to id should have 1 entry")
-        self.assertEqual(
-            self.name_to_id["Node1"], "ABCDE", "Name to id should have 1 entry"
-        )
+        assert len(self.graph.waypoints) == 1
+        assert len(self.graph.edges) == 0
+        assert len(self.edges) == 0
+        assert len(self.name_to_id) == 1
+        assert self.name_to_id["Node1"] == "ABCDE"
 
     def test_two_waypoints_with_edge(self):
+        self.logger = logging.Logger("test_graph_nav_util", level=logging.INFO)
+
         # Test graph with 2 waypoints and an edge between them
         self.localization_id = ""
         self.graph = map_pb2.Graph()
@@ -154,23 +144,17 @@ class TestGraphNavUtilUpdateWaypointsEdges(unittest.TestCase):
         self.name_to_id, self.edges = graph_nav_util._update_waypoints_and_edges(
             self.graph, self.localization_id, self.logger
         )
-        self.assertEqual(
-            len(self.graph.waypoints),
-            2,
-            "Graph with 2 waypoints should have 2 waypoints",
-        )
-        self.assertEqual(
-            len(self.graph.edges), 1, "Graph with 2 waypoints should have 1 edge"
-        )
-        self.assertEqual(len(self.edges), 1, "Edges should have 1 entry")
-        self.assertEqual(
-            self.edges["DE"][0], "ABCDE", "Edges should point to the correct waypoint"
-        )
-        self.assertEqual(len(self.name_to_id), 2, "Name to id should have 2 entries")
-        self.assertEqual(self.name_to_id["Node1"], "ABCDE", "Name to id entry, ABCDE")
-        self.assertEqual(self.name_to_id["Node2"], "DE", "Name to id entry, DE")
+        assert len(self.graph.waypoints) == 2
+        assert len(self.graph.edges) == 1
+        assert len(self.edges) == 1
+        assert self.edges["DE"][0] == "ABCDE"
+        assert len(self.name_to_id) == 2
+        assert self.name_to_id["Node1"] == "ABCDE"
+        assert self.name_to_id["Node2"] == "DE"
 
     def test_two_waypoints_with_edge_and_localization(self):
+        self.logger = logging.Logger("test_graph_nav_util", level=logging.INFO)
+
         # Test graph with 2 waypoints and an edge between them. Mainly affects the pretty print.
         self.localization_id = "ABCDE"
         self.graph = map_pb2.Graph()
@@ -191,32 +175,10 @@ class TestGraphNavUtilUpdateWaypointsEdges(unittest.TestCase):
         self.name_to_id, self.edges = graph_nav_util._update_waypoints_and_edges(
             self.graph, self.localization_id, self.logger
         )
-        self.assertEqual(
-            len(self.graph.waypoints),
-            2,
-            "Graph with 2 waypoints should have 2 waypoints",
-        )
-        self.assertEqual(
-            len(self.graph.edges), 1, "Graph with 2 waypoints should have 1 edge"
-        )
-        self.assertEqual(len(self.edges), 1, "Edges should have 1 entry")
-        self.assertEqual(
-            self.edges["DE"][0], "ABCDE", "Edges should point to the correct waypoint"
-        )
-        self.assertEqual(len(self.name_to_id), 2, "Name to id should have 2 entries")
-        self.assertEqual(self.name_to_id["Node1"], "ABCDE", "Name to id entry, ABCDE")
-        self.assertEqual(self.name_to_id["Node2"], "DE", "Name to id entry, DE")
-
-
-class TestSuiteGraphNavUtil(unittest.TestSuite):
-    def __init__(self) -> None:
-        super(TestSuiteGraphNavUtil, self).__init__()
-
-        self.loader = unittest.TestLoader()
-        self.addTest(self.loader.loadTestsFromTestCase(TestGraphNavUtilShortCode))
-        self.addTest(
-            self.loader.loadTestsFromTestCase(TestGraphNavUtilFindUniqueWaypointId)
-        )
-        self.addTest(
-            self.loader.loadTestsFromTestCase(TestGraphNavUtilUpdateWaypointsEdges)
-        )
+        assert len(self.graph.waypoints) == 2
+        assert len(self.graph.edges) == 1
+        assert len(self.edges) == 1
+        assert self.edges["DE"][0] == "ABCDE"
+        assert len(self.name_to_id) == 2
+        assert self.name_to_id["Node1"] == "ABCDE"
+        assert self.name_to_id["Node2"] == "DE"

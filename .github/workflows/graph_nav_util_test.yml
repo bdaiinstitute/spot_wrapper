@@ -33,4 +33,21 @@ jobs:
           pip install -e spot_wrapper
 
       - name: Run tests
-        run: python3 -m unittest discover spot_wrapper/spot_wrapper/tests
+        run: pytest --junit-xml=test-results.xml
+
+      - name: Surface failing tests
+        if: always()
+        uses: pmeier/pytest-summary-gha@main
+        with:
+          # A list of JUnit XML files, directories containing the former, and wildcard patterns to process.
+          path: test-results.xml
+
+          # Add a summary of the results at the top of the report
+          summary: true
+
+          # Select which results should be included in the report.
+          # Follows the same syntax as `pytest -r`
+          display-options: fEX
+
+          # Fail the workflow if no JUnit XML was found.
+          fail-on-empty: true
