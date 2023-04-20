@@ -787,7 +787,7 @@ class SpotWrapper:
             self._logger.error("Failed to initialize robot communication: %s", err)
             return False, str(err)
         except Exception as err:
-            print(traceback.format_exc(), flush=True)
+            self._logger.error(traceback.format_exc(), flush=True)
             return False, str(err)
 
     def updateTasks(self):
@@ -795,7 +795,7 @@ class SpotWrapper:
         try:
             self._async_tasks.update()
         except Exception as e:
-            print(f"Update tasks failed with error: {str(e)}")
+            self._logger.error(f"Update tasks failed with error: {str(e)}")
 
     def resetEStop(self):
         """Get keepalive for eStop"""
