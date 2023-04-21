@@ -788,8 +788,7 @@ class SpotWrapper:
             self._logger.error("Failed to initialize robot communication: %s", err)
             return False, str(err)
         except Exception as err:
-            self._logger.error("Failed to claim lease: %s", err)
-            print(traceback.format_exc(), flush=True)
+            self._logger.error(traceback.format_exc(), flush=True)
             return False, str(err)
 
     def updateTasks(self):
