@@ -765,12 +765,12 @@ class SpotWrapper:
 
         return rtime
 
-    def claim(self):
+    def claim(self) -> typing.List[bool, str]:
         """Get a lease for the robot, a handle on the estop endpoint, and the ID of the robot."""
         for resource in self.lease:
             if (
                 resource.resource == "all-leases"
-                and self.SPOT_CLIENT_NAME in resource.lease_owner.client_name
+                and SPOT_CLIENT_NAME in resource.lease_owner.client_name
             ):
                 return True, "We already claimed the lease"
 
@@ -802,7 +802,7 @@ class SpotWrapper:
     def resetEStop(self):
         """Get keepalive for eStop"""
         self._estop_endpoint = EstopEndpoint(
-            self._estop_client, self.SPOT_CLIENT_NAME, self._estop_timeout
+            self._estop_client, SPOT_CLIENT_NAME, self._estop_timeout
         )
         self._estop_endpoint.force_simple_setup()  # Set this endpoint as the robot's sole estop.
         self._estop_keepalive = EstopKeepAlive(self._estop_endpoint)
