@@ -712,12 +712,14 @@ class SpotWrapper:
                 )
                 self._depth_image_requests.append(
                     build_image_request(
-                        "hand_depth", pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
+                        "hand_depth",
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
                     )
                 )
                 self._depth_registered_image_requests.append(
                     build_image_request(
-                        "hand_depth_in_hand_color_frame", pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
+                        "hand_depth_in_hand_color_frame",
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
                     )
                 )
 
@@ -2374,7 +2376,7 @@ class SpotWrapper:
                 left=image_responses[2],
                 right=image_responses[3],
                 back=image_responses[4],
-                hand=image_responses[5]
+                hand=image_responses[5],
             )
         else:
             return ImageBundle(
@@ -2391,5 +2393,7 @@ class SpotWrapper:
     def get_depth_images(self) -> typing.Optional[ImageBundle | ImageWithHandBundle]:
         return self.get_images(self._depth_image_requests)
 
-    def get_depth_registered_images(self) -> typing.Optional[ImageBundle | ImageWithHandBundle]:
+    def get_depth_registered_images(
+        self,
+    ) -> typing.Optional[ImageBundle | ImageWithHandBundle]:
         return self.get_images(self._depth_registered_image_requests)
