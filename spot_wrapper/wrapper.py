@@ -2364,7 +2364,7 @@ class SpotWrapper:
 
     def get_images(
         self, image_requests: typing.List[image_pb2.ImageRequest]
-    ) -> typing.Optional[ImageBundle | ImageWithHandBundle]:
+    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
         try:
             image_responses = self._image_client.get_image(image_requests)
         except UnsupportedPixelFormatRequestedError as e:
@@ -2387,13 +2387,13 @@ class SpotWrapper:
                 back=image_responses[4],
             )
 
-    def get_camera_images(self) -> typing.Optional[ImageBundle | ImageWithHandBundle]:
+    def get_camera_images(self) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
         return self.get_images(self._camera_image_requests)
 
-    def get_depth_images(self) -> typing.Optional[ImageBundle | ImageWithHandBundle]:
+    def get_depth_images(self) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
         return self.get_images(self._depth_image_requests)
 
     def get_depth_registered_images(
         self,
-    ) -> typing.Optional[ImageBundle | ImageWithHandBundle]:
+    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
         return self.get_images(self._depth_registered_image_requests)
