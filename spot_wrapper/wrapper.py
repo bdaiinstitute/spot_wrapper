@@ -765,7 +765,7 @@ class SpotWrapper:
 
         return rtime
 
-    def claim(self) -> typing.List[bool, str]:
+    def claim(self) -> typing.Tuple[bool, str]:
         """Get a lease for the robot, a handle on the estop endpoint, and the ID of the robot."""
         for resource in self.lease:
             if (
