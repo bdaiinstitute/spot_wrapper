@@ -57,7 +57,7 @@ class SpotImages:
                 [
                     build_image_request(
                         "frontleft_fisheye_image",
-                        image_format=image_pb2.Image.FORMAT_RAW
+                        image_format=image_pb2.Image.FORMAT_RAW,
                     )
                 ]
             )[0]
@@ -71,7 +71,7 @@ class SpotImages:
                 [
                     build_image_request(
                         "frontright_fisheye_image",
-                        image_format=image_pb2.Image.FORMAT_RAW
+                        image_format=image_pb2.Image.FORMAT_RAW,
                     )
                 ]
             )[0]
@@ -84,8 +84,7 @@ class SpotImages:
             return self._image_client.get_image(
                 [
                     build_image_request(
-                        "left_fisheye_image",
-                        image_format=image_pb2.Image.FORMAT_RAW
+                        "left_fisheye_image", image_format=image_pb2.Image.FORMAT_RAW
                     )
                 ]
             )[0]
@@ -98,8 +97,7 @@ class SpotImages:
             return self._image_client.get_image(
                 [
                     build_image_request(
-                        "right_fisheye_image",
-                        image_format=image_pb2.Image.FORMAT_RAW
+                        "right_fisheye_image", image_format=image_pb2.Image.FORMAT_RAW
                     )
                 ]
             )[0]
@@ -112,8 +110,7 @@ class SpotImages:
             return self._image_client.get_image(
                 [
                     build_image_request(
-                        "back_fisheye_image",
-                        image_format=image_pb2.Image.FORMAT_RAW
+                        "back_fisheye_image", image_format=image_pb2.Image.FORMAT_RAW
                     )
                 ]
             )[0]
