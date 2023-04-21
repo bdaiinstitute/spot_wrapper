@@ -2387,10 +2387,14 @@ class SpotWrapper:
                 back=image_responses[4],
             )
 
-    def get_camera_images(self) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
+    def get_camera_images(
+        self,
+    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
         return self.get_images(self._camera_image_requests)
 
-    def get_depth_images(self) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
+    def get_depth_images(
+        self,
+    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
         return self.get_images(self._depth_image_requests)
 
     def get_depth_registered_images(
