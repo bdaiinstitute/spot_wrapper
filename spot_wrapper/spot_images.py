@@ -31,9 +31,7 @@ class SpotImages:
             self._camera_image_requests.append(
                 build_image_request(
                     camera_source,
-                    image_format=image_pb2.Image.FORMAT_JPEG,
-                    pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                    quality_percent=50,
+                    image_format=image_pb2.Image.FORMAT_RAW,
                 )
             )
 
@@ -41,7 +39,7 @@ class SpotImages:
         for camera_source in DEPTH_IMAGE_SOURCES:
             self._depth_image_requests.append(
                 build_image_request(
-                    camera_source, pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
+                    camera_source, image_format=image_pb2.Image.FORMAT_RAW
                 )
             )
 
@@ -49,7 +47,7 @@ class SpotImages:
         for camera_source in DEPTH_REGISTERED_IMAGE_SOURCES:
             self._depth_registered_image_requests.append(
                 build_image_request(
-                    camera_source, pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
+                    camera_source, image_format=image_pb2.Image.FORMAT_RAW
                 )
             )
 
@@ -59,12 +57,12 @@ class SpotImages:
                 [
                     build_image_request(
                         "frontleft_fisheye_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
+                        image_format=image_pb2.Image.FORMAT_RAW
                     )
                 ]
             )[0]
         except UnsupportedPixelFormatRequestedError as e:
+            self._logger.error(e)
             return None
 
     def get_frontright_rgb_image(self) -> image_pb2.ImageResponse:
@@ -73,12 +71,12 @@ class SpotImages:
                 [
                     build_image_request(
                         "frontright_fisheye_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
+                        image_format=image_pb2.Image.FORMAT_RAW
                     )
                 ]
             )[0]
         except UnsupportedPixelFormatRequestedError as e:
+            self._logger.error(e)
             return None
 
     def get_left_rgb_image(self) -> image_pb2.ImageResponse:
@@ -87,12 +85,12 @@ class SpotImages:
                 [
                     build_image_request(
                         "left_fisheye_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
+                        image_format=image_pb2.Image.FORMAT_RAW
                     )
                 ]
             )[0]
         except UnsupportedPixelFormatRequestedError as e:
+            self._logger.error(e)
             return None
 
     def get_right_rgb_image(self) -> image_pb2.ImageResponse:
@@ -101,12 +99,12 @@ class SpotImages:
                 [
                     build_image_request(
                         "right_fisheye_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
+                        image_format=image_pb2.Image.FORMAT_RAW
                     )
                 ]
             )[0]
         except UnsupportedPixelFormatRequestedError as e:
+            self._logger.error(e)
             return None
 
     def get_back_rgb_image(self) -> image_pb2.ImageResponse:
@@ -115,12 +113,12 @@ class SpotImages:
                 [
                     build_image_request(
                         "back_fisheye_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
+                        image_format=image_pb2.Image.FORMAT_RAW
                     )
                 ]
             )[0]
         except UnsupportedPixelFormatRequestedError as e:
+            self._logger.error(e)
             return None
 
     def get_images(
@@ -129,6 +127,7 @@ class SpotImages:
         try:
             image_responses = self._image_client.get_image(image_requests)
         except UnsupportedPixelFormatRequestedError as e:
+            self._logger.error(e)
             return None
         return ImageBundle(
             frontleft=image_responses[0],

@@ -501,6 +501,7 @@ class SpotWrapper:
                     "spot_check_client": self._spot_check_client,
                     "robot_command_method": self._robot_command,
                     "world_objects_client": self._world_objects_client,
+                    "manipulation_client": self._manipulation_client,
                 }
                 if self._point_cloud_client:
                     self._robot_clients["point_cloud_client"] = self._point_cloud_client
@@ -787,6 +788,7 @@ class SpotWrapper:
             self._logger.error("Failed to initialize robot communication: %s", err)
             return False, str(err)
         except Exception as err:
+            self._logger.error("Failed to claim lease: %s", err)
             print(traceback.format_exc(), flush=True)
             return False, str(err)
 
@@ -795,7 +797,7 @@ class SpotWrapper:
         try:
             self._async_tasks.update()
         except Exception as e:
-            print(f"Update tasks failed with error: {str(e)}")
+            self._logger.error(f"Update tasks failed with error: {str(e)}")
 
     def resetEStop(self):
         """Get keepalive for eStop"""
