@@ -139,7 +139,7 @@ class SpotGraphNav:
     def optmize_anchoring(self) -> typing.Tuple[bool, str]:
         return self._optimize_anchoring()
 
-    ## Copied from spot-sdk/python/examples/graph_nav_command_line/graph_nav_command_line.py
+    ## Copied from https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/graph_nav_command_line/recording_command_line.py and https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/graph_nav_command_line/graph_nav_command_line.py with minor modifications
     # Copyright (c) 2020 Boston Dynamics, Inc.  All rights reserved.
     #
     # Downloading, reproducing, distributing or otherwise using the SDK Software
@@ -610,58 +610,21 @@ class SpotGraphNav:
             return True, "Successfully optimized anchoring."
         else:
             self._logger.error("Error optimizing {}".format(response))
-            if (
-                response.status
-                == map_processing_pb2.ProcessAnchoringResponse.STATUS_MISSING_WAYPOINT_SNAPSHOTS
-            ):
-                return False, "Missing waypoint snapshots."
-            elif (
-                response.status
-                == map_processing_pb2.ProcessAnchoringResponse.STATUS_INVALID_GRAPH
-            ):
-                return False, "Invalid graph."
-            elif (
-                response.status
-                == map_processing_pb2.ProcessAnchoringResponse.STATUS_OPTIMIZATION_FAILURE
-            ):
-                return False, "Optimization failure."
-            elif (
-                response.status
-                == map_processing_pb2.ProcessAnchoringResponse.STATUS_INVALID_PARAMS
-            ):
-                return False, "Invalid parameters."
-            elif (
-                response.status
-                == map_processing_pb2.ProcessAnchoringResponse.STATUS_CONSTRAINT_VIOLATION
-            ):
-                return False, "Constraint violation."
-            elif (
-                response.status
-                == map_processing_pb2.ProcessAnchoringResponse.STATUS_MAX_ITERATIONS
-            ):
-                return False, "Max iterations, timeout."
-            elif (
-                response.status
-                == map_processing_pb2.ProcessAnchoringResponse.STATUS_MAX_TIME
-            ):
-                return False, "Max time reached, timeout."
-            elif (
-                response.status
-                == map_processing_pb2.ProcessAnchoringResponse.STATUS_INVALID_HINTS
-            ):
-                return False, "Invalid hints."
-            elif (
-                response.status
-                == map_processing_pb2.ProcessAnchoringResponse.STATUS_MAP_MODIFIED_DURING_PROCESSING
-            ):
-                return False, "Map modified during processing."
-            elif (
-                response.status
-                == map_processing_pb2.ProcessAnchoringResponse.STATUS_INVALID_GRAVITY_ALIGNMENT
-            ):
-                return False, "Invalid gravity alignment."
-            else:
-                return False, "Unknown error during anchoring optimization."
+            status_mapping = {
+                map_processing_pb2.ProcessAnchoringResponse.STATUS_MISSING_WAYPOINT_SNAPSHOTS: "Missing waypoint snapshots.",
+                map_processing_pb2.ProcessAnchoringResponse.STATUS_INVALID_GRAPH: "Invalid graph.",
+                map_processing_pb2.ProcessAnchoringResponse.STATUS_OPTIMIZATION_FAILURE: "Optimization failure.",
+                map_processing_pb2.ProcessAnchoringResponse.STATUS_INVALID_PARAMS: "Invalid parameters.",
+                map_processing_pb2.ProcessAnchoringResponse.STATUS_CONSTRAINT_VIOLATION: "Constraint violation.",
+                map_processing_pb2.ProcessAnchoringResponse.STATUS_MAX_ITERATIONS: "Max iterations, timeout.",
+                map_processing_pb2.ProcessAnchoringResponse.STATUS_MAX_TIME: "Max time reached, timeout.",
+                map_processing_pb2.ProcessAnchoringResponse.STATUS_INVALID_HINTS: "Invalid hints.",
+                map_processing_pb2.ProcessAnchoringResponse.STATUS_MAP_MODIFIED_DURING_PROCESSING: "Map modified during processing.",
+                map_processing_pb2.ProcessAnchoringResponse.STATUS_INVALID_GRAVITY_ALIGNMENT: "Invalid gravity alignment.",
+            }
+            if response.status in status_mapping:
+                return False, status_mapping[response.status]
+            return False, "Unknown error during anchoring optimization."
 
     def _id_to_short_code(self, id: str):
         """Convert a unique id to a 2 letter short code."""

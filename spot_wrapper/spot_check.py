@@ -46,63 +46,28 @@ class SpotCheck:
         # Save results from Spot Check
         self._spot_check_resp = resp
 
+        errorcode_mapping = {
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_UNEXPECTED_POWER_CHANGE: "Unexpected power change",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_INIT_IMU_CHECK: "Robot body is not flat on the ground",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_INIT_NOT_SITTING: "Robot body is not close to a sitting pose",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_LOADCELL_TIMEOUT: "Timeout during loadcell calibration",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_POWER_ON_FAILURE: "Error enabling motor power",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_ENDSTOP_TIMEOUT: "Timeout during endstop calibration",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_FAILED_STAND: "Robot failed to stand",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_CAMERA_TIMEOUT: "Timeout during camera check",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_GROUND_CHECK: "Flat ground check failed",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_POWER_OFF_FAILURE: "Robot failed to power off",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_REVERT_FAILURE: "Robot failed to revert calibration",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_FGKC_FAILURE: "Robot failed to do flat ground kinematic calibration",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_GRIPPER_CAL_TIMEOUT: "Timeout during gripper calibration",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_ARM_CHECK_COLLISION: "Arm motion would cause collisions",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_ARM_CHECK_TIMEOUT: "Timeout during arm joint check",
+        }
         # Check for common errors
         if resp.header.error.code in (2, 3):
             return False, str(resp.header.error.message)
-
-        # Check for other errors
-        if (
-            resp.error
-            == spot_check_pb2.SpotCheckFeedbackResponse.ERROR_UNEXPECTED_POWER_CHANGE
-        ):
-            return False, "Unexpected power change"
-        elif (
-            resp.error == spot_check_pb2.SpotCheckFeedbackResponse.ERROR_INIT_IMU_CHECK
-        ):
-            return False, "Robot body is not flat on the ground"
-        elif (
-            resp.error
-            == spot_check_pb2.SpotCheckFeedbackResponse.ERROR_INIT_NOT_SITTING
-        ):
-            return False, "Robot body is not close to a sitting pose"
-        elif (
-            resp.error
-            == spot_check_pb2.SpotCheckFeedbackResponse.ERROR_LOADCELL_TIMEOUT
-        ):
-            return False, "Timeout during loadcell calibration"
-        elif (
-            resp.error
-            == spot_check_pb2.SpotCheckFeedbackResponse.ERROR_POWER_ON_FAILURE
-        ):
-            return False, "Error enabling motor power"
-        elif (
-            resp.error == spot_check_pb2.SpotCheckFeedbackResponse.ERROR_ENDSTOP_TIMEOUT
-        ):
-            return False, "Timeout during endstop calibration"
-        elif resp.error == spot_check_pb2.SpotCheckFeedbackResponse.ERROR_FAILED_STAND:
-            return False, "Robot failed to stand"
-        elif (
-            resp.error == spot_check_pb2.SpotCheckFeedbackResponse.ERROR_CAMERA_TIMEOUT
-        ):
-            return False, "Timeout during camera check"
-        elif resp.error == spot_check_pb2.SpotCheckFeedbackResponse.ERROR_GROUND_CHECK:
-            return False, "Flat ground check failed"
-        elif (
-            resp.error
-            == spot_check_pb2.SpotCheckFeedbackResponse.ERROR_POWER_OFF_FAILURE
-        ):
-            return False, "Robot failed to power off"
-        elif (
-            resp.error == spot_check_pb2.SpotCheckFeedbackResponse.ERROR_REVERT_FAILURE
-        ):
-            return False, "Robot failed to revert calibration"
-        elif resp.error == spot_check_pb2.SpotCheckFeedbackResponse.ERROR_FGKC_FAILURE:
-            return False, "Robot failed to do flat ground kinematic calibration"
-        elif (
-            resp.error
-            == spot_check_pb2.SpotCheckFeedbackResponse.ERROR_GRIPPER_CAL_TIMEOUT
-        ):
-            return False, "Timeout during gripper calibration"
+        if resp.error > 1:
+            return False, errorcode_mapping[resp.error]
 
         return True, "Successfully ran Spot Check"
 

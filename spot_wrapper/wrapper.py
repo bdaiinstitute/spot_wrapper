@@ -341,8 +341,8 @@ class SpotWrapper:
         logger: logging.Logger,
         start_estop: bool = True,
         estop_timeout: float = 9.0,
-        rates: typing.Dict[str, float] = {},
-        callbacks: typing.Dict[str, typing.Callable] = {},
+        rates: typing.Optional[typing.Dict[str, float]] = None,
+        callbacks: typing.Optional[typing.Dict[str, typing.Callable]] = None,
         use_take_lease: bool = False,
         get_lease_on_action: bool = False,
         continually_try_stand: bool = True,
@@ -370,8 +370,8 @@ class SpotWrapper:
         self._password = password
         self._hostname = hostname
         self._robot_name = robot_name
-        self._rates = rates
-        self._callbacks = callbacks
+        self._rates = rates or {}
+        self._callbacks = callbacks or {}
         self._use_take_lease = use_take_lease
         self._get_lease_on_action = get_lease_on_action
         self._continually_try_stand = continually_try_stand

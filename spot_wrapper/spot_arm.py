@@ -58,13 +58,14 @@ class SpotArm:
     ):
         """
         Constructor for SpotArm class.
-        :param robot: Robot object
-        :param logger: Logger object
-        :param robot_params: Dictionary of robot parameters
-            - robot_params['is_standing']: True if robot is standing, False otherwise
-        :param robot_clients: Dictionary of robot clients
-            - robot_clients['robot_command_client']: RobotCommandClient object
-            - robot_clients['robot_command_method']: RobotCommand method
+        Args:
+            robot: Robot object
+            logger: Logger object
+            robot_params: Dictionary of robot parameters
+                          - robot_params['is_standing']: True if robot is standing, False otherwise
+            robot_clients: Dictionary of robot clients
+                           - robot_clients['robot_command_client']: RobotCommandClient object
+                           - robot_clients['robot_command_method']: RobotCommand method
         """
         self._robot = robot
         self._logger = logger
