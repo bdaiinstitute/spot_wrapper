@@ -5,8 +5,6 @@ from bosdyn.client.async_tasks import AsyncPeriodicQuery
 from bosdyn.client.robot import Robot
 from bosdyn.client.world_object import WorldObjectClient
 
-from .spot_config import *
-
 
 class AsyncWorldObjects(AsyncPeriodicQuery):
     """Class to get world objects.  list_world_objects_async query sent to the robot at every tick.  Callback registered to defined callback function.

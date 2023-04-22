@@ -19,7 +19,13 @@ from bosdyn.api import manipulation_api_pb2
 from bosdyn.api import image_pb2
 from google.protobuf.duration_pb2 import Duration
 
-from .spot_config import *
+"""List of hand image sources for asynchronous periodic query"""
+HAND_IMAGE_SOURCES = [
+    "hand_image",
+    "hand_depth",
+    "hand_color_image",
+    "hand_depth_in_hand_color_frame",
+]
 
 
 class AsyncImageService(AsyncPeriodicQuery):

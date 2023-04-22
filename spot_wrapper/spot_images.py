@@ -1,5 +1,6 @@
 import typing
 import logging
+from collections import namedtuple
 
 from bosdyn.client.robot import Robot
 from bosdyn.client.image import (
@@ -9,7 +10,31 @@ from bosdyn.client.image import (
 )
 from bosdyn.api import image_pb2
 
-from .spot_config import *
+"""List of body image sources for periodic query"""
+CAMERA_IMAGE_SOURCES = [
+    "frontleft_fisheye_image",
+    "frontright_fisheye_image",
+    "left_fisheye_image",
+    "right_fisheye_image",
+    "back_fisheye_image",
+]
+DEPTH_IMAGE_SOURCES = [
+    "frontleft_depth",
+    "frontright_depth",
+    "left_depth",
+    "right_depth",
+    "back_depth",
+]
+DEPTH_REGISTERED_IMAGE_SOURCES = [
+    "frontleft_depth_in_visual_frame",
+    "frontright_depth_in_visual_frame",
+    "right_depth_in_visual_frame",
+    "left_depth_in_visual_frame",
+    "back_depth_in_visual_frame",
+]
+ImageBundle = namedtuple(
+    "ImageBundle", ["frontleft", "frontright", "left", "right", "back"]
+)
 
 
 class SpotImages:

@@ -47,7 +47,12 @@ from .spot_docking import SpotDocking
 from .spot_graph_nav import SpotGraphNav
 from .spot_check import SpotCheck
 from .spot_images import SpotImages
-from .spot_config import *
+
+SPOT_CLIENT_NAME = "ros_spot"
+MAX_COMMAND_DURATION = 1e5
+
+"""Service name for getting pointcloud of VLP16 connected to Spot Core"""
+VELODYNE_SERVICE_NAME = "velodyne-point-cloud"
 
 
 class AsyncRobotState(AsyncPeriodicQuery):
