@@ -113,6 +113,9 @@ DEPTH_REGISTERED_IMAGE_SOURCES = [
 ImageBundle = namedtuple(
     "ImageBundle", ["frontleft", "frontright", "left", "right", "back"]
 )
+ImageWithHandBundle = namedtuple(
+    "ImageBundle", ["frontleft", "frontright", "left", "right", "back", "hand"]
+)
 
 
 class AsyncRobotState(AsyncPeriodicQuery):
@@ -697,6 +700,29 @@ class SpotWrapper:
                     )
                     time.sleep(sleep_secs)
 
+            # Add hand camera requests
+            if self._robot.has_arm():
+                self._camera_image_requests.append(
+                    build_image_request(
+                        "hand_color_image",
+                        image_format=image_pb2.Image.FORMAT_JPEG,
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                        quality_percent=50,
+                    )
+                )
+                self._depth_image_requests.append(
+                    build_image_request(
+                        "hand_depth",
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
+                    )
+                )
+                self._depth_registered_image_requests.append(
+                    build_image_request(
+                        "hand_depth_in_hand_color_frame",
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
+                    )
+                )
+
             # Store the most recent knowledge of the state of the robot based on rpc calls.
             self._current_graph = None
             self._current_edges = dict()  # maps to_waypoint to list(from_waypoint)
@@ -894,6 +920,9 @@ class SpotWrapper:
 
     def is_estopped(self, timeout=None):
         return self._robot.is_estopped(timeout=timeout)
+
+    def has_arm(self, timeout=None):
+        return self._robot.has_arm(timeout=timeout)
 
     @property
     def time_skew(self):
@@ -2317,26 +2346,58 @@ class SpotWrapper:
         except UnsupportedPixelFormatRequestedError as e:
             return None
 
+    def get_hand_rgb_image(self):
+        if not self.has_arm():
+            return None
+        try:
+            return self._image_client.get_image(
+                [
+                    build_image_request(
+                        "hand_color_image",
+                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                        quality_percent=50,
+                    )
+                ]
+            )[0]
+        except UnsupportedPixelFormatRequestedError as e:
+            return None
+
     def get_images(
         self, image_requests: typing.List[image_pb2.ImageRequest]
-    ) -> typing.Optional[ImageBundle]:
+    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
         try:
             image_responses = self._image_client.get_image(image_requests)
         except UnsupportedPixelFormatRequestedError as e:
             return None
-        return ImageBundle(
-            frontleft=image_responses[0],
-            frontright=image_responses[1],
-            left=image_responses[2],
-            right=image_responses[3],
-            back=image_responses[4],
-        )
+        if self.has_arm():
+            return ImageWithHandBundle(
+                frontleft=image_responses[0],
+                frontright=image_responses[1],
+                left=image_responses[2],
+                right=image_responses[3],
+                back=image_responses[4],
+                hand=image_responses[5],
+            )
+        else:
+            return ImageBundle(
+                frontleft=image_responses[0],
+                frontright=image_responses[1],
+                left=image_responses[2],
+                right=image_responses[3],
+                back=image_responses[4],
+            )
 
-    def get_camera_images(self) -> ImageBundle:
+    def get_camera_images(
+        self,
+    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
         return self.get_images(self._camera_image_requests)
 
-    def get_depth_images(self) -> ImageBundle:
+    def get_depth_images(
+        self,
+    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
         return self.get_images(self._depth_image_requests)
 
-    def get_depth_registered_images(self) -> ImageBundle:
+    def get_depth_registered_images(
+        self,
+    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
         return self.get_images(self._depth_registered_image_requests)
