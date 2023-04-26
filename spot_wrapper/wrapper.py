@@ -977,16 +977,16 @@ class SpotWrapper:
                 self._estop_keepalive.settle_then_cut()
 
             return True, "Success"
-        except:
-            return False, "Error"
+        except Exception as e:
+            return False, f"Exception while attempting to estop: {e}"
 
     def disengageEStop(self):
         """Disengages the E-Stop"""
         try:
             self._estop_keepalive.allow()
             return True, "Success"
-        except:
-            return False, "Error"
+        except Exception as e:
+            return False, f"Exception while attempting to disengage estop {e}"
 
     def releaseEStop(self):
         """Stop eStop keepalive"""
@@ -1017,7 +1017,7 @@ class SpotWrapper:
             self.releaseEStop()
             return True, "Success"
         except Exception as e:
-            return False, str(e)
+            return False, f"Exception while attempting to release the lease: {e}"
 
     def disconnect(self):
         """Release control of robot as gracefully as posssible."""
@@ -1044,7 +1044,7 @@ class SpotWrapper:
             return True, "Success", command_id
         except Exception as e:
             self._logger.error(
-                "Unable to execute robot command, exception was" + str(e)
+                f"Unable to execute robot command: {e}"
             )
             return False, str(e), None
 
@@ -1142,7 +1142,7 @@ class SpotWrapper:
             )
             return True, "Success", rid
         except Exception as e:
-            return False, str(e), None
+            return False, f"Exception while clearing behavior fault: {e}", None
 
     @try_claim
     def power_on(self):
@@ -1156,7 +1156,7 @@ class SpotWrapper:
                 self._logger.info("Powering on")
                 self._robot.power_on()
             except Exception as e:
-                return False, str(e)
+                return False, f"Exception while powering on: {e}"
 
             return True, "Success"
 
@@ -1358,7 +1358,7 @@ class SpotWrapper:
         except Exception as e:
             return (
                 False,
-                "Exception occured while Spot or its arm were trying to power on",
+                f"Exception occured while Spot or its arm were trying to power on: {e}",
             )
 
         if not self._is_standing:
@@ -1388,7 +1388,7 @@ class SpotWrapper:
                 time.sleep(2.0)
 
         except Exception as e:
-            return False, "Exception occured while trying to stow"
+            return False, f"Exception occured while trying to stow: {e}"
 
         return True, "Stow arm success"
 
@@ -1409,7 +1409,7 @@ class SpotWrapper:
                 time.sleep(2.0)
 
         except Exception as e:
-            return False, "Exception occured while trying to unstow"
+            return False, f"Exception occured while trying to unstow: {e}"
 
         return True, "Unstow arm success"
 
@@ -1430,7 +1430,7 @@ class SpotWrapper:
                 time.sleep(2.0)
 
         except Exception as e:
-            return False, "Exception occured while carry mode was issued"
+            return False, f"Exception occured while carry mode was issued: {e}"
 
         return True, "Carry mode success"
 
@@ -1531,7 +1531,7 @@ class SpotWrapper:
                 return True, "Spot Arm moved successfully"
 
         except Exception as e:
-            return False, "Exception occured during arm movement: " + str(e)
+            return False, f"Exception occured during arm movement: {e}"
 
     @try_claim
     def force_trajectory(self, data):
@@ -1599,7 +1599,7 @@ class SpotWrapper:
                 time.sleep(float(traj_duration) + 1.0)
 
         except Exception as e:
-            return False, "Exception occured during arm movement"
+            return False, f"Exception occured during arm movement: {e}"
 
         return True, "Moved arm successfully"
 
@@ -1620,7 +1620,7 @@ class SpotWrapper:
                 time.sleep(2.0)
 
         except Exception as e:
-            return False, "Exception occured while gripper was moving"
+            return False, f"Exception occured while gripper was moving: {e}"
 
         return True, "Open gripper success"
 
@@ -1641,7 +1641,7 @@ class SpotWrapper:
                 time.sleep(2.0)
 
         except Exception as e:
-            return False, "Exception occured while gripper was moving"
+            return False, f"Exception occured while gripper was moving: {e}"
 
         return True, "Closed gripper successfully"
 
@@ -1670,7 +1670,7 @@ class SpotWrapper:
                 time.sleep(2.0)
 
         except Exception as e:
-            return False, "Exception occured while gripper was moving"
+            return False, f"Exception occured while gripper was moving: {e}"
 
         return True, "Opened gripper successfully"
 
@@ -1740,7 +1740,7 @@ class SpotWrapper:
         except Exception as e:
             return (
                 False,
-                "An error occured while trying to move arm \n Exception:" + str(e),
+                f"An error occured while trying to move arm \n Exception: {e}",
             )
 
         return True, "Moved arm successfully"
@@ -1795,7 +1795,7 @@ class SpotWrapper:
             self._robot.logger.info("Finished grasp.")
 
         except Exception as e:
-            return False, "An error occured while trying to grasp from pose"
+            return False, f"An error occured while trying to grasp from pose: {e}"
 
         return True, "Grasped successfully"
 
@@ -2201,7 +2201,7 @@ class SpotWrapper:
             self._last_stand_command = None
             return True, "Success"
         except Exception as e:
-            return False, str(e)
+            return False, f"Exception while trying to dock: {e}"
 
     @try_claim
     def undock(self, timeout=20):
@@ -2213,7 +2213,7 @@ class SpotWrapper:
             blocking_undock(self._robot, timeout)
             return True, "Success"
         except Exception as e:
-            return False, str(e)
+            return False, f"Exception while trying to undock: {e}"
 
     def get_docking_state(self, **kwargs):
         """Get docking state of robot."""
