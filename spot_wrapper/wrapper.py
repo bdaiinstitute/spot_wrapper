@@ -55,6 +55,32 @@ MAX_COMMAND_DURATION = 1e5
 VELODYNE_SERVICE_NAME = "velodyne-point-cloud"
 
 
+def robotToLocalTime(timestamp, robot):
+    """Takes a timestamp and an estimated skew and return seconds and nano seconds in local time
+
+    Args:
+        timestamp: google.protobuf.Timestamp
+        robot: Robot handle to use to get the time skew
+    Returns:
+        google.protobuf.Timestamp
+    """
+
+    rtime = Timestamp()
+
+    rtime.seconds = timestamp.seconds - robot.time_sync.endpoint.clock_skew.seconds
+    rtime.nanos = timestamp.nanos - robot.time_sync.endpoint.clock_skew.nanos
+    if rtime.nanos < 0:
+        rtime.nanos = rtime.nanos + 1000000000
+        rtime.seconds = rtime.seconds - 1
+
+    # Workaround for timestamps being incomplete
+    if rtime.seconds < 0:
+        rtime.seconds = 0
+        rtime.nanos = 0
+
+    return rtime
+
+
 class AsyncRobotState(AsyncPeriodicQuery):
     """Class to get robot state at regular intervals.  get_robot_state_async query sent to the robot at every tick.  Callback registered to defined callback function.
 
@@ -415,34 +441,12 @@ class SpotWrapper:
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
 
-        authenticated = False
-        while not authenticated:
-            try:
-                self._logger.info("Trying to authenticate with robot...")
-                self._robot.authenticate(self._username, self._password)
-                self._robot.time_sync.wait_for_sync(10)
-                self._logger.info("Successfully authenticated.")
-                authenticated = True
-            except RpcError as err:
-                sleep_secs = 15
-                self._logger.warning(
-                    "Failed to communicate with robot: {}\nEnsure the robot is powered on and you can "
-                    "ping {}. Robot may still be booting. Will retry in {} seconds".format(
-                        err, self._hostname, sleep_secs
-                    )
-                )
-                time.sleep(sleep_secs)
-            except bosdyn.client.auth.InvalidLoginError as err:
-                self._logger.error("Failed to log in to robot: {}".format(err))
-                self._valid = False
-                return
-            try:
-                self._point_cloud_client = self._robot.ensure_client(
-                    VELODYNE_SERVICE_NAME
-                )
-            except Exception as e:
-                self._point_cloud_client = None
-                self._logger.warning("No point cloud services are available.")
+        authenticated = self.authenticate(
+            self._robot, self._username, self._password, self._logger
+        )
+        if not authenticated:
+            self._valid = False
+            return
 
         if not self._robot:
             self._logger.error("Failed to create robot object")
@@ -488,6 +492,15 @@ class SpotWrapper:
                 self._spot_check_client = self._robot.ensure_client(
                     SpotCheckClient.default_service_name
                 )
+                try:
+                    self._point_cloud_client = self._robot.ensure_client(
+                        VELODYNE_SERVICE_NAME
+                    )
+                except Exception as e:
+                    self._point_cloud_client = None
+                    self._logger.info("No point cloud services are available.")
+
+
                 if self._robot.has_arm():
                     self._manipulation_client = self._robot.ensure_client(
                         ManipulationApiClient.default_service_name
@@ -616,6 +629,54 @@ class SpotWrapper:
         robot_tasks.append(self._world_objects_task)
 
         self._async_tasks = AsyncTasks(robot_tasks)
+
+            self.camera_task_name_to_task_mapping = {
+                "hand_image": self._hand_image_task,
+                "side_image": self._side_image_task,
+                "rear_image": self._rear_image_task,
+                "front_image": self._front_image_task,
+            }
+
+            self._robot_id = None
+            self._lease = None
+
+    @staticmethod
+    def authenticate(robot, username, password, logger):
+        """
+        Authenticate with a robot through the bosdyn API. A blocking function which will wait until authenticated (if
+        the robot is still booting) or login fails
+
+        Args:
+            robot: Robot object which we are authenticating with
+            username: Username to authenticate with
+            password: Password for the given username
+            logger: Logger with which to print messages
+
+        Returns:
+
+        """
+        authenticated = False
+        while not authenticated:
+            try:
+                logger.info("Trying to authenticate with robot...")
+                robot.authenticate(username, password)
+                robot.time_sync.wait_for_sync(10)
+                logger.info("Successfully authenticated.")
+                authenticated = True
+            except RpcError as err:
+                sleep_secs = 15
+                logger.warn(
+                    "Failed to communicate with robot: {}\nEnsure the robot is powered on and you can "
+                    "ping {}. Robot may still be booting. Will retry in {} seconds".format(
+                        err, robot.address, sleep_secs
+                    )
+                )
+                time.sleep(sleep_secs)
+            except bosdyn.client.auth.InvalidLoginError as err:
+                logger.error("Failed to log in to robot: {}".format(err))
+                raise err
+
+        return authenticated
 
     @property
     def robot_name(self) -> str:
@@ -754,21 +815,7 @@ class SpotWrapper:
         Returns:
             google.protobuf.Timestamp
         """
-
-        rtime = Timestamp()
-
-        rtime.seconds = timestamp.seconds - self.time_skew.seconds
-        rtime.nanos = timestamp.nanos - self.time_skew.nanos
-        if rtime.nanos < 0:
-            rtime.nanos = rtime.nanos + 1000000000
-            rtime.seconds = rtime.seconds - 1
-
-        # Workaround for timestamps being incomplete
-        if rtime.seconds < 0:
-            rtime.seconds = 0
-            rtime.nanos = 0
-
-        return rtime
+        return robotToLocalTime(timestamp, self._robot)
 
     def claim(self) -> typing.Tuple[bool, str]:
         """Get a lease for the robot, a handle on the estop endpoint, and the ID of the robot."""
