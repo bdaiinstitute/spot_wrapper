@@ -1043,9 +1043,7 @@ class SpotWrapper:
             )
             return True, "Success", command_id
         except Exception as e:
-            self._logger.error(
-                f"Unable to execute robot command: {e}"
-            )
+            self._logger.error(f"Unable to execute robot command: {e}")
             return False, str(e), None
 
     @try_claim
