@@ -870,16 +870,16 @@ class SpotWrapper:
                 self._estop_keepalive.settle_then_cut()
 
             return True, "Success"
-        except:
-            return False, "Error"
+        except Exception as e:
+            return False, f"Exception while attempting to estop: {e}"
 
     def disengageEStop(self):
         """Disengages the E-Stop"""
         try:
             self._estop_keepalive.allow()
             return True, "Success"
-        except:
-            return False, "Error"
+        except Exception as e:
+            return False, f"Exception while attempting to disengage estop {e}"
 
     def releaseEStop(self):
         """Stop eStop keepalive"""
@@ -910,7 +910,7 @@ class SpotWrapper:
             self.releaseEStop()
             return True, "Success"
         except Exception as e:
-            return False, str(e)
+            return False, f"Exception while attempting to release the lease: {e}"
 
     def disconnect(self):
         """Release control of robot as gracefully as posssible."""
@@ -941,9 +941,7 @@ class SpotWrapper:
             )
             return True, "Success", command_id
         except Exception as e:
-            self._logger.error(
-                "Unable to execute robot command, exception was" + str(e)
-            )
+            self._logger.error(f"Unable to execute robot command: {e}")
             return False, str(e), None
 
     @try_claim
@@ -1040,7 +1038,7 @@ class SpotWrapper:
             )
             return True, "Success", rid
         except Exception as e:
-            return False, str(e), None
+            return False, f"Exception while clearing behavior fault: {e}", None
 
     @try_claim
     def power_on(self):
@@ -1054,7 +1052,7 @@ class SpotWrapper:
                 self._logger.info("Powering on")
                 self._robot.power_on()
             except Exception as e:
-                return False, str(e)
+                return False, f"Exception while powering on: {e}"
 
             return True, "Success"
 

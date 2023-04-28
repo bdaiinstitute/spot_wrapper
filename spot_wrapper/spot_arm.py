@@ -127,7 +127,7 @@ class SpotArm:
         except Exception as e:
             return (
                 False,
-                "Exception occured while Spot or its arm were trying to power on",
+                f"Exception occured while Spot or its arm were trying to power on: {e}",
             )
 
         if not self._robot_params["is_standing"]:
@@ -156,7 +156,7 @@ class SpotArm:
                 time.sleep(2.0)
 
         except Exception as e:
-            return False, "Exception occured while trying to stow"
+            return False, f"Exception occured while trying to stow: {e}"
 
         return True, "Stow arm success"
 
@@ -176,7 +176,7 @@ class SpotArm:
                 time.sleep(2.0)
 
         except Exception as e:
-            return False, "Exception occured while trying to unstow"
+            return False, f"Exception occured while trying to unstow: {e}"
 
         return True, "Unstow arm success"
 
@@ -196,7 +196,7 @@ class SpotArm:
                 time.sleep(2.0)
 
         except Exception as e:
-            return False, "Exception occured while carry mode was issued"
+            return False, f"Exception occured while carry mode was issued: {e}"
 
         return True, "Carry mode success"
 
@@ -298,7 +298,7 @@ class SpotArm:
                 return True, "Spot Arm moved successfully"
 
         except Exception as e:
-            return False, "Exception occured during arm movement: " + str(e)
+            return False, f"Exception occured during arm movement: {e}"
 
     def create_wrench_from_msg(self, forces, torques):
         force = geometry_pb2.Vec3(x=forces[0], y=forces[1], z=forces[2])
@@ -364,7 +364,7 @@ class SpotArm:
                 time.sleep(float(traj_duration) + 1.0)
 
         except Exception as e:
-            return False, "Exception occured during arm movement"
+            return False, f"Exception occured during arm movement: {e}"
 
         return True, "Moved arm successfully"
 
@@ -384,7 +384,7 @@ class SpotArm:
                 time.sleep(2.0)
 
         except Exception as e:
-            return False, "Exception occured while gripper was moving"
+            return False, f"Exception occured while gripper was moving: {e}"
 
         return True, "Open gripper success"
 
@@ -404,7 +404,7 @@ class SpotArm:
                 time.sleep(2.0)
 
         except Exception as e:
-            return False, "Exception occured while gripper was moving"
+            return False, f"Exception occured while gripper was moving: {e}"
 
         return True, "Closed gripper successfully"
 
@@ -432,7 +432,7 @@ class SpotArm:
                 time.sleep(2.0)
 
         except Exception as e:
-            return False, "Exception occured while gripper was moving"
+            return False, f"Exception occured while gripper was moving: {e}"
 
         return True, "Opened gripper successfully"
 
@@ -501,7 +501,7 @@ class SpotArm:
         except Exception as e:
             return (
                 False,
-                "An error occured while trying to move arm \n Exception:" + str(e),
+                f"An error occured while trying to move arm \n Exception: {e}"
             )
 
         return True, "Moved arm successfully"
@@ -555,6 +555,6 @@ class SpotArm:
             self._robot.logger.info("Finished grasp.")
 
         except Exception as e:
-            return False, "An error occured while trying to grasp from pose"
+            return False, f"An error occured while trying to grasp from pose {e}"
 
         return True, "Grasped successfully"

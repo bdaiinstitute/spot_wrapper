@@ -41,7 +41,7 @@ class SpotDocking:
             self.last_docking_command = None
             return True, "Success"
         except Exception as e:
-            return False, str(e)
+            return False, f"Exception while trying to dock: {e}"
 
     def undock(self, timeout: int = 20) -> typing.Tuple[bool, str]:
         """Power motors on and undock the robot from the station."""
@@ -52,7 +52,7 @@ class SpotDocking:
             blocking_undock(self._robot, timeout)
             return True, "Success"
         except Exception as e:
-            return False, str(e)
+            return False, f"Exception while trying to undock: {e}"
 
     def get_docking_state(self, **kwargs) -> docking_pb2.DockState:
         """Get docking state of robot."""
