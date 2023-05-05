@@ -362,6 +362,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                     self._spot_wrapper._at_goal = True
                     # Clear the command once at the goal
                     self._spot_wrapper._last_trajectory_command = None
+                    self._spot_wrapper._trajectory_status_unknown = False
                 elif (
                     status
                     == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_GOING_TO_GOAL
@@ -1300,6 +1301,7 @@ class SpotWrapper:
         """
         if mobility_params is None:
             mobility_params = self._mobility_params
+        self._trajectory_status_unknown = False
         self._at_goal = False
         self._near_goal = False
         self._last_trajectory_command_precise = precise_position
