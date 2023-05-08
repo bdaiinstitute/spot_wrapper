@@ -2545,7 +2545,7 @@ class SpotWrapper:
 
         # Return
         result = []
-        for i in (camera_name, image_type) in enumerate(source_types):
+        for i, (camera_name, image_type) in enumerate(source_types):
             result.append(ImageEntry(camera_name=camera_name,
                                      image_type=image_type,
                                      image_response=image_responses[i]))
