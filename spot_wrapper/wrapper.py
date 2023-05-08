@@ -153,6 +153,7 @@ IMAGE_SOURCES_BY_CAMERA = {
 IMAGE_TYPES = {"visual", "depth", "depth_registered"}
 
 
+
 def robotToLocalTime(timestamp, robot):
     """Takes a timestamp and an estimated skew and return seconds and nano seconds in local time
 
@@ -673,6 +674,25 @@ class SpotWrapper:
                     camera_source, pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
                 )
             )
+
+        self._image_requests_by_camera = {}
+        for camera in IMAGE_SOURCES_BY_CAMERA:
+            if camera == "hand" and not _robot.has_arm():
+                continue
+            self._image_requests_by_camera[camera] = {}
+            image_types = IMAGE_SOURCES_BY_CAMERA[camera]
+            for image_type in image_types:
+                if image_type.startswith("depth"):
+                    image_format = image_pb2.Image.FORMAT_RAW
+                else:
+                    image_format = image_pb2.Image.FORMAT_JPEG
+
+                source = IMAGE_SOURCES[camera][image_type]
+                self._image_requests_by_camera[camera][image_type] = \
+                    build_image_request(
+                        camera_source,
+                        image_format=image_format,
+                        quality_percent=75)
 
         try:
             self._sdk = create_standard_sdk(self.SPOT_CLIENT_NAME)
@@ -2472,3 +2492,47 @@ class SpotWrapper:
         self,
     ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
         return self.get_images(self._depth_registered_image_requests)
+
+    def get_images_by_cameras(self, camera_sources):
+        """Calls the GetImage RPC using the image client with requests
+        corresponding to the given cameras.
+
+        Args: Accepts either a list of strings (e.g., ['frontleft', 'hand'])
+                or a list of tuples (e.g. [('frontleft', ['visual', 'depth'], ...]
+                - If the former is provided, the image requests will include all
+                  image types for each specified camera.
+                - If the latter is provided, the image requests will be
+                  limited to the specified image types for each corresponding
+                  camera.  Valid image types are 'visual', 'depth', 'depth_registered'
+              Note that duplicates of camera names are not allowed.
+        Returns:
+            a list, where each entry is (camera_name, image_type, image_response)
+                e.g. ('frontleft', 'visual', image_response)
+        """
+        # Build image requests
+        image_requests = []
+        source_types = []
+        for item in camera_sources:
+            if type(item) == str:
+                camera_name = item
+                image_types = IMAGE_TYPES
+            else:
+                camera_name = item[0]
+                image_types = item[1]
+                assert all(t in IMAGE_TYPES for t in image_types), f"Invalid image type in {image_types}"
+
+            for image_type in image_types:
+                image_requests.append(self._image_requests_by_camera[camera][image_type])
+                source_types.append((camera_name, image_type))
+
+        # Send image requests
+        try:
+            image_responses = self._image_client.get_image(image_requests)
+        except UnsupportedPixelFormatRequestedError as e:
+            return None
+
+        # Return
+        result = []
+        for i in (camera_name, image_type) in enumerate(source_types):
+            result.append((camera_name, image_type, image_responses[i]))
+        return result
