@@ -784,14 +784,17 @@ class SpotWrapper:
                 for image_type in image_types:
                     if image_type.startswith("depth"):
                         image_format = image_pb2.Image.FORMAT_RAW
+                        pixel_format = image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
                     else:
                         image_format = image_pb2.Image.FORMAT_JPEG
+                        pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
 
                     source = IMAGE_SOURCES_BY_CAMERA[camera][image_type]
                     self._image_requests_by_camera[camera][image_type] = \
                         build_image_request(
                             source,
                             image_format=image_format,
+                            pixel_format=pixel_format,
                             quality_percent=75)
 
             # Store the most recent knowledge of the state of the robot based on rpc calls.
