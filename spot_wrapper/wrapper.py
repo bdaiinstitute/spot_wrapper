@@ -122,38 +122,36 @@ IMAGE_SOURCES_BY_CAMERA = {
     "frontleft": {
         "visual": "frontleft_fisheye_image",
         "depth": "frontleft_depth",
-        "depth_registered": "frontleft_depth_in_visual_frame"
+        "depth_registered": "frontleft_depth_in_visual_frame",
     },
     "frontright": {
         "visual": "frontright_fisheye_image",
         "depth": "frontright_depth",
-        "depth_registered": "frontright_depth_in_visual_frame"
+        "depth_registered": "frontright_depth_in_visual_frame",
     },
     "left": {
         "visual": "left_fisheye_image",
         "depth": "left_depth",
-        "depth_registered": "left_depth_in_visual_frame"
+        "depth_registered": "left_depth_in_visual_frame",
     },
     "right": {
         "visual": "right_fisheye_image",
         "depth": "right_depth",
-        "depth_registered": "right_depth_in_visual_frame"
+        "depth_registered": "right_depth_in_visual_frame",
     },
     "back": {
         "visual": "back_fisheye_image",
         "depth": "back_depth",
-        "depth_registered": "back_depth_in_visual_frame"
+        "depth_registered": "back_depth_in_visual_frame",
     },
     "hand": {
         "visual": "hand_color_image",
         "depth": "hand_depth",
-        "depth_registered": "hand_depth_in_color_frame"
-    }
+        "depth_registered": "hand_depth_in_color_frame",
+    },
 }
 IMAGE_TYPES = {"visual", "depth", "depth_registered"}
-ImageEntry = namedtuple(
-    "ImageEntry", ["camera_name", "image_type", "image_response"]
-)
+ImageEntry = namedtuple("ImageEntry", ["camera_name", "image_type", "image_response"])
 
 
 def robotToLocalTime(timestamp, robot):
@@ -790,12 +788,14 @@ class SpotWrapper:
                         pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
 
                     source = IMAGE_SOURCES_BY_CAMERA[camera][image_type]
-                    self._image_requests_by_camera[camera][image_type] = \
-                        build_image_request(
-                            source,
-                            image_format=image_format,
-                            pixel_format=pixel_format,
-                            quality_percent=75)
+                    self._image_requests_by_camera[camera][
+                        image_type
+                    ] = build_image_request(
+                        source,
+                        image_format=image_format,
+                        pixel_format=pixel_format,
+                        quality_percent=75,
+                    )
 
             # Store the most recent knowledge of the state of the robot based on rpc calls.
             self._current_graph = None
@@ -2526,30 +2526,42 @@ class SpotWrapper:
                 camera_name = item[0]
                 image_types = item[1]
                 if not all(t in IMAGE_TYPES for t in image_types):
-                    self._logger.error(f"Invalid image type in {image_types}. Must be among {IMAGE_TYPES}")
+                    self._logger.error(
+                        f"Invalid image type in {image_types}. Must be among {IMAGE_TYPES}"
+                    )
                     return None
             else:
-                self._logger.error(f"Invalid item in camera_sources: {item}. "
-                                   "Either a string, e.g. 'frontleft', or a tuple "
-                                   "e.g. ('frontleft', ['visual', 'depth'])")
+                self._logger.error(
+                    f"Invalid item in camera_sources: {item}. "
+                    "Either a string, e.g. 'frontleft', or a tuple "
+                    "e.g. ('frontleft', ['visual', 'depth'])"
+                )
                 return None
 
             for image_type in image_types:
-                image_requests.append(self._image_requests_by_camera[camera_name][image_type])
+                image_requests.append(
+                    self._image_requests_by_camera[camera_name][image_type]
+                )
                 source_types.append((camera_name, image_type))
 
         # Send image requests
         try:
             image_responses = self._image_client.get_image(image_requests)
         except UnsupportedPixelFormatRequestedError as e:
-            self._logger.error("UnsupportedPixelFormatRequestedError. "
-                               "Likely pixel_format is set wrong for some image request")
+            self._logger.error(
+                "UnsupportedPixelFormatRequestedError. "
+                "Likely pixel_format is set wrong for some image request"
+            )
             return None
 
         # Return
         result = []
         for i, (camera_name, image_type) in enumerate(source_types):
-            result.append(ImageEntry(camera_name=camera_name,
-                                     image_type=image_type,
-                                     image_response=image_responses[i]))
+            result.append(
+                ImageEntry(
+                    camera_name=camera_name,
+                    image_type=image_type,
+                    image_response=image_responses[i],
+                )
+            )
         return result
