@@ -145,8 +145,14 @@ ImageSource = Enum('ImageSource',
 @dataclass(frozen=True, eq=True)
 class CameraSource:
     camera: Camera
+    image_types: list[ImageType]
+
+@dataclass(frozen=True)
+class ImageEntry:
+    camera_name: str
     image_type: ImageType
     image_response: image_pb2.ImageResponse
+
 
 IMAGE_SOURCES_BY_CAMERA = {
     Camera.frontleft: {
@@ -180,7 +186,6 @@ IMAGE_SOURCES_BY_CAMERA = {
         ImageType.depth_registered: ImageSource.hand_depth_in_color_frame
     },
 }
-ImageEntry = namedtuple("ImageEntry", ["camera_name", "image_type", "image_response"])
 
 
 def robotToLocalTime(timestamp, robot):
