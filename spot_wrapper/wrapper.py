@@ -2585,7 +2585,7 @@ class SpotWrapper:
         # Send image requests
         try:
             image_responses = self._image_client.get_image(image_requests)
-        except UnsupportedPixelFormatRequestedError as e:
+        except UnsupportedPixelFormatRequestedError:
             self._logger.error(
                 "UnsupportedPixelFormatRequestedError. "
                 "Likely pixel_format is set wrong for some image request"
