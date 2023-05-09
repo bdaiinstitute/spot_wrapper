@@ -2533,18 +2533,26 @@ class SpotWrapper:
     ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
         return self.get_images(self._depth_registered_image_requests)
 
-    def get_images_by_cameras(self, camera_sources):
+    def get_images_by_cameras(
+            self, camera_sources: typing.List[CameraSource]
+    ) -> typing.List[ImageEntry]:
         """Calls the GetImage RPC using the image client with requests
         corresponding to the given cameras.
 
-        Args: Accepts either a list of strings (e.g., ['frontleft', 'hand'])
-                or a list of tuples (e.g. [('frontleft', ['visual', 'depth'], ...]
+        Args:
+           camera_sources: a list of CameraSource objects. There are two
+               possibilities for each item in this list. Either it is
+               CameraSource(camera=Camera.front) or
+               CameraSource(camera=Camera.front, image_types=[ImageType.visual, ImageType.depth_registered)
+
                 - If the former is provided, the image requests will include all
                   image types for each specified camera.
                 - If the latter is provided, the image requests will be
                   limited to the specified image types for each corresponding
-                  camera.  Valid image types are 'visual', 'depth', 'depth_registered'
+                  camera.
+
               Note that duplicates of camera names are not allowed.
+
         Returns:
             a list, where each entry is (camera_name, image_type, image_response)
                 e.g. ('frontleft', 'visual', image_response)
