@@ -2534,7 +2534,7 @@ class SpotWrapper:
         return self.get_images(self._depth_registered_image_requests)
 
     def get_images_by_cameras(
-            self, camera_sources: typing.List[CameraSource]
+        self, camera_sources: typing.List[CameraSource]
     ) -> typing.List[ImageEntry]:
         """Calls the GetImage RPC using the image client with requests
         corresponding to the given cameras.
@@ -2560,31 +2560,23 @@ class SpotWrapper:
         # Build image requests
         image_requests = []
         source_types = []
+        all_image_types = [t for t in ImageType]
+        cameras_specified = set()
         for item in camera_sources:
-            if type(item) == str:
-                camera_name = item
-                image_types = IMAGE_TYPES
-            elif type(item) == tuple and len(item) == 2 and type(item[1]) == list:
-                camera_name = item[0]
-                image_types = item[1]
-                if not all(t in IMAGE_TYPES for t in image_types):
-                    self._logger.error(
-                        f"Invalid image type in {image_types}. Must be among {IMAGE_TYPES}"
-                    )
-                    return None
-            else:
+            if item.camera in cameras_specified:
                 self._logger.error(
-                    f"Invalid item in camera_sources: {item}. "
-                    "Either a string, e.g. 'frontleft', or a tuple "
-                    "e.g. ('frontleft', ['visual', 'depth'])"
+                    f"Duplicated camera source for camera {item.camera}"
                 )
                 return None
-
+            image_types = item.image_types
+            if image_types is None:
+                image_types = all_image_types
             for image_type in image_types:
                 image_requests.append(
-                    self._image_requests_by_camera[camera_name][image_type]
+                    self._image_requests_by_camera[item.camera][image_type]
                 )
-                source_types.append((camera_name, image_type))
+                source_types.append((item.camera, image_type))
+            cameras_specified.add(item.camera)
 
         # Send image requests
         try:
