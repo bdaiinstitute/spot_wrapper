@@ -152,19 +152,17 @@ IMAGE_SOURCES_BY_CAMERA = {
     }
 }
 
-# Added to support getting images for given cameras
-Camera = Enum("Camera", ["frontleft", "frontright", "left", "right", "back", "hand"])
-ImageType = Enum("ImageType", ["visual", "depth", "depth_registered"])
+IMAGE_TYPES = {"visual", "depth", "depth_registered"}
 
 @dataclass(frozen=True, eq=True)
 class CameraSource:
-    camera: Camera
-    image_types: list[ImageType]
+    camera_name: str
+    image_types: list[str]
 
 @dataclass(frozen=True)
 class ImageEntry:
     camera_name: str
-    image_type: ImageType
+    image_type: str
     image_response: image_pb2.ImageResponse
 
 
@@ -2522,8 +2520,8 @@ class SpotWrapper:
         Args:
            camera_sources: a list of CameraSource objects. There are two
                possibilities for each item in this list. Either it is
-               CameraSource(camera=Camera.front) or
-               CameraSource(camera=Camera.front, image_types=[ImageType.visual, ImageType.depth_registered)
+               CameraSource(camera='front') or
+               CameraSource(camera='front', image_types=['visual', 'depth_registered')
 
                 - If the former is provided, the image requests will include all
                   image types for each specified camera.
@@ -2540,21 +2538,26 @@ class SpotWrapper:
         # Build image requests
         image_requests = []
         source_types = []
-        all_image_types = [t for t in ImageType]
         cameras_specified = set()
         for item in camera_sources:
-            if item.camera in cameras_specified:
-                self._logger.error(f"Duplicated camera source for camera {item.camera}")
+            if item.camera_name in cameras_specified:
+                self._logger.error(f"Duplicated camera source for camera {item.camera_name}")
                 return None
             image_types = item.image_types
             if image_types is None:
-                image_types = all_image_types
+                image_types = IMAGE_TYPES
             for image_type in image_types:
-                image_requests.append(
-                    self._image_requests_by_camera[item.camera][image_type]
-                )
-                source_types.append((item.camera, image_type))
-            cameras_specified.add(item.camera)
+                try:
+                    image_requests.append(
+                        self._image_requests_by_camera[item.camera_name][image_type]
+                    )
+                except KeyError:
+                    self._logger.error(
+                        f"Unexpected camera name '{item.camera_name}' or image type '{image_type}'"
+                    )
+                    return None
+                source_types.append((item.camera_name, image_type))
+            cameras_specified.add(item.camera_name)
 
         # Send image requests
         try:
