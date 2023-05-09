@@ -120,32 +120,38 @@ ImageWithHandBundle = namedtuple(
 )
 
 # Added to support getting images for given cameras
-Camera = Enum('Camera', ['frontleft', 'frontright', 'left', 'right', 'back', 'hand'])
-ImageType = Enum('ImageType', ["visual", "depth", "depth_registered"])
-ImageSource = Enum('ImageSource',
-                   ['frontleft_fisheye_image',
-                    'frontleft_depth',
-                    'frontleft_depth_in_visual_frame',
-                    'frontright_fisheye_image',
-                    'frontright_depth',
-                    'frontright_depth_in_visual_frame',
-                    'left_fisheye_image',
-                    'left_depth',
-                    'left_depth_in_visual_frame',
-                    'right_fisheye_image',
-                    'right_depth',
-                    'right_depth_in_visual_frame',
-                    'back_fisheye_image',
-                    'back_depth',
-                    'back_depth_in_visual_frame',
-                    "hand_color_image",
-                    "hand_depth",
-                    "hand_depth_in_color_frame"])
+Camera = Enum("Camera", ["frontleft", "frontright", "left", "right", "back", "hand"])
+ImageType = Enum("ImageType", ["visual", "depth", "depth_registered"])
+ImageSource = Enum(
+    "ImageSource",
+    [
+        "frontleft_fisheye_image",
+        "frontleft_depth",
+        "frontleft_depth_in_visual_frame",
+        "frontright_fisheye_image",
+        "frontright_depth",
+        "frontright_depth_in_visual_frame",
+        "left_fisheye_image",
+        "left_depth",
+        "left_depth_in_visual_frame",
+        "right_fisheye_image",
+        "right_depth",
+        "right_depth_in_visual_frame",
+        "back_fisheye_image",
+        "back_depth",
+        "back_depth_in_visual_frame",
+        "hand_color_image",
+        "hand_depth",
+        "hand_depth_in_color_frame",
+    ],
+)
+
 
 @dataclass(frozen=True, eq=True)
 class CameraSource:
     camera: Camera
     image_types: list[ImageType]
+
 
 @dataclass(frozen=True)
 class ImageEntry:
@@ -183,7 +189,7 @@ IMAGE_SOURCES_BY_CAMERA = {
     Camera.hand: {
         ImageType.visual: ImageSource.hand_color_image,
         ImageType.depth: ImageSource.hand_depth,
-        ImageType.depth_registered: ImageSource.hand_depth_in_color_frame
+        ImageType.depth_registered: ImageSource.hand_depth_in_color_frame,
     },
 }
 
@@ -2564,9 +2570,7 @@ class SpotWrapper:
         cameras_specified = set()
         for item in camera_sources:
             if item.camera in cameras_specified:
-                self._logger.error(
-                    f"Duplicated camera source for camera {item.camera}"
-                )
+                self._logger.error(f"Duplicated camera source for camera {item.camera}")
                 return None
             image_types = item.image_types
             if image_types is None:
