@@ -123,41 +123,43 @@ IMAGE_SOURCES_BY_CAMERA = {
     "frontleft": {
         "visual": "frontleft_fisheye_image",
         "depth": "frontleft_depth",
-        "depth_registered": "frontleft_depth_in_visual_frame"
+        "depth_registered": "frontleft_depth_in_visual_frame",
     },
     "frontright": {
         "visual": "frontright_fisheye_image",
         "depth": "frontright_depth",
-        "depth_registered": "frontright_depth_in_visual_frame"
+        "depth_registered": "frontright_depth_in_visual_frame",
     },
     "left": {
         "visual": "left_fisheye_image",
         "depth": "left_depth",
-        "depth_registered": "left_depth_in_visual_frame"
+        "depth_registered": "left_depth_in_visual_frame",
     },
     "right": {
         "visual": "right_fisheye_image",
         "depth": "right_depth",
-        "depth_registered": "right_depth_in_visual_frame"
+        "depth_registered": "right_depth_in_visual_frame",
     },
     "back": {
         "visual": "back_fisheye_image",
         "depth": "back_depth",
-        "depth_registered": "back_depth_in_visual_frame"
+        "depth_registered": "back_depth_in_visual_frame",
     },
     "hand": {
         "visual": "hand_color_image",
         "depth": "hand_depth",
-        "depth_registered": "hand_depth_in_color_frame"
-    }
+        "depth_registered": "hand_depth_in_color_frame",
+    },
 }
 
 IMAGE_TYPES = {"visual", "depth", "depth_registered"}
+
 
 @dataclass(frozen=True, eq=True)
 class CameraSource:
     camera_name: str
     image_types: list[str]
+
 
 @dataclass(frozen=True)
 class ImageEntry:
@@ -2541,7 +2543,9 @@ class SpotWrapper:
         cameras_specified = set()
         for item in camera_sources:
             if item.camera_name in cameras_specified:
-                self._logger.error(f"Duplicated camera source for camera {item.camera_name}")
+                self._logger.error(
+                    f"Duplicated camera source for camera {item.camera_name}"
+                )
                 return None
             image_types = item.image_types
             if image_types is None:
