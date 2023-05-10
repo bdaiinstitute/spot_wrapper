@@ -4,7 +4,9 @@ import math
 import time
 import traceback
 import typing
+from enum import Enum
 from collections import namedtuple
+from dataclasses import dataclass, field
 
 import bosdyn.client.auth
 from bosdyn.api import arm_command_pb2
@@ -116,6 +118,54 @@ ImageBundle = namedtuple(
 ImageWithHandBundle = namedtuple(
     "ImageBundle", ["frontleft", "frontright", "left", "right", "back", "hand"]
 )
+
+IMAGE_SOURCES_BY_CAMERA = {
+    "frontleft": {
+        "visual": "frontleft_fisheye_image",
+        "depth": "frontleft_depth",
+        "depth_registered": "frontleft_depth_in_visual_frame",
+    },
+    "frontright": {
+        "visual": "frontright_fisheye_image",
+        "depth": "frontright_depth",
+        "depth_registered": "frontright_depth_in_visual_frame",
+    },
+    "left": {
+        "visual": "left_fisheye_image",
+        "depth": "left_depth",
+        "depth_registered": "left_depth_in_visual_frame",
+    },
+    "right": {
+        "visual": "right_fisheye_image",
+        "depth": "right_depth",
+        "depth_registered": "right_depth_in_visual_frame",
+    },
+    "back": {
+        "visual": "back_fisheye_image",
+        "depth": "back_depth",
+        "depth_registered": "back_depth_in_visual_frame",
+    },
+    "hand": {
+        "visual": "hand_color_image",
+        "depth": "hand_depth",
+        "depth_registered": "hand_depth_in_color_frame",
+    },
+}
+
+IMAGE_TYPES = {"visual", "depth", "depth_registered"}
+
+
+@dataclass(frozen=True, eq=True)
+class CameraSource:
+    camera_name: str
+    image_types: list[str]
+
+
+@dataclass(frozen=True)
+class ImageEntry:
+    camera_name: str
+    image_type: str
+    image_response: image_pb2.ImageResponse
 
 
 def robotToLocalTime(timestamp, robot):
@@ -735,6 +785,31 @@ class SpotWrapper:
                         pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
                     )
                 )
+
+            # Build image requests by camera
+            self._image_requests_by_camera = {}
+            for camera in IMAGE_SOURCES_BY_CAMERA:
+                if camera == "hand" and not self._robot.has_arm():
+                    continue
+                self._image_requests_by_camera[camera] = {}
+                image_types = IMAGE_SOURCES_BY_CAMERA[camera]
+                for image_type in image_types:
+                    if image_type.startswith("depth"):
+                        image_format = image_pb2.Image.FORMAT_RAW
+                        pixel_format = image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
+                    else:
+                        image_format = image_pb2.Image.FORMAT_JPEG
+                        pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
+
+                    source = IMAGE_SOURCES_BY_CAMERA[camera][image_type]
+                    self._image_requests_by_camera[camera][
+                        image_type
+                    ] = build_image_request(
+                        source,
+                        image_format=image_format,
+                        pixel_format=pixel_format,
+                        quality_percent=75,
+                    )
 
             # Store the most recent knowledge of the state of the robot based on rpc calls.
             self._current_graph = None
@@ -2437,3 +2512,75 @@ class SpotWrapper:
         self,
     ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
         return self.get_images(self._depth_registered_image_requests)
+
+    def get_images_by_cameras(
+        self, camera_sources: typing.List[CameraSource]
+    ) -> typing.List[ImageEntry]:
+        """Calls the GetImage RPC using the image client with requests
+        corresponding to the given cameras.
+
+        Args:
+           camera_sources: a list of CameraSource objects. There are two
+               possibilities for each item in this list. Either it is
+               CameraSource(camera='front') or
+               CameraSource(camera='front', image_types=['visual', 'depth_registered')
+
+                - If the former is provided, the image requests will include all
+                  image types for each specified camera.
+                - If the latter is provided, the image requests will be
+                  limited to the specified image types for each corresponding
+                  camera.
+
+              Note that duplicates of camera names are not allowed.
+
+        Returns:
+            a list, where each entry is (camera_name, image_type, image_response)
+                e.g. ('frontleft', 'visual', image_response)
+        """
+        # Build image requests
+        image_requests = []
+        source_types = []
+        cameras_specified = set()
+        for item in camera_sources:
+            if item.camera_name in cameras_specified:
+                self._logger.error(
+                    f"Duplicated camera source for camera {item.camera_name}"
+                )
+                return None
+            image_types = item.image_types
+            if image_types is None:
+                image_types = IMAGE_TYPES
+            for image_type in image_types:
+                try:
+                    image_requests.append(
+                        self._image_requests_by_camera[item.camera_name][image_type]
+                    )
+                except KeyError:
+                    self._logger.error(
+                        f"Unexpected camera name '{item.camera_name}' or image type '{image_type}'"
+                    )
+                    return None
+                source_types.append((item.camera_name, image_type))
+            cameras_specified.add(item.camera_name)
+
+        # Send image requests
+        try:
+            image_responses = self._image_client.get_image(image_requests)
+        except UnsupportedPixelFormatRequestedError:
+            self._logger.error(
+                "UnsupportedPixelFormatRequestedError. "
+                "Likely pixel_format is set wrong for some image request"
+            )
+            return None
+
+        # Return
+        result = []
+        for i, (camera_name, image_type) in enumerate(source_types):
+            result.append(
+                ImageEntry(
+                    camera_name=camera_name,
+                    image_type=image_type,
+                    image_response=image_responses[i],
+                )
+            )
+        return result
