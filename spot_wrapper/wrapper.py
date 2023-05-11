@@ -1953,9 +1953,10 @@ class SpotWrapper:
         self._current_waypoint_snapshots = dict()  # maps id to waypoint snapshot
         self._current_edge_snapshots = dict()  # maps id to edge snapshot
         self._current_annotation_name_to_wp_id = dict()
-        self._current_anchored_world_objects = dict() # maps object id to a (wo, waypoint, fiducial)
-        self._current_anchors = dict() # maps anchor id to anchor
-
+        self._current_anchored_world_objects = (
+            dict()
+        )  # maps object id to a (wo, waypoint, fiducial)
+        self._current_anchors = dict()  # maps anchor id to anchor
 
     ## copy from spot-sdk/python/examples/graph_nav_command_line/graph_nav_command_line.py
     def _get_localization_state(self, *args):
@@ -2057,7 +2058,9 @@ class SpotWrapper:
             # Load the waypoint snapshots from disk.
             if len(waypoint.snapshot_id) == 0:
                 continue
-            waypoint_filepath = os.path.join(upload_filepath, "waypoint_snapshots", waypoint.snapshot_id)
+            waypoint_filepath = os.path.join(
+                upload_filepath, "waypoint_snapshots", waypoint.snapshot_id
+            )
             if not os.path.exists(waypoint_filepath):
                 continue
             with open(waypoint_filepath, "rb") as snapshot_file:
@@ -2072,18 +2075,25 @@ class SpotWrapper:
                         continue
 
                     str_id = str(fiducial.apriltag_properties.tag_id)
-                    if (str_id in self._current_anchored_world_objects and
-                            len(self._current_anchored_world_objects[str_id]) == 1):
-
+                    if (
+                        str_id in self._current_anchored_world_objects
+                        and len(self._current_anchored_world_objects[str_id]) == 1
+                    ):
                         # Replace the placeholder tuple with a tuple of (wo, waypoint, fiducial).
                         anchored_wo = self._current_anchored_world_objects[str_id][0]
-                        self._current_anchored_world_objects[str_id] = (anchored_wo, waypoint, fiducial)
+                        self._current_anchored_world_objects[str_id] = (
+                            anchored_wo,
+                            waypoint,
+                            fiducial,
+                        )
 
         for edge in self._current_graph.edges:
             # Load the edge snapshots from disk.
             if len(edge.snapshot_id) == 0:
                 continue
-            edge_filepath = os.path.join(upload_filepath, "edge_snapshots", edge.snapshot_id)
+            edge_filepath = os.path.join(
+                upload_filepath, "edge_snapshots", edge.snapshot_id
+            )
             if not os.path.exists(edge_filepath):
                 continue
             with open(edge_filepath, "rb") as snapshot_file:
