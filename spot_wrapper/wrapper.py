@@ -1198,6 +1198,26 @@ class SpotWrapper:
             self._logger.error(f"Unable to execute robot command: {e}")
             return False, str(e), None
 
+    def _manipulation_request(self, request_proto, end_time_secs=None, timesync_endpoint=None):
+        """Generic blocking function for sending requests to the manipulation api of a robot.
+
+        Args:
+            request_proto: manipulation_api_pb2 object to send to the robot.
+            end_time_secs: (optional) Time-to-live for the command in seconds
+            timesync_endpoint: (optional) Time sync endpoint
+        """
+        try:
+            command_id = self._manipulation_api_client.manipulation_api_command(
+                lease=None,
+                manipulation_api_request=request_proto,
+                end_time_secs=end_time_secs,
+                timesync_endpoint=timesync_endpoint,
+            )
+            return True, "Success", command_id
+        except Exception as e:
+            self._logger.error(f"Unable to execute manipulation command: {e}")
+            return False, str(e), None
+
     @try_claim
     def stop(self):
         """Stop the robot's motion."""
@@ -1429,6 +1449,14 @@ class SpotWrapper:
         end_time = time.time() + MAX_COMMAND_DURATION
         return self._robot_command(
             robot_command,
+            end_time_secs=end_time,
+            timesync_endpoint=self._robot.time_sync.endpoint,
+        )
+
+    def manipulation_command(self, request):
+        end_time = time.time() + MAX_COMMAND_DURATION
+        return self._manipulation_request(
+            request,
             end_time_secs=end_time,
             timesync_endpoint=self._robot.time_sync.endpoint,
         )
