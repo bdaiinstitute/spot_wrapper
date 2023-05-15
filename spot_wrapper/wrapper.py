@@ -1464,6 +1464,13 @@ class SpotWrapper:
     def get_robot_command_feedback(self, cmd_id):
         return self._robot_command_client.robot_command_feedback(cmd_id)
 
+    def get_manipulation_command_feedback(self, cmd_id):
+        feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
+                        manipulation_cmd_id=cmd_id)
+
+        return self._manipulation_api_client.manipulation_api_feedback_command(
+                        manipulation_api_feedback_request=feedback_request)
+
     def list_graph(self, upload_path):
         """List waypoint ids of garph_nav
         Args:
