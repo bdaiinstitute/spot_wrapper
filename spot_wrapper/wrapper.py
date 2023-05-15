@@ -721,6 +721,9 @@ class SpotWrapper:
                     self._robot_command_client = self._robot.ensure_client(
                         RobotCommandClient.default_service_name
                     )
+                    self._manipulation_api_client = self._robot.ensure_client(
+                        ManipulationApiClient.default_service_name
+                    )
                     self._graph_nav_client = self._robot.ensure_client(
                         GraphNavClient.default_service_name
                     )
