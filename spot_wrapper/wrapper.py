@@ -1205,15 +1205,10 @@ class SpotWrapper:
 
         Args:
             request_proto: manipulation_api_pb2 object to send to the robot.
-            end_time_secs: (optional) Time-to-live for the command in seconds
-            timesync_endpoint: (optional) Time sync endpoint
         """
         try:
             command_id = self._manipulation_api_client.manipulation_api_command(
-                lease=None,
-                manipulation_api_request=request_proto,
-                end_time_secs=end_time_secs,
-                timesync_endpoint=timesync_endpoint,
+                manipulation_api_request=request_proto
             )
             return True, "Success", command_id
         except Exception as e:
