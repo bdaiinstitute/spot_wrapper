@@ -721,9 +721,6 @@ class SpotWrapper:
                     self._robot_command_client = self._robot.ensure_client(
                         RobotCommandClient.default_service_name
                     )
-                    self._manipulation_api_client = self._robot.ensure_client(
-                        ManipulationApiClient.default_service_name
-                    )
                     self._graph_nav_client = self._robot.ensure_client(
                         GraphNavClient.default_service_name
                     )
@@ -752,7 +749,7 @@ class SpotWrapper:
                         self._logger.info("No point cloud services are available.")
 
                     if self._robot.has_arm():
-                        self._manipulation_client = self._robot.ensure_client(
+                        self._manipulation_api_client = self._robot.ensure_client(
                             ManipulationApiClient.default_service_name
                         )
                     initialised = True
@@ -1948,7 +1945,7 @@ class SpotWrapper:
                 pick_object=grasp
             )
             # Send the request
-            cmd_response = self._manipulation_client.manipulation_api_command(
+            cmd_response = self._manipulation_api_client.manipulation_api_command(
                 manipulation_api_request=grasp_request
             )
 
@@ -1959,7 +1956,7 @@ class SpotWrapper:
                 )
 
                 # Send the request
-                response = self._manipulation_client.manipulation_api_feedback_command(
+                response = self._manipulation_api_client.manipulation_api_feedback_command(
                     manipulation_api_feedback_request=feedback_request
                 )
 
