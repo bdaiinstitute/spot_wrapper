@@ -819,12 +819,13 @@ class SpotWrapper:
 
     def claim(self) -> typing.Tuple[bool, str]:
         """Get a lease for the robot, a handle on the estop endpoint, and the ID of the robot."""
-        for resource in self.lease:
-            if (
-                resource.resource == "all-leases"
-                and SPOT_CLIENT_NAME in resource.lease_owner.client_name
-            ):
-                return True, "We already claimed the lease"
+        if self.lease is not None:
+            for resource in self.lease:
+                if (
+                    resource.resource == "all-leases"
+                    and SPOT_CLIENT_NAME in resource.lease_owner.client_name
+                ):
+                    return True, "We already claimed the lease"
 
         try:
             self._robot_params["robot_id"] = self._robot.get_id()

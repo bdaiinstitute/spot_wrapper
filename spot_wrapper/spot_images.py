@@ -80,7 +80,7 @@ IMAGE_TYPES = {"visual", "depth", "depth_registered"}
 @dataclass(frozen=True, eq=True)
 class CameraSource:
     camera_name: str
-    image_types: list[str]
+    image_types: typing.List[str]
 
 
 @dataclass(frozen=True)
