@@ -1198,7 +1198,7 @@ class SpotWrapper:
     def _manipulation_request(
         self, request_proto, end_time_secs=None, timesync_endpoint=None
     ):
-        """Generic blocking function for sending requests to the manipulation api of a robot.
+        """Generic function for sending requests to the manipulation api of a robot.
 
         Args:
             request_proto: manipulation_api_pb2 object to send to the robot.
