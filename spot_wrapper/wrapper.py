@@ -934,8 +934,6 @@ class SpotWrapper:
         while not authenticated:
             try:
                 logger.info("Trying to authenticate with robot...")
-                logger.info(f"username={username}")
-                logger.info(f"password={password}")
                 robot.authenticate(username, password)
                 robot.time_sync.wait_for_sync(10)
                 logger.info("Successfully authenticated.")
