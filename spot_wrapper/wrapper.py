@@ -1954,8 +1954,10 @@ class SpotWrapper:
                 )
 
                 # Send the request
-                response = self._manipulation_api_client.manipulation_api_feedback_command(
-                    manipulation_api_feedback_request=feedback_request
+                response = (
+                    self._manipulation_api_client.manipulation_api_feedback_command(
+                        manipulation_api_feedback_request=feedback_request
+                    )
                 )
 
                 print(
