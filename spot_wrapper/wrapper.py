@@ -1200,7 +1200,9 @@ class SpotWrapper:
             self._logger.error(f"Unable to execute robot command: {e}")
             return False, str(e), None
 
-    def _manipulation_request(self, request_proto, end_time_secs=None, timesync_endpoint=None):
+    def _manipulation_request(
+        self, request_proto, end_time_secs=None, timesync_endpoint=None
+    ):
         """Generic blocking function for sending requests to the manipulation api of a robot.
 
         Args:
@@ -1209,7 +1211,8 @@ class SpotWrapper:
         try:
             command_id = self._manipulation_api_client.manipulation_api_command(
                 manipulation_api_request=request_proto
-            )
+            ).manipulation_cmd_id
+
             return True, "Success", command_id
         except Exception as e:
             self._logger.error(f"Unable to execute manipulation command: {e}")
@@ -1463,10 +1466,12 @@ class SpotWrapper:
 
     def get_manipulation_command_feedback(self, cmd_id):
         feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
-                        manipulation_cmd_id=cmd_id)
+            manipulation_cmd_id=cmd_id
+        )
 
         return self._manipulation_api_client.manipulation_api_feedback_command(
-                        manipulation_api_feedback_request=feedback_request)
+            manipulation_api_feedback_request=feedback_request
+        )
 
     def list_graph(self, upload_path):
         """List waypoint ids of garph_nav
