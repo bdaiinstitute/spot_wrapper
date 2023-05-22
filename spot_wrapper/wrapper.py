@@ -749,7 +749,7 @@ class SpotWrapper:
                         self._logger.info("No point cloud services are available.")
 
                     if self._robot.has_arm():
-                        self._manipulation_client = self._robot.ensure_client(
+                        self._manipulation_api_client = self._robot.ensure_client(
                             ManipulationApiClient.default_service_name
                         )
                     initialised = True
@@ -1196,6 +1196,24 @@ class SpotWrapper:
             self._logger.error(f"Unable to execute robot command: {e}")
             return False, str(e), None
 
+    def _manipulation_request(
+        self, request_proto, end_time_secs=None, timesync_endpoint=None
+    ):
+        """Generic function for sending requests to the manipulation api of a robot.
+
+        Args:
+            request_proto: manipulation_api_pb2 object to send to the robot.
+        """
+        try:
+            command_id = self._manipulation_api_client.manipulation_api_command(
+                manipulation_api_request=request_proto
+            ).manipulation_cmd_id
+
+            return True, "Success", command_id
+        except Exception as e:
+            self._logger.error(f"Unable to execute manipulation command: {e}")
+            return False, str(e), None
+
     @try_claim
     def stop(self):
         """Stop the robot's motion."""
@@ -1431,8 +1449,25 @@ class SpotWrapper:
             timesync_endpoint=self._robot.time_sync.endpoint,
         )
 
+    def manipulation_command(self, request):
+        end_time = time.time() + MAX_COMMAND_DURATION
+        return self._manipulation_request(
+            request,
+            end_time_secs=end_time,
+            timesync_endpoint=self._robot.time_sync.endpoint,
+        )
+
     def get_robot_command_feedback(self, cmd_id):
         return self._robot_command_client.robot_command_feedback(cmd_id)
+
+    def get_manipulation_command_feedback(self, cmd_id):
+        feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
+            manipulation_cmd_id=cmd_id
+        )
+
+        return self._manipulation_api_client.manipulation_api_feedback_command(
+            manipulation_api_feedback_request=feedback_request
+        )
 
     def list_graph(self, upload_path):
         """List waypoint ids of garph_nav
@@ -1909,7 +1944,7 @@ class SpotWrapper:
                 pick_object=grasp
             )
             # Send the request
-            cmd_response = self._manipulation_client.manipulation_api_command(
+            cmd_response = self._manipulation_api_client.manipulation_api_command(
                 manipulation_api_request=grasp_request
             )
 
@@ -1920,8 +1955,10 @@ class SpotWrapper:
                 )
 
                 # Send the request
-                response = self._manipulation_client.manipulation_api_feedback_command(
-                    manipulation_api_feedback_request=feedback_request
+                response = (
+                    self._manipulation_api_client.manipulation_api_feedback_command(
+                        manipulation_api_feedback_request=feedback_request
+                    )
                 )
 
                 print(
