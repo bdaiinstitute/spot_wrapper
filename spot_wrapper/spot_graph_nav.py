@@ -630,7 +630,7 @@ class SpotGraphNav:
         """Convert a unique id to a 2 letter short code."""
         tokens = id.split("-")
         if len(tokens) > 2:
-            return "%c%c" % (tokens[0][0], tokens[1][0])
+            return f"{tokens[0][0]:c}, {tokens[1][0]:c}"
         return None
 
     def _pretty_print_waypoints(

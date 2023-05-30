@@ -38,7 +38,7 @@ class AsyncImageService(AsyncPeriodicQuery):
         callback: Callback function to call when the results of the query are available
     """
 
-    def __init__(self, client, logger, rate, callback, image_requests):
+    def __init__(self, client, logger , rate, callback, image_requests):
         super(AsyncImageService, self).__init__(
             "robot_image_service", client, logger, period_sec=1.0 / max(rate, 1.0)
         )
@@ -237,27 +237,27 @@ class SpotArm:
         # Values after unstow are: [0.0, -0.9, 1.8, 0.0, -0.9, 0.0]
         if abs(joint_targets[0]) > 3.14:
             msg = "Joint 1 has to be between -3.14 and 3.14"
-            self._logger.warn(msg)
+            self._logger.warning(msg)
             return False, msg
         elif joint_targets[1] > 0.4 or joint_targets[1] < -3.13:
             msg = "Joint 2 has to be between -3.13 and 0.4"
-            self._logger.warn(msg)
+            self._logger.warning(msg)
             return False, msg
         elif joint_targets[2] > 3.14 or joint_targets[2] < 0.0:
             msg = "Joint 3 has to be between 0.0 and 3.14"
-            self._logger.warn(msg)
+            self._logger.warning(msg)
             return False, msg
         elif abs(joint_targets[3]) > 2.79253:
             msg = "Joint 4 has to be between -2.79253 and 2.79253"
-            self._logger.warn(msg)
+            self._logger.warning(msg)
             return False, msg
         elif abs(joint_targets[4]) > 1.8326:
             msg = "Joint 5 has to be between -1.8326 and 1.8326"
-            self._logger.warn(msg)
+            self._logger.warning(msg)
             return False, msg
         elif abs(joint_targets[5]) > 2.87:
             msg = "Joint 6 has to be between -2.87 and 2.87"
-            self._logger.warn(msg)
+            self._logger.warning(msg)
             return False, msg
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -300,6 +300,11 @@ class SpotArm:
         except Exception as e:
             return False, "Exception occured during arm movement: " + str(e)
 
+    def create_wrench_from_msg(self, forces, torques):
+        force = geometry_pb2.Vec3(x=forces[0], y=forces[1], z=forces[2])
+        torque = geometry_pb2.Vec3(x=torques[0], y=torques[1], z=torques[2])
+        return geometry_pb2.Wrench(force=force, torque=torque)
+
     def force_trajectory(self, data) -> typing.Tuple[bool, str]:
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -307,24 +312,18 @@ class SpotArm:
                 self._logger.info(msg)
                 return False, msg
             else:
-
-                def create_wrench_from_msg(forces, torques):
-                    force = geometry_pb2.Vec3(x=forces[0], y=forces[1], z=forces[2])
-                    torque = geometry_pb2.Vec3(x=torques[0], y=torques[1], z=torques[2])
-                    return geometry_pb2.Wrench(force=force, torque=torque)
-
                 # Duration in seconds.
                 traj_duration = data.duration
 
                 # first point on trajectory
-                wrench0 = create_wrench_from_msg(data.forces_pt0, data.torques_pt0)
+                wrench0 = self.create_wrench_from_msg(data.forces_pt0, data.torques_pt0)
                 t0 = seconds_to_duration(0)
                 traj_point0 = trajectory_pb2.WrenchTrajectoryPoint(
                     wrench=wrench0, time_since_reference=t0
                 )
 
                 # Second point on the trajectory
-                wrench1 = create_wrench_from_msg(data.forces_pt1, data.torques_pt1)
+                wrench1 = self.create_wrench_from_msg(data.forces_pt1, data.torques_pt1)
                 t1 = seconds_to_duration(traj_duration)
                 traj_point1 = trajectory_pb2.WrenchTrajectoryPoint(
                     wrench=wrench1, time_since_reference=t1
