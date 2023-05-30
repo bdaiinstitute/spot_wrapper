@@ -61,6 +61,25 @@ from . import graph_nav_util
 from bosdyn.api import basic_command_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
+
+# TO-DO - clean up imports
+
+import argparse
+import os
+import sys
+import time
+
+import bosdyn.client
+import bosdyn.client.util
+from bosdyn.choreography.client.choreography import (
+    ChoreographyClient,
+    load_choreography_sequence_from_txt_file,
+)
+from bosdyn.client import ResponseError, RpcError, create_standard_sdk
+from bosdyn.client.exceptions import UnauthenticatedError
+from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
+from bosdyn.client.license import LicenseClient
+
 front_image_sources = [
     "frontleft_fisheye_image",
     "frontright_fisheye_image",
@@ -695,6 +714,7 @@ class SpotWrapper:
             self._logger.error("Error creating SDK object: %s", e)
             self._valid = False
             return
+        self._sdk.register_service_client(ChoreographyClient)
 
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
@@ -740,6 +760,19 @@ class SpotWrapper:
                     self._docking_client = self._robot.ensure_client(
                         DockingClient.default_service_name
                     )
+                    self._choreography_client = self._robot.ensure_client(
+                        ChoreographyClient.default_service_name
+                    )
+                    self._license_client = self._robot.ensure_client(
+                        LicenseClient.default_service_name
+                    )
+                    if not self._license_client.get_feature_enabled(
+                        [ChoreographyClient.license_name]
+                    )[ChoreographyClient.license_name]:
+                        self._logger.error("Robot is not licensed for choreography", e)
+                        self._valid = False
+                        return
+
                     try:
                         self._point_cloud_client = self._robot.ensure_client(
                             VELODYNE_SERVICE_NAME
@@ -2622,3 +2655,69 @@ class SpotWrapper:
                 )
             )
         return result
+
+    def execute_dance(self):
+        # REMEMBER TO REMOVE DEFAULT DANCE
+        # Check that an estop is connected with the robot so that the robot commands can be executed.
+        if self._robot.is_estopped():
+            error_msg = "Robot is estopped. Please use an external E-Stop client, \
+            such as the estop SDK example, to configure E-Stop."
+            return False, error_msg
+        lease = self._lease_client.acquire()
+        lk = LeaseKeepAlive(self._lease_client)
+        filepath = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "default_dance.csq"
+        )
+        try:
+            choreography = load_choreography_sequence_from_txt_file(filepath)
+        except Exception as execp:
+            error_msg = "Failed to load choreography. Raised exception: " + str(execp)
+            return False, error_msg
+
+        try:
+            upload_response = self._choreography_client.upload_choreography(
+                choreography, non_strict_parsing=True
+            )
+        except UnauthenticatedError as err:
+            error_msg = "The robot license must contain 'choreography' permissions to upload and execute dances. \
+            Please contact Boston Dynamics Support to get the appropriate license file. "
+            return False, error_msg
+        except ResponseError as err:
+            # Check if the ChoreographyService considers the uploaded routine as valid. If not, then the warnings must be
+            # addressed before the routine can be executed on robot.
+            error_msg = "Choreography sequence upload failed. The following warnings were produced: "
+            for warn in err.response.warnings:
+                error_msg += warn
+            return False, error_msg
+        # If the routine was valid, then we can now execute the routine on robot.
+        # Power on the robot. The robot can start from any position, since the Choreography Service can automatically
+        # figure out and move the robot to the position necessary for the first move.
+        self._robot.power_on()
+
+        # First, get the name of the choreographed sequence that was uploaded to the robot to uniquely identify which
+        # routine to perform.
+        routine_name = choreography.name
+        # Then, set a start time five seconds after the current time.
+        client_start_time = time.time() + 5.0
+        # Specify the starting slice of the choreography. We will set this to slice=0 so that the routine begins at
+        # the very beginning.
+        start_slice = 0
+        # Issue the command to the robot's choreography service.
+        self._choreography_client.execute_choreography(
+            choreography_name=routine_name,
+            client_start_time=client_start_time,
+            choreography_starting_slice=start_slice,
+        )
+
+        # Estimate how long the choreographed sequence will take, and sleep that long.
+        total_choreography_slices = 0
+        for move in choreography.moves:
+            total_choreography_slices += move.requested_slices
+        estimated_time_seconds = (
+            total_choreography_slices / choreography.slices_per_minute * 60.0
+        )
+        time.sleep(estimated_time_seconds)
+
+        # Sit the robot down and power off the robot.
+        self._robot.power_off()
+        return True, "Sucess"
