@@ -2124,7 +2124,7 @@ class SpotWrapper:
         if not localization_state.localization.waypoint_id:
             # The robot is not localized to the newly uploaded graph.
             self._logger.info(
-                "Upload complete! The robot is currently not localized to the map; "\
+                "Upload complete! The robot is currently not localized to the map; "
                 "please localize the robot"
             )
 
