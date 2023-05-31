@@ -1,6 +1,7 @@
 import functools
 import logging
 import math
+import os
 import time
 import traceback
 import typing
@@ -578,6 +579,7 @@ class SpotWrapper:
         use_take_lease: bool = False,
         get_lease_on_action: bool = False,
         continually_try_stand: bool = True,
+        rgb_cameras: bool = True,
     ):
         """
         Args:
@@ -597,6 +599,7 @@ class SpotWrapper:
                                  power on the robot for commands which require it - stand, rollover, self-right.
             continually_try_stand: If the robot expects to be standing and is not, command a stand.  This can result
                                    in strange behavior if you use the wrapper and tablet together.
+            rgb_cameras: If the robot has only body-cameras with greyscale images, this must be set to false.
         """
         self._username = username
         self._password = password
@@ -605,6 +608,7 @@ class SpotWrapper:
         self._use_take_lease = use_take_lease
         self._get_lease_on_action = get_lease_on_action
         self._continually_try_stand = continually_try_stand
+        self._rgb_cameras = rgb_cameras
         self._frame_prefix = ""
         if robot_name is not None:
             self._frame_prefix = robot_name + "/"
@@ -672,7 +676,9 @@ class SpotWrapper:
                 build_image_request(
                     camera_source,
                     image_format=image_pb2.Image.FORMAT_JPEG,
-                    pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                    pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8
+                    if self._rgb_cameras
+                    else image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8,
                     quality_percent=50,
                 )
             )
@@ -817,7 +823,13 @@ class SpotWrapper:
                         pixel_format = image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
                     else:
                         image_format = image_pb2.Image.FORMAT_JPEG
-                        pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
+                        if camera == "hand" or self._rgb_cameras:
+                            pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
+                        elif camera != "hand":
+                            self._logger.info(
+                                f"Switching {camera}:{image_type} to greyscale image format."
+                            )
+                            pixel_format = image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8
 
                     source = IMAGE_SOURCES_BY_CAMERA[camera][image_type]
                     self._image_requests_by_camera[camera][
@@ -830,11 +842,7 @@ class SpotWrapper:
                     )
 
             # Store the most recent knowledge of the state of the robot based on rpc calls.
-            self._current_graph = None
-            self._current_edges = dict()  # maps to_waypoint to list(from_waypoint)
-            self._current_waypoint_snapshots = dict()  # maps id to waypoint snapshot
-            self._current_edge_snapshots = dict()  # maps id to edge snapshot
-            self._current_annotation_name_to_wp_id = dict()
+            self._init_current_graph_nav_state()
 
             # Async Tasks
             self._async_task_list = []
@@ -2005,6 +2013,18 @@ class SpotWrapper:
 
     ###################################################################
 
+    def _init_current_graph_nav_state(self):
+        # Store the most recent knowledge of the state of the robot based on rpc calls.
+        self._current_graph = None
+        self._current_edges = dict()  # maps to_waypoint to list(from_waypoint)
+        self._current_waypoint_snapshots = dict()  # maps id to waypoint snapshot
+        self._current_edge_snapshots = dict()  # maps id to edge snapshot
+        self._current_annotation_name_to_wp_id = dict()
+        self._current_anchored_world_objects = (
+            dict()
+        )  # maps object id to a (wo, waypoint, fiducial)
+        self._current_anchors = dict()  # maps anchor id to anchor
+
     ## copy from spot-sdk/python/examples/graph_nav_command_line/graph_nav_command_line.py
     def _get_localization_state(self, *args):
         """Get the current localization and state of the robot."""
@@ -2091,7 +2111,7 @@ class SpotWrapper:
     def _upload_graph_and_snapshots(self, upload_filepath):
         """Upload the graph and snapshots to the robot."""
         self._logger.info("Loading the graph from disk into local storage...")
-        with open(upload_filepath + "/graph", "rb") as graph_file:
+        with open(os.path.join(upload_filepath, "graph"), "rb") as graph_file:
             # Load the graph from disk.
             data = graph_file.read()
             self._current_graph = map_pb2.Graph()
@@ -2103,25 +2123,56 @@ class SpotWrapper:
             )
         for waypoint in self._current_graph.waypoints:
             # Load the waypoint snapshots from disk.
-            with open(
-                upload_filepath + "/waypoint_snapshots/{}".format(waypoint.snapshot_id),
-                "rb",
-            ) as snapshot_file:
+            if len(waypoint.snapshot_id) == 0:
+                continue
+            waypoint_filepath = os.path.join(
+                upload_filepath, "waypoint_snapshots", waypoint.snapshot_id
+            )
+            if not os.path.exists(waypoint_filepath):
+                continue
+            with open(waypoint_filepath, "rb") as snapshot_file:
                 waypoint_snapshot = map_pb2.WaypointSnapshot()
                 waypoint_snapshot.ParseFromString(snapshot_file.read())
                 self._current_waypoint_snapshots[
                     waypoint_snapshot.id
                 ] = waypoint_snapshot
+
+                for fiducial in waypoint_snapshot.objects:
+                    if not fiducial.HasField("apriltag_properties"):
+                        continue
+
+                    str_id = str(fiducial.apriltag_properties.tag_id)
+                    if (
+                        str_id in self._current_anchored_world_objects
+                        and len(self._current_anchored_world_objects[str_id]) == 1
+                    ):
+                        # Replace the placeholder tuple with a tuple of (wo, waypoint, fiducial).
+                        anchored_wo = self._current_anchored_world_objects[str_id][0]
+                        self._current_anchored_world_objects[str_id] = (
+                            anchored_wo,
+                            waypoint,
+                            fiducial,
+                        )
+
         for edge in self._current_graph.edges:
             # Load the edge snapshots from disk.
-            with open(
-                upload_filepath + "/edge_snapshots/{}".format(edge.snapshot_id), "rb"
-            ) as snapshot_file:
+            if len(edge.snapshot_id) == 0:
+                continue
+            edge_filepath = os.path.join(
+                upload_filepath, "edge_snapshots", edge.snapshot_id
+            )
+            if not os.path.exists(edge_filepath):
+                continue
+            with open(edge_filepath, "rb") as snapshot_file:
                 edge_snapshot = map_pb2.EdgeSnapshot()
                 edge_snapshot.ParseFromString(snapshot_file.read())
                 self._current_edge_snapshots[edge_snapshot.id] = edge_snapshot
+        for anchor in self._current_graph.anchoring.anchors:
+            self._current_anchors[anchor.id] = anchor
         # Upload the graph to the robot.
         self._logger.info("Uploading the graph and snapshots to the robot...")
+        if self._lease is None:
+            self.getLease()
         self._graph_nav_client.upload_graph(
             lease=self._lease.lease_proto, graph=self._current_graph
         )
@@ -2140,8 +2191,8 @@ class SpotWrapper:
         if not localization_state.localization.waypoint_id:
             # The robot is not localized to the newly uploaded graph.
             self._logger.info(
-                "Upload complete! The robot is currently not localized to the map; please localize",
-                "the robot using commands (2) or (3) before attempting a navigation command.",
+                "Upload complete! The robot is currently not localized to the map; "
+                "please localize the robot"
             )
 
     @try_claim
@@ -2301,7 +2352,9 @@ class SpotWrapper:
 
     def _clear_graph(self, *args):
         """Clear the state of the map on the robot, removing all waypoints and edges."""
-        return self._graph_nav_client.clear_graph(lease=self._lease.lease_proto)
+        result = self._graph_nav_client.clear_graph(lease=self._lease.lease_proto)
+        self._init_current_graph_nav_state()
+        return result
 
     @try_claim
     def toggle_power(self, should_power_on):
