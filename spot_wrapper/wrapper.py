@@ -2676,5 +2676,3 @@ class SpotWrapper:
                 )
             )
         return result
-
-    
