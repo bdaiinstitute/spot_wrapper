@@ -1,5 +1,6 @@
 import sys
 import time
+import logging
 
 import bosdyn.client
 import bosdyn.client.util
@@ -13,13 +14,24 @@ from bosdyn.client.license import LicenseClient
 
 
 class SpotDancing():
-    def __init__(self, hostname: str, robot_name: str):
+    def __init__(self, hostname: str, robot_name: str, username: str, password: str, logger:  logging.Logger):
         self._hostname = hostname
         self._robot_name = robot_name
+        self._username = username
+        self._password = password
+        self._logger = logger
+
         sdk = bosdyn.client.create_standard_sdk('UploadChoreography')
         sdk.register_service_client(ChoreographyClient)
         self._robot = sdk.create_robot(self._hostname)
-        bosdyn.client.util.authenticate(self._robot)
+        if not self._robot:
+            print("create robot failed!")
+        authenticated = self.authenticate(
+            self._robot, self._username, self._password, self._logger
+        )
+        if not authenticated:
+            print("Authentication failed!")
+            return
         license_client = self._robot.ensure_client(LicenseClient.default_service_name)
         if not license_client.get_feature_enabled([ChoreographyClient.license_name
                                               ])[ChoreographyClient.license_name]:
@@ -29,6 +41,45 @@ class SpotDancing():
         lease = lease_client.acquire()
         lk = LeaseKeepAlive(lease_client)
         self._choreography_client = self._robot.ensure_client(ChoreographyClient.default_service_name)
+
+    @staticmethod
+    def authenticate(robot, username, password, logger):
+        """
+        Authenticate with a robot through the bosdyn API. A blocking function which will wait until authenticated (if
+        the robot is still booting) or login fails
+
+        Args:
+            robot: Robot object which we are authenticating with
+            username: Username to authenticate with
+            password: Password for the given username
+            logger: Logger with which to print messages
+
+        Returns:
+
+        """
+        authenticated = False
+        while not authenticated:
+            try:
+                logger.info("Trying to authenticate with robot...")
+                robot.authenticate(username, password)
+                robot.time_sync.wait_for_sync(10)
+                logger.info("Successfully authenticated.")
+                authenticated = True
+            except RpcError as err:
+                sleep_secs = 15
+                logger.warn(
+                    "Failed to communicate with robot: {}\nEnsure the robot is powered on and you can "
+                    "ping {}. Robot may still be booting. Will retry in {} seconds".format(
+                        err, robot.address, sleep_secs
+                    )
+                )
+                time.sleep(sleep_secs)
+            except bosdyn.client.auth.InvalidLoginError as err:
+                logger.error("Failed to log in to robot: {}".format(err))
+                raise err
+
+        return authenticated
+
 
     def execute_dance(self, filepath: str) -> tuple[bool, list]:
             """uploads and executes the dance at filepath to Spot"""
