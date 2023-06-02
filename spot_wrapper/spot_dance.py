@@ -7,7 +7,6 @@ from bosdyn.client import ResponseError
 from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.robot import Robot
 from bosdyn.choreography.client.choreography import ChoreographyClient
-from bosdyn.client.lease import LeaseClient
 
 
 class SpotDance:
@@ -15,15 +14,13 @@ class SpotDance:
         self,
         robot: Robot,
         choreography_client: ChoreographyClient,
-        lease_client: LeaseClient,
         is_licensed_for_choreography: bool,
     ):
         self._robot = robot
         self._choreography_client = choreography_client
-        self._lease_client = lease_client
         self._is_licensed_for_choreography = is_licensed_for_choreography
 
-    def execute_dance(self, filepath: str) -> tuple[bool, list]:
+    def execute_dance(self, filepath: str) -> tuple[bool, str]:
         """uploads and executes the dance at filepath to Spot"""
 
         if not self._is_licensed_for_choreography:
