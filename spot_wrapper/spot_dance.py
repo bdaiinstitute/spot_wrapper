@@ -19,8 +19,6 @@ class SpotDance:
         lease_client: LeaseClient,
         is_licensed_for_choreography: bool,
     ):
-        print(type(choreography_client))
-        print(type(lease_client))
         self._robot = robot
         self._choreography_client = choreography_client
         self._lease_client = lease_client
