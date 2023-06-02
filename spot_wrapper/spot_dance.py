@@ -5,7 +5,6 @@ from bosdyn.choreography.client.choreography import (
 )
 from bosdyn.client import ResponseError
 from bosdyn.client.exceptions import UnauthenticatedError
-from bosdyn.client.lease import LeaseKeepAlive
 from bosdyn.client.robot import Robot
 from bosdyn.choreography.client.choreography import ChoreographyClient
 from bosdyn.client.lease import LeaseClient
