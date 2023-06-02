@@ -7,28 +7,30 @@ from bosdyn.client import ResponseError
 from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.lease import LeaseKeepAlive
 from bosdyn.client.robot import Robot
-import typing
+from bosdyn.choreography.client.choreography import ChoreographyClient
+from bosdyn.client.lease import LeaseClient
 
 
 class SpotDance:
     def __init__(
         self,
         robot: Robot,
-        choreography_client: typing.Any,
-        lease_client: typing.Any,
-        is_licensed_for_choreography: typing.Any,
+        choreography_client: ChoreographyClient,
+        lease_client: LeaseClient,
+        is_licensed_for_choreography: bool,
     ):
+        print(type(choreography_client))
+        print(type(lease_client))
         self._robot = robot
         self._choreography_client = choreography_client
         self._lease_client = lease_client
         self._is_licensed_for_choreography = is_licensed_for_choreography
 
     def execute_dance(self, filepath: str) -> tuple[bool, list]:
+        """uploads and executes the dance at filepath to Spot"""
+
         if not self._is_licensed_for_choreography:
             return False, "Robot is not licensed for choreography."
-        lease = self._lease_client.acquire()
-        lk = LeaseKeepAlive(self._lease_client)
-        """uploads and executes the dance at filepath to Spot"""
         if self._robot.is_estopped():
             error_msg = "Robot is estopped. Please use an external E-Stop client"
             "such as the estop SDK example, to configure E-Stop."
