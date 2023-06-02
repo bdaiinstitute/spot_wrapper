@@ -47,9 +47,17 @@ from bosdyn.client.power import safe_power_off, PowerClient, power_on
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.world_object import WorldObjectClient
+from bosdyn.client.exceptions import UnauthenticatedError
+from bosdyn.client.license import LicenseClient
+from bosdyn.client import ResponseError, RpcError, create_standard_sdk
+from bosdyn.choreography.client.choreography import (
+    ChoreographyClient,
+    load_choreography_sequence_from_txt_file,
+)
 from bosdyn.geometry import EulerZXY
 from bosdyn.util import seconds_to_duration
 from google.protobuf.duration_pb2 import Duration
+from .spot_dance import SpotDance
 
 MAX_COMMAND_DURATION = 1e5
 
@@ -631,6 +639,7 @@ class SpotWrapper:
         self._near_goal = False
         self._trajectory_status_unknown = False
         self._last_robot_command_feedback = False
+        self._is_licensed_for_choreography = True
         self._last_stand_command = None
         self._last_sit_command = None
         self._last_trajectory_command = None
@@ -701,6 +710,7 @@ class SpotWrapper:
             self._logger.error("Error creating SDK object: %s", e)
             self._valid = False
             return
+        self._sdk.register_service_client(ChoreographyClient)
 
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
@@ -746,6 +756,17 @@ class SpotWrapper:
                     self._docking_client = self._robot.ensure_client(
                         DockingClient.default_service_name
                     )
+                    self._choreography_client = self._robot.ensure_client(
+                        ChoreographyClient.default_service_name
+                    )
+                    self._license_client = self._robot.ensure_client(
+                        LicenseClient.default_service_name
+                    )
+                    if not self._license_client.get_feature_enabled(
+                        [ChoreographyClient.license_name]
+                    )[ChoreographyClient.license_name]:
+                        self._logger.error("Robot is not licensed for choreography", e)
+                        self._is_licensed_for_choreography = False
 
                     try:
                         self._point_cloud_client = self._robot.ensure_client(
@@ -920,6 +941,13 @@ class SpotWrapper:
                 "rear_image": self._rear_image_task,
                 "front_image": self._front_image_task,
             }
+
+            self._spot_dance = SpotDance(
+                self._robot,
+                self._choreography_client,
+                self._lease_client,
+                self._is_licensed_for_choreography,
+            )
 
             self._robot_id = None
             self._lease = None
@@ -2676,3 +2704,59 @@ class SpotWrapper:
                 )
             )
         return result
+
+    @try_claim
+    def execute_dance(self, filepath):
+        """uploads and executes the dance at filepath to Spot"""
+        if self._robot.is_estopped():
+            error_msg = "Robot is estopped. Please use an external E-Stop client"
+            "such as the estop SDK example, to configure E-Stop."
+            return False, error_msg
+        try:
+            choreography = load_choreography_sequence_from_txt_file(filepath)
+        except Exception as execp:
+            error_msg = "Failed to load choreography. Raised exception: " + str(execp)
+            return False, error_msg
+        try:
+            upload_response = self._choreography_client.upload_choreography(
+                choreography, non_strict_parsing=True
+            )
+        except UnauthenticatedError as err:
+            error_msg = "The robot license must contain 'choreography' permissions to upload and execute dances."
+            "Please contact Boston Dynamics Support to get the appropriate license file. "
+            return False, error_msg
+        except ResponseError as err:
+            error_msg = "Choreography sequence upload failed. The following warnings were produced: "
+            for warn in err.response.warnings:
+                error_msg += warn
+            return False, error_msg
+
+        # Routine is valid! Power on robot and execute routine.
+        try:
+            self._robot.power_on()
+            routine_name = choreography.name
+            client_start_time = time.time() + 5.0
+            start_slice = 0  # start the choreography at the beginning
+
+            # Issue the command to the robot's choreography service.
+
+            self._choreography_client.execute_choreography(
+                choreography_name=routine_name,
+                client_start_time=client_start_time,
+                choreography_starting_slice=start_slice,
+            )
+
+            # Estimate how long the choreographed sequence will take, and sleep that long.
+
+            total_choreography_slices = 0
+            for move in choreography.moves:
+                total_choreography_slices += move.requested_slices
+            estimated_time_seconds = (
+                total_choreography_slices / choreography.slices_per_minute * 60.0
+            )
+            time.sleep(estimated_time_seconds)
+
+            self._robot.power_off()
+            return True, "sucess"
+        except Exception as e:
+            return False, f"Error executing dance: {e}"
