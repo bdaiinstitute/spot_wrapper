@@ -518,24 +518,27 @@ class SpotWrapper:
                     self._point_cloud_client = None
                     self._logger.info("Velodyne point cloud service is not available.")
 
+                self._license_client = self._robot.ensure_client(
+                    LicenseClient.default_service_name
+                )
+
                 if HAVE_CHOREOGRAPHY_MODULE:
-                    self._sdk.register_service_client(ChoreographyClient)
-                    self._choreography_client = self._robot.ensure_client(
-                        ChoreographyClient.default_service_name
-                    )
-                    self._license_client = self._robot.ensure_client(
-                        LicenseClient.default_service_name
-                    )
-                    if not self._license_client.get_feature_enabled(
+                    if self._license_client.get_feature_enabled(
                         [ChoreographyClient.license_name]
                     )[ChoreographyClient.license_name]:
+                        self._sdk.register_service_client(ChoreographyClient)
+                        self._choreography_client = self._robot.ensure_client(
+                            ChoreographyClient.default_service_name
+                        )
+                        self._is_licensed_for_choreography = True
+                    else:
                         self._logger.info(
                             f"Robot is not licensed for choreography: {e}"
                         )
                         self._is_licensed_for_choreography = False
-                    else:
-                        self._is_licensed_for_choreography = True
+                        self._choreography_client = None
                 else:
+                    self._is_licensed_for_choreography = False
                     self._choreography_client = None
 
                 if self._robot.has_arm():
