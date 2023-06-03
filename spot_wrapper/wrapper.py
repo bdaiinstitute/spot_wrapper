@@ -44,20 +44,27 @@ from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.point_cloud import build_pc_request
 from bosdyn.client.power import safe_power_off, PowerClient, power_on
+from bosdyn.client.robot import UnregisteredServiceError
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.world_object import WorldObjectClient
 from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.license import LicenseClient
 from bosdyn.client import ResponseError, RpcError, create_standard_sdk
-from bosdyn.choreography.client.choreography import (
-    ChoreographyClient,
-    load_choreography_sequence_from_txt_file,
-)
+
+try:
+    from bosdyn.choreography.client.choreography import (
+        ChoreographyClient,
+        load_choreography_sequence_from_txt_file,
+    )
+    from .spot_dance import SpotDance
+    HAVE_CHOREOGRAPHY = True
+except ModuleNotFoundError:
+    HAVE_CHOREOGRAPHY = False
+
 from bosdyn.geometry import EulerZXY
 from bosdyn.util import seconds_to_duration
 from google.protobuf.duration_pb2 import Duration
-from .spot_dance import SpotDance
 
 MAX_COMMAND_DURATION = 1e5
 
@@ -639,7 +646,6 @@ class SpotWrapper:
         self._near_goal = False
         self._trajectory_status_unknown = False
         self._last_robot_command_feedback = False
-        self._is_licensed_for_choreography = True
         self._last_stand_command = None
         self._last_sit_command = None
         self._last_trajectory_command = None
@@ -710,7 +716,6 @@ class SpotWrapper:
             self._logger.error("Error creating SDK object: %s", e)
             self._valid = False
             return
-        self._sdk.register_service_client(ChoreographyClient)
 
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
@@ -756,23 +761,29 @@ class SpotWrapper:
                     self._docking_client = self._robot.ensure_client(
                         DockingClient.default_service_name
                     )
-                    self._choreography_client = self._robot.ensure_client(
-                        ChoreographyClient.default_service_name
-                    )
-                    self._license_client = self._robot.ensure_client(
-                        LicenseClient.default_service_name
-                    )
-                    if not self._license_client.get_feature_enabled(
-                        [ChoreographyClient.license_name]
-                    )[ChoreographyClient.license_name]:
-                        self._logger.error("Robot is not licensed for choreography", e)
-                        self._is_licensed_for_choreography = False
+
+                    if HAVE_CHOREOGRAPHY:
+                        self._is_licensed_for_choreography = True
+                        self._sdk.register_service_client(ChoreographyClient)
+                        self._choreography_client = self._robot.ensure_client(
+                                ChoreographyClient.default_service_name
+                                )
+                        self._license_client = self._robot.ensure_client(
+                                LicenseClient.default_service_name
+                                )
+                        if not self._license_client.get_feature_enabled(
+                            [ChoreographyClient.license_name]
+                        )[ChoreographyClient.license_name]:
+                            self._logger.error("Robot is not licensed for choreography", e)
+                            self._is_licensed_for_choreography = False
+                    else:
+                        self._choreography_client = None
 
                     try:
                         self._point_cloud_client = self._robot.ensure_client(
                             VELODYNE_SERVICE_NAME
                         )
-                    except Exception as e:
+                    except UnregisteredServiceError:
                         self._point_cloud_client = None
                         self._logger.info("No point cloud services are available.")
 
@@ -780,6 +791,9 @@ class SpotWrapper:
                         self._manipulation_api_client = self._robot.ensure_client(
                             ManipulationApiClient.default_service_name
                         )
+                    else:
+                        self._manipulation_api_client = None
+
                     initialised = True
                 except Exception as e:
                     sleep_secs = 15
@@ -942,11 +956,12 @@ class SpotWrapper:
                 "front_image": self._front_image_task,
             }
 
-            self._spot_dance = SpotDance(
-                self._robot,
-                self._choreography_client,
-                self._is_licensed_for_choreography,
-            )
+            if self._is_licensed_for_choreography:
+                self._spot_dance = SpotDance(
+                    self._robot,
+                    self._choreography_client,
+                    self._is_licensed_for_choreography,
+                )
 
             self._robot_id = None
             self._lease = None
