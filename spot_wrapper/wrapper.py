@@ -630,15 +630,15 @@ class SpotWrapper:
 
         self._async_tasks = AsyncTasks(robot_tasks)
 
-            self.camera_task_name_to_task_mapping = {
-                "hand_image": self._hand_image_task,
-                "side_image": self._side_image_task,
-                "rear_image": self._rear_image_task,
-                "front_image": self._front_image_task,
-            }
+        self.camera_task_name_to_task_mapping = {
+            "hand_image": self._hand_image_task,
+            "side_image": self._side_image_task,
+            "rear_image": self._rear_image_task,
+            "front_image": self._front_image_task,
+        }
 
-            self._robot_id = None
-            self._lease = None
+        self._robot_id = None
+        self._lease = None
 
     @staticmethod
     def authenticate(robot, username, password, logger):
