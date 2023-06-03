@@ -1,20 +1,23 @@
-import typing
 import logging
 import math
-import time
 import os
+import time
+import typing
 
-from bosdyn.client.robot import Robot
-from bosdyn.client.robot_state import RobotStateClient
-from bosdyn.client.lease import LeaseClient, LeaseWallet, LeaseKeepAlive
-from bosdyn.client.graph_nav import GraphNavClient
-from bosdyn.client.map_processing import MapProcessingServiceClient
-from bosdyn.client.frame_helpers import get_odom_tform_body
 from bosdyn.api.graph_nav import graph_nav_pb2
 from bosdyn.api.graph_nav import map_pb2
-from bosdyn.api.graph_nav import nav_pb2
 from bosdyn.api.graph_nav import map_processing_pb2
-
+from bosdyn.api.graph_nav import nav_pb2
+from bosdyn.client.frame_helpers import get_odom_tform_body
+from bosdyn.client.graph_nav import GraphNavClient
+from bosdyn.client.lease import (
+    LeaseClient,
+    LeaseWallet,
+    LeaseKeepAlive,
+)
+from bosdyn.client.map_processing import MapProcessingServiceClient
+from bosdyn.client.robot import Robot
+from bosdyn.client.robot_state import RobotStateClient
 from google.protobuf import wrappers_pb2
 
 
@@ -37,12 +40,19 @@ class SpotGraphNav:
         self._lease_wallet: LeaseWallet = self._lease_client.lease_wallet
         self._robot_params = robot_params
 
+        self._init_current_graph_nav_state()
+
+    def _init_current_graph_nav_state(self):
         # Store the most recent knowledge of the state of the robot based on rpc calls.
         self._current_graph = None
         self._current_edges = dict()  # maps to_waypoint to list(from_waypoint)
         self._current_waypoint_snapshots = dict()  # maps id to waypoint snapshot
         self._current_edge_snapshots = dict()  # maps id to edge snapshot
         self._current_annotation_name_to_wp_id = dict()
+        self._current_anchored_world_objects = (
+            dict()
+        )  # maps object id to a (wo, waypoint, fiducial)
+        self._current_anchors = dict()  # maps anchor id to anchor
 
     def list_graph(self) -> typing.List[str]:
         """List waypoint ids of graph_nav
@@ -318,7 +328,7 @@ class SpotGraphNav:
     def _upload_graph_and_snapshots(self, upload_filepath: str):
         """Upload the graph and snapshots to the robot."""
         self._logger.info("Loading the graph from disk into local storage...")
-        with open(upload_filepath + "/graph", "rb") as graph_file:
+        with open(os.path.join(upload_filepath, "graph"), "rb") as graph_file:
             # Load the graph from disk.
             data = graph_file.read()
             self._current_graph = map_pb2.Graph()
@@ -330,28 +340,60 @@ class SpotGraphNav:
             )
         for waypoint in self._current_graph.waypoints:
             # Load the waypoint snapshots from disk.
-            with open(
-                upload_filepath + "/waypoint_snapshots/{}".format(waypoint.snapshot_id),
-                "rb",
-            ) as snapshot_file:
+            if len(waypoint.snapshot_id) == 0:
+                continue
+            waypoint_filepath = os.path.join(
+                upload_filepath, "waypoint_snapshots", waypoint.snapshot_id
+            )
+            if not os.path.exists(waypoint_filepath):
+                continue
+            with open(waypoint_filepath, "rb") as snapshot_file:
                 waypoint_snapshot = map_pb2.WaypointSnapshot()
                 waypoint_snapshot.ParseFromString(snapshot_file.read())
                 self._current_waypoint_snapshots[
                     waypoint_snapshot.id
                 ] = waypoint_snapshot
+
+                for fiducial in waypoint_snapshot.objects:
+                    if not fiducial.HasField("apriltag_properties"):
+                        continue
+
+                    str_id = str(fiducial.apriltag_properties.tag_id)
+                    if (
+                        str_id in self._current_anchored_world_objects
+                        and len(self._current_anchored_world_objects[str_id]) == 1
+                    ):
+                        # Replace the placeholder tuple with a tuple of (wo, waypoint, fiducial).
+                        anchored_wo = self._current_anchored_world_objects[str_id][0]
+                        self._current_anchored_world_objects[str_id] = (
+                            anchored_wo,
+                            waypoint,
+                            fiducial,
+                        )
         for edge in self._current_graph.edges:
             # Load the edge snapshots from disk.
-            self._logger.info(f"Trying edge: {edge.snapshot_id}")
-            if not edge.snapshot_id:
+            if len(edge.snapshot_id) == 0:
                 continue
-            with open(
-                upload_filepath + "/edge_snapshots/{}".format(edge.snapshot_id), "rb"
-            ) as snapshot_file:
+            edge_filepath = os.path.join(
+                upload_filepath, "edge_snapshots", edge.snapshot_id
+            )
+            if not os.path.exists(edge_filepath):
+                continue
+            with open(edge_filepath, "rb") as snapshot_file:
                 edge_snapshot = map_pb2.EdgeSnapshot()
                 edge_snapshot.ParseFromString(snapshot_file.read())
                 self._current_edge_snapshots[edge_snapshot.id] = edge_snapshot
+        for anchor in self._current_graph.anchoring.anchors:
+            self._current_anchors[anchor.id] = anchor
         # Upload the graph to the robot.
         self._logger.info("Uploading the graph and snapshots to the robot...")
+        if self._lease is None:
+            self._logger.error(
+                "Graph nav module did not have a lease to the robot. Claim it before attempting to upload the graph "
+                "and snapshots."
+            )
+            return
+
         self._graph_nav_client.upload_graph(
             lease=self._lease.lease_proto, graph=self._current_graph
         )
@@ -370,7 +412,8 @@ class SpotGraphNav:
         if not localization_state.localization.waypoint_id:
             # The robot is not localized to the newly uploaded graph.
             self._logger.info(
-                "Upload complete! The robot is currently not localized to the map; please localize the robot using a fiducial before attempting a navigation command."
+                "Upload complete! The robot is currently not localized to the map; please localize the robot using a "
+                "fiducial before attempting a navigation command."
             )
 
     def _navigate_to(self, waypoint_id: str) -> typing.Tuple[bool, str]:
@@ -498,7 +541,9 @@ class SpotGraphNav:
 
     def _clear_graph(self, *args) -> bool:
         """Clear the state of the map on the robot, removing all waypoints and edges."""
-        return self._graph_nav_client.clear_graph(lease=self._lease.lease_proto)
+        result = self._graph_nav_client.clear_graph(lease=self._lease.lease_proto)
+        self._init_current_graph_nav_state()
+        return result
 
     def _check_success(self, command_id: int = -1) -> bool:
         """Use a navigation command id to get feedback from the robot and sit when command succeeds."""
