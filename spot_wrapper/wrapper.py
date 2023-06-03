@@ -782,6 +782,7 @@ class SpotWrapper:
                             self._is_licensed_for_choreography = False
                             self._choreography_client = None
                     else:
+                        self._logger.info(f"Choreography is not available.")
                         self._choreography_client = None
                         self._is_licensed_for_choreography = False
 
