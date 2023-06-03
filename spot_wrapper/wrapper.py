@@ -816,6 +816,9 @@ class SpotWrapper:
     def is_estopped(self, timeout=None) -> bool:
         return self._robot.is_estopped(timeout=timeout)
 
+    def has_arm(self, timeout=None):
+        return self._robot.has_arm(timeout=timeout)
+
     @property
     def time_skew(self) -> Timestamp:
         """Return the time skew between local and spot time"""
