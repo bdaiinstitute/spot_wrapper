@@ -502,7 +502,7 @@ class SpotWrapper:
                     self._logger.info("No point cloud services are available.")
 
                 if self._robot.has_arm():
-                    self._manipulation_client = self._robot.ensure_client(
+                    self._manipulation_api_client = self._robot.ensure_client(
                         ManipulationApiClient.default_service_name
                     )
 
@@ -519,7 +519,7 @@ class SpotWrapper:
                     "spot_check_client": self._spot_check_client,
                     "robot_command_method": self._robot_command,
                     "world_objects_client": self._world_objects_client,
-                    "manipulation_client": self._manipulation_client,
+                    "manipulation_api_client": self._manipulation_api_client,
                 }
                 if self._point_cloud_client:
                     self._robot_clients["point_cloud_client"] = self._point_cloud_client
@@ -593,7 +593,11 @@ class SpotWrapper:
 
         if self._robot.has_arm():
             self._spot_arm = SpotArm(
-                self._robot, self._logger, self._robot_params, self._robot_clients
+                self._robot,
+                self._logger,
+                self._robot_params,
+                self._robot_clients,
+                MAX_COMMAND_DURATION,
             )
             self._hand_image_task = self._spot_arm.hand_image_task
             robot_tasks.append(self._hand_image_task)

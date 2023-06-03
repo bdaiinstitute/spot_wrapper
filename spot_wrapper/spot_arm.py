@@ -61,6 +61,7 @@ class SpotArm:
         logger: logging.Logger,
         robot_params: typing.Dict[str, typing.Any],
         robot_clients: typing.Dict[str, typing.Any],
+        max_command_duration: float
     ):
         """
         Constructor for SpotArm class.
@@ -72,15 +73,17 @@ class SpotArm:
             robot_clients: Dictionary of robot clients
                            - robot_clients['robot_command_client']: RobotCommandClient object
                            - robot_clients['robot_command_method']: RobotCommand method
+            max_command_duration: Maximum duration for commands when using the manipulation command method
         """
         self._robot = robot
         self._logger = logger
         self._robot_params = robot_params
+        self._max_command_duration = max_command_duration
         self._robot_command_client: RobotCommandClient = robot_clients[
             "robot_command_client"
         ]
-        self._manipulation_client: ManipulationApiClient = robot_clients[
-            "manipulation_client"
+        self._manipulation_api_client: ManipulationApiClient = robot_clients[
+            "manipulation_api_client"
         ]
         self._robot_state_client: RobotStateClient = robot_clients["robot_state_client"]
         self._image_client: ImageClient = robot_clients["image_client"]
@@ -114,6 +117,43 @@ class SpotArm:
     @property
     def hand_image_task(self):
         return self._hand_image_task
+
+    def _manipulation_request(
+        self,
+        request_proto: manipulation_api_pb2,
+        end_time_secs=None,
+        timesync_endpoint=None,
+    ):
+        """Generic function for sending requests to the manipulation api of a robot.
+        Args:
+            request_proto: manipulation_api_pb2 object to send to the robot.
+        """
+        try:
+            command_id = self._manipulation_api_client.manipulation_api_command(
+                manipulation_api_request=request_proto
+            ).manipulation_cmd_id
+
+            return True, "Success", command_id
+        except Exception as e:
+            self._logger.error(f"Unable to execute manipulation command: {e}")
+            return False, str(e), None
+
+    def manipulation_command(self, request: manipulation_api_pb2):
+        end_time = time.time() + self._max_command_duration
+        return self._manipulation_request(
+            request,
+            end_time_secs=end_time,
+            timesync_endpoint=self._robot.time_sync.endpoint,
+        )
+
+    def get_manipulation_command_feedback(self, cmd_id):
+        feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
+            manipulation_cmd_id=cmd_id
+        )
+
+        return self._manipulation_api_client.manipulation_api_feedback_command(
+            manipulation_api_feedback_request=feedback_request
+        )
 
     def ensure_arm_power_and_stand(self) -> typing.Tuple[bool, str]:
         if not self._robot.has_arm():
@@ -520,7 +560,7 @@ class SpotArm:
                 pick_object=grasp
             )
             # Send the request
-            cmd_response = self._manipulation_client.manipulation_api_command(
+            cmd_response = self._manipulation_api_client.manipulation_api_command(
                 manipulation_api_request=grasp_request
             )
 
@@ -531,8 +571,10 @@ class SpotArm:
                 )
 
                 # Send the request
-                response = self._manipulation_client.manipulation_api_feedback_command(
-                    manipulation_api_feedback_request=feedback_request
+                response = (
+                    self._manipulation_api_client.manipulation_api_feedback_command(
+                        manipulation_api_feedback_request=feedback_request
+                    )
                 )
 
                 print(
