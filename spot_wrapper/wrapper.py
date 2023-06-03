@@ -378,6 +378,7 @@ class SpotWrapper:
         use_take_lease: bool = False,
         get_lease_on_action: bool = False,
         continually_try_stand: bool = True,
+        rgb_cameras: bool = True,
     ):
         """
         Args:
@@ -397,6 +398,7 @@ class SpotWrapper:
                                  power on the robot for commands which require it - stand, rollover, self-right.
             continually_try_stand: If the robot expects to be standing and is not, command a stand.  This can result
                                    in strange behavior if you use the wrapper and tablet together.
+            rgb_cameras: If the robot has only body-cameras with greyscale images, this must be set to false.
         """
         self._username = username
         self._password = password
@@ -407,6 +409,7 @@ class SpotWrapper:
         self._use_take_lease = use_take_lease
         self._get_lease_on_action = get_lease_on_action
         self._continually_try_stand = continually_try_stand
+        self._rgb_cameras = rgb_cameras
         self._frame_prefix = ""
         if robot_name is not None:
             self._frame_prefix = robot_name + "/"
@@ -614,7 +617,7 @@ class SpotWrapper:
             self._robot, self._logger, self._robot_params, self._robot_clients
         )
         self._spot_images = SpotImages(
-            self._robot, self._logger, self._robot_params, self._robot_clients
+            self._robot, self._logger, self._robot_params, self._robot_clients, self._rgb_cameras
         )
 
         if self._point_cloud_client:

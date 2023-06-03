@@ -97,9 +97,11 @@ class SpotImages:
         logger: logging.Logger,
         robot_params: typing.Dict[str, typing.Any],
         robot_clients: typing.Dict[str, typing.Any],
+        rgb_cameras: bool = True,
     ):
         self._robot = robot
         self._logger = logger
+        self._rgb_cameras = rgb_cameras
         self._robot_params = robot_params
         self._image_client: ImageClient = robot_clients["image_client"]
 
@@ -164,7 +166,13 @@ class SpotImages:
                     pixel_format = image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
                 else:
                     image_format = image_pb2.Image.FORMAT_JPEG
-                    pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
+                    if camera == "hand" or self._rgb_cameras:
+                        pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
+                    elif camera != "hand":
+                        self._logger.info(
+                            f"Switching {camera}:{image_type} to greyscale image format."
+                        )
+                        pixel_format = image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8
 
                 source = IMAGE_SOURCES_BY_CAMERA[camera][image_type]
                 self._image_requests_by_camera[camera][
