@@ -58,6 +58,7 @@ try:
         load_choreography_sequence_from_txt_file,
     )
     from .spot_dance import SpotDance
+
     HAVE_CHOREOGRAPHY = True
 except ModuleNotFoundError:
     HAVE_CHOREOGRAPHY = False
@@ -766,15 +767,17 @@ class SpotWrapper:
                         self._is_licensed_for_choreography = True
                         self._sdk.register_service_client(ChoreographyClient)
                         self._choreography_client = self._robot.ensure_client(
-                                ChoreographyClient.default_service_name
-                                )
+                            ChoreographyClient.default_service_name
+                        )
                         self._license_client = self._robot.ensure_client(
-                                LicenseClient.default_service_name
-                                )
+                            LicenseClient.default_service_name
+                        )
                         if not self._license_client.get_feature_enabled(
                             [ChoreographyClient.license_name]
                         )[ChoreographyClient.license_name]:
-                            self._logger.error("Robot is not licensed for choreography", e)
+                            self._logger.error(
+                                "Robot is not licensed for choreography", e
+                            )
                             self._is_licensed_for_choreography = False
                     else:
                         self._choreography_client = None
