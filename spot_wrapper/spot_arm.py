@@ -38,7 +38,7 @@ class AsyncImageService(AsyncPeriodicQuery):
         callback: Callback function to call when the results of the query are available
     """
 
-    def __init__(self, client, logger , rate, callback, image_requests):
+    def __init__(self, client, logger, rate, callback, image_requests):
         super(AsyncImageService, self).__init__(
             "robot_image_service", client, logger, period_sec=1.0 / max(rate, 1.0)
         )

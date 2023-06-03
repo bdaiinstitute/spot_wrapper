@@ -500,7 +500,6 @@ class SpotWrapper:
                     self._point_cloud_client = None
                     self._logger.info("No point cloud services are available.")
 
-
                 if self._robot.has_arm():
                     self._manipulation_client = self._robot.ensure_client(
                         ManipulationApiClient.default_service_name
