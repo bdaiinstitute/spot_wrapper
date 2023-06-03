@@ -783,6 +783,7 @@ class SpotWrapper:
                             self._choreography_client = None
                     else:
                         self._choreography_client = None
+                        self._is_licensed_for_choreography = False
 
                     try:
                         self._point_cloud_client = self._robot.ensure_client(
