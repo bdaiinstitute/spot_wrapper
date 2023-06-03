@@ -61,7 +61,7 @@ class SpotArm:
         logger: logging.Logger,
         robot_params: typing.Dict[str, typing.Any],
         robot_clients: typing.Dict[str, typing.Any],
-        max_command_duration: float
+        max_command_duration: float,
     ):
         """
         Constructor for SpotArm class.

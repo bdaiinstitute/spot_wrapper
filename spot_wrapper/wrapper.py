@@ -635,7 +635,11 @@ class SpotWrapper:
             self._robot, self._logger, self._robot_params, self._robot_clients
         )
         self._spot_images = SpotImages(
-            self._robot, self._logger, self._robot_params, self._robot_clients, self._rgb_cameras
+            self._robot,
+            self._logger,
+            self._robot_params,
+            self._robot_clients,
+            self._rgb_cameras,
         )
 
         if self._point_cloud_client:
@@ -654,10 +658,10 @@ class SpotWrapper:
         robot_tasks.append(self._world_objects_task)
 
         self._spot_dance = SpotDance(
-                self._robot,
-                self._choreography_client,
-                self._is_licensed_for_choreography,
-                )
+            self._robot,
+            self._choreography_client,
+            self._is_licensed_for_choreography,
+        )
 
         self._async_tasks = AsyncTasks(robot_tasks)
 
