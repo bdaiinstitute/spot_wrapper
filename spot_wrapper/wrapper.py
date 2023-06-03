@@ -764,7 +764,6 @@ class SpotWrapper:
                     )
 
                     if HAVE_CHOREOGRAPHY:
-                        self._is_licensed_for_choreography = True
                         self._sdk.register_service_client(ChoreographyClient)
                         self._choreography_client = self._robot.ensure_client(
                             ChoreographyClient.default_service_name
@@ -775,10 +774,13 @@ class SpotWrapper:
                         if not self._license_client.get_feature_enabled(
                             [ChoreographyClient.license_name]
                         )[ChoreographyClient.license_name]:
-                            self._logger.error(
-                                "Robot is not licensed for choreography", e
+                            self._logger.info(
+                                f"Robot is not licensed for choreography: {e}"
                             )
                             self._is_licensed_for_choreography = False
+                        else:
+                            self._is_licensed_for_choreography = True
+
                     else:
                         self._choreography_client = None
 
@@ -788,7 +790,9 @@ class SpotWrapper:
                         )
                     except UnregisteredServiceError:
                         self._point_cloud_client = None
-                        self._logger.info("No point cloud services are available.")
+                        self._logger.info(
+                            "No velodyne point cloud service is available."
+                        )
 
                     if self._robot.has_arm():
                         self._manipulation_api_client = self._robot.ensure_client(
@@ -796,6 +800,7 @@ class SpotWrapper:
                         )
                     else:
                         self._manipulation_api_client = None
+                        self._logger.info("Manipulation API is not available.")
 
                     initialised = True
                 except Exception as e:
