@@ -1,8 +1,7 @@
 import typing
 import logging
-from enum import enum
 from collections import namedtuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from bosdyn.client.robot import Robot
 from bosdyn.client.image import (
