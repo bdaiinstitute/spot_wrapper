@@ -763,8 +763,8 @@ class SpotWrapper:
                         DockingClient.default_service_name
                     )
                     self._license_client = self._robot.ensure_client(
-                            LicenseClient.default_service_name
-                            )
+                        LicenseClient.default_service_name
+                    )
 
                     if HAVE_CHOREOGRAPHY:
                         if self._license_client.get_feature_enabled(
