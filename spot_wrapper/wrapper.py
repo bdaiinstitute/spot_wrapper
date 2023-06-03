@@ -38,13 +38,14 @@ from bosdyn.client.world_object import WorldObjectClient
 from bosdyn.client.spot_check import SpotCheckClient
 from bosdyn.client.license import LicenseClient
 
-HAVE_CHOREOGRAPHY_MODULE = True
 try:
     from bosdyn.choreography.client.choreography import (
         ChoreographyClient,
         load_choreography_sequence_from_txt_file,
     )
     from .spot_dance import SpotDance
+
+    HAVE_CHOREOGRAPHY_MODULE = True
 except ModuleNotFoundError:
     HAVE_CHOREOGRAPHY_MODULE = False
 
@@ -441,7 +442,6 @@ class SpotWrapper:
         self._near_goal = False
         self._trajectory_status_unknown = False
         self._last_robot_command_feedback = False
-        self._is_licensed_for_choreography = True
         self._last_stand_command = None
         self._last_sit_command = None
         self._last_trajectory_command = None
@@ -455,7 +455,6 @@ class SpotWrapper:
             self._logger.error(f"Error creating SDK object: {e}")
             self._valid = False
             return
-
 
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
@@ -517,7 +516,7 @@ class SpotWrapper:
                     )
                 except UnregisteredServiceError as e:
                     self._point_cloud_client = None
-                    self._logger.info("No point cloud services are available.")
+                    self._logger.info("Velodyne point cloud service is not available.")
 
                 if HAVE_CHOREOGRAPHY_MODULE:
                     self._sdk.register_service_client(ChoreographyClient)
@@ -530,8 +529,12 @@ class SpotWrapper:
                     if not self._license_client.get_feature_enabled(
                         [ChoreographyClient.license_name]
                     )[ChoreographyClient.license_name]:
-                        self._logger.error(f"Robot is not licensed for choreography: {e}")
+                        self._logger.info(
+                            f"Robot is not licensed for choreography: {e}"
+                        )
                         self._is_licensed_for_choreography = False
+                    else:
+                        self._is_licensed_for_choreography = True
                 else:
                     self._choreography_client = None
 
@@ -541,7 +544,7 @@ class SpotWrapper:
                     )
                 else:
                     self._manipulation_api_client = None
-
+                    self._logger.info("Manipulation API is not available.")
 
                 self._robot_clients = {
                     "robot_state_client": self._robot_state_client,
@@ -673,7 +676,7 @@ class SpotWrapper:
         self._world_objects_task = self._spot_world_objects.async_task
         robot_tasks.append(self._world_objects_task)
 
-        if HAVE_CHOREOGRAPHY_MODULE:
+        if self._is_licensed_for_choreography:
             self._spot_dance = SpotDance(
                 self._robot,
                 self._choreography_client,
