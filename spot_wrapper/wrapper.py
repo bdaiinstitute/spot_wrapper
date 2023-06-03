@@ -762,11 +762,11 @@ class SpotWrapper:
                     self._docking_client = self._robot.ensure_client(
                         DockingClient.default_service_name
                     )
+                    self._license_client = self._robot.ensure_client(
+                            LicenseClient.default_service_name
+                            )
 
                     if HAVE_CHOREOGRAPHY:
-                        self._license_client = self._robot.ensure_client(
-                            LicenseClient.default_service_name
-                        )
                         if self._license_client.get_feature_enabled(
                             [ChoreographyClient.license_name]
                         )[ChoreographyClient.license_name]:
