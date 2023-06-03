@@ -501,7 +501,7 @@ class SpotArm:
         except Exception as e:
             return (
                 False,
-                f"An error occured while trying to move arm \n Exception: {e}"
+                f"An error occured while trying to move arm \n Exception: {e}",
             )
 
         return True, "Moved arm successfully"
