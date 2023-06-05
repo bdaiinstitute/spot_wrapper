@@ -27,6 +27,8 @@ class SpotDance:
 
     def upload_animation(self, animation_file_content : str) -> tuple[bool, str]:
         """ uploads an animation file """
+        if not self._is_licensed_for_choreography:
+            return False, "Robot is not licensed for choreography."
         # Load the animation file by saving the content to a temp file
         tmp = tempfile.NamedTemporaryFile('wb')
         with open(tmp.name, 'w') as f:
@@ -39,15 +41,11 @@ class SpotDance:
             return False, error_msg
         return True, "Success"
 
-    def execute_dance(self, data: str) -> tuple[bool, str]:
-        """uploads and executes the dance at filepath to Spot"""
-
+    def upload_dance(self, data: str) -> tuple[bool, str]:
+        """ uploads a dance """
         if not self._is_licensed_for_choreography:
             return False, "Robot is not licensed for choreography."
-        if self._robot.is_estopped():
-            error_msg = "Robot is estopped. Please use an external E-Stop client"
-            "such as the estop SDK example, to configure E-Stop."
-            return False, error_msg
+        pass
         try:
             choreography = choreography_sequence_pb2.ChoreographySequence()
             text_format.Merge(data, choreography)
@@ -68,7 +66,14 @@ class SpotDance:
                 error_msg += warn
             return False, error_msg
 
-        # Routine is valid! Power on robot and execute routine.
+    def execute_dance(self, dance_name: str) -> tuple[bool, str]:
+        """uploads and executes the dance at filepath to Spot"""
+        if not self._is_licensed_for_choreography:
+            return False, "Robot is not licensed for choreography."
+        if self._robot.is_estopped():
+            error_msg = "Robot is estopped. Please use an external E-Stop client"
+            "such as the estop SDK example, to configure E-Stop."
+            return False, error_msg
         try:
             self._robot.power_on()
             routine_name = choreography.name
