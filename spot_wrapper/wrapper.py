@@ -2511,6 +2511,9 @@ class SpotWrapper:
     def execute_dance(self, filepath):
         return self._spot_dance.execute_dance(filepath)
 
+    def upload_animation(self, animation_file_content : str):
+        return self._spot_dance.upload_animation(animation_file_content)
+
     def get_docking_state(self, **kwargs):
         """Get docking state of robot."""
         state = self._docking_client.get_docking_state(**kwargs)

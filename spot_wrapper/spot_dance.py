@@ -1,4 +1,6 @@
 import time
+import tempfile
+import bosdyn.choreography.client.choreography as bosdyn_choreo
 
 from bosdyn.choreography.client.choreography import (
     load_choreography_sequence_from_txt_file,
@@ -7,18 +9,33 @@ from bosdyn.client import ResponseError
 from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.robot import Robot
 from bosdyn.choreography.client.choreography import ChoreographyClient
+from bosdyn.choreography.client.animation_file_to_proto import convert_animation_file_to_proto
 
 
 class SpotDance:
     def __init__(
         self,
         robot: Robot,
-        choreography_client: ChoreographyClient,
+        choreography_client: bosdyn_choreo.ChoreographyClient,
         is_licensed_for_choreography: bool,
     ):
         self._robot = robot
         self._choreography_client = choreography_client
         self._is_licensed_for_choreography = is_licensed_for_choreography
+
+    def upload_animation(self, animation_file_content : str) -> tuple[bool, str]:
+        """ uploads an animation file """
+        # Load the animation file by saving the content to a temp file
+        tmp = tempfile.NamedTemporaryFile('wb')
+        with open(tmp.name, 'w') as f:
+            f.write(animation_file_content)
+        animation_pb = convert_animation_file_to_proto(tmp).proto
+        try:
+            upload_response = self._choreography_client.upload_animated_move(animation_pb)
+        except Exception as e:
+            error_msg = "Failed to upload animation: {}".format(e)
+            return False, error_msg
+        return True, "Success"
 
     def execute_dance(self, filepath: str) -> tuple[bool, str]:
         """uploads and executes the dance at filepath to Spot"""
@@ -30,7 +47,7 @@ class SpotDance:
             "such as the estop SDK example, to configure E-Stop."
             return False, error_msg
         try:
-            choreography = load_choreography_sequence_from_txt_file(filepath)
+            choreography = bosdyn_choreo.load_choreography_sequence_from_txt_file(filepath)
         except Exception as execp:
             error_msg = "Failed to load choreography. Raised exception: " + str(execp)
             return False, error_msg
