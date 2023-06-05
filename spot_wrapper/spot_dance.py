@@ -18,12 +18,10 @@ class SpotDance:
     def __init__(
         self,
         robot: Robot,
-        choreography_client: bosdyn_choreo.ChoreographyClient,
-        is_licensed_for_choreography: bool,
+        choreography_client: bosdyn_choreo.ChoreographyClient,l,
     ):
         self._robot = robot
         self._choreography_client = choreography_client
-        self._is_licensed_for_choreography = is_licensed_for_choreography
 
     def upload_animation(self, animation_file_content : str) -> tuple[bool, str]:
         """ uploads an animation file """
@@ -38,12 +36,30 @@ class SpotDance:
             error_msg = "Failed to upload animation: {}".format(e)
             return False, error_msg
         return True, "Success"
+    
+    def list_all_dances(self) -> tuple[bool, str, list[str]]:
+        """ list all uploaded dances"""
+        try:
+            dances = self._choreography_client.list_all_sequences().sequences
+            dances = [dance.name for dance in dances]
+            return True, "success", dances
+        except Exception as e:
+            return False, f"request to choreography client for dances failed. Msg: {e}", []
 
+    def list_all_moves(self) -> tuple[bool, str, list[str]]:
+        """ list all uploaded moves"""
+        try:
+            moves = self._choreography_client.list_all_moves().moves
+            moves = [move.name for move in moves]
+            return True, "success", moves
+        except Exception as e:
+            return False, f"request to choreography client for moves failed. Msg: {e}", []
+        
+
+        
     def execute_dance(self, data: str) -> tuple[bool, str]:
         """uploads and executes the dance at filepath to Spot"""
 
-        if not self._is_licensed_for_choreography:
-            return False, "Robot is not licensed for choreography."
         if self._robot.is_estopped():
             error_msg = "Robot is estopped. Please use an external E-Stop client"
             "such as the estop SDK example, to configure E-Stop."
