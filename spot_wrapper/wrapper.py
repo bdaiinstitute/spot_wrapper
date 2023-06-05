@@ -2508,8 +2508,8 @@ class SpotWrapper:
             return False, f"Exception while trying to undock: {e}"
 
     @try_claim
-    def execute_dance(self, filepath):
-        return self._spot_dance.execute_dance(filepath)
+    def execute_dance(self, data):
+        return self._spot_dance.execute_dance(data)
 
     def get_docking_state(self, **kwargs):
         """Get docking state of robot."""

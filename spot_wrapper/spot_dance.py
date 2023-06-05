@@ -7,6 +7,9 @@ from bosdyn.client import ResponseError
 from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.robot import Robot
 from bosdyn.choreography.client.choreography import ChoreographyClient
+from bosdyn.api.spot import choreography_sequence_pb2
+from google.protobuf import text_format
+
 
 
 class SpotDance:
@@ -20,7 +23,7 @@ class SpotDance:
         self._choreography_client = choreography_client
         self._is_licensed_for_choreography = is_licensed_for_choreography
 
-    def execute_dance(self, filepath: str) -> tuple[bool, str]:
+    def execute_dance(self, data: str) -> tuple[bool, str]:
         """uploads and executes the dance at filepath to Spot"""
 
         if not self._is_licensed_for_choreography:
@@ -30,7 +33,8 @@ class SpotDance:
             "such as the estop SDK example, to configure E-Stop."
             return False, error_msg
         try:
-            choreography = load_choreography_sequence_from_txt_file(filepath)
+            choreography = choreography_sequence_pb2.ChoreographySequence()
+            text_format.Merge(data, choreography)
         except Exception as execp:
             error_msg = "Failed to load choreography. Raised exception: " + str(execp)
             return False, error_msg
