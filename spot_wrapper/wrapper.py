@@ -2508,8 +2508,8 @@ class SpotWrapper:
             return False, f"Exception while trying to undock: {e}"
 
     @try_claim
-    def execute_dance(self, filepath):
-        return self._spot_dance.execute_dance(filepath)
+    def execute_dance(self, data):
+        return self._spot_dance.execute_dance(data)
 
     def upload_animation(self, animation_file_content : str):
         return self._spot_dance.upload_animation(animation_file_content)
