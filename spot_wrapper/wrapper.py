@@ -717,7 +717,8 @@ class SpotWrapper:
             self._logger.error("Error creating SDK object: %s", e)
             self._valid = False
             return
-
+        if HAVE_CHOREOGRAPHY:
+            self._sdk.register_service_client(ChoreographyClient)
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
 
@@ -770,11 +771,10 @@ class SpotWrapper:
                         if self._license_client.get_feature_enabled(
                             [ChoreographyClient.license_name]
                         )[ChoreographyClient.license_name]:
-                            self._sdk.register_service_client(ChoreographyClient)
+                            self._is_licensed_for_choreography = True
                             self._choreography_client = self._robot.ensure_client(
                                 ChoreographyClient.default_service_name
                             )
-                            self._is_licensed_for_choreography = True
                         else:
                             self._logger.info(
                                 f"Robot is not licensed for choreography: {e}"
