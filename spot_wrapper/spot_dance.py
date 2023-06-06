@@ -18,16 +18,13 @@ class SpotDance:
     def __init__(
         self,
         robot: Robot,
-        choreography_client: ChoreographyClient,
-        is_licensed_for_choreography: bool,
+        choreography_client: ChoreographyClient
     ):
         self._robot = robot
         self._choreography_client = choreography_client
 
     def upload_animation(self, animation_file_content : str) -> tuple[bool, str]:
         """ uploads an animation file """
-        if not self._is_licensed_for_choreography:
-            return False, "Robot is not licensed for choreography."
         # Load the animation file by saving the content to a temp file
         tmp = tempfile.NamedTemporaryFile('wb')
         with open(tmp.name, 'w') as f:
