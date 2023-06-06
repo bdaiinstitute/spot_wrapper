@@ -1,9 +1,9 @@
 import time
 import tempfile
-import bosdyn.choreography.client.choreography as bosdyn_choreo
 
 from bosdyn.choreography.client.choreography import (
     load_choreography_sequence_from_txt_file,
+    ChoreographyClient
 )
 from bosdyn.client import ResponseError
 from bosdyn.client.exceptions import UnauthenticatedError
@@ -18,7 +18,7 @@ class SpotDance:
     def __init__(
         self,
         robot: Robot,
-        choreography_client: bosdyn_choreo.ChoreographyClient,
+        choreography_client: ChoreographyClient,
         is_licensed_for_choreography: bool,
     ):
         self._robot = robot
@@ -41,11 +41,10 @@ class SpotDance:
             return False, error_msg
         return True, "Success"
 
-    def upload_dance(self, data: str) -> tuple[bool, str]:
-        """ uploads a dance """
+    def execute_dance(self, data: str) -> tuple[bool, str]:
+        """ Upload and execute dance """
         if not self._is_licensed_for_choreography:
             return False, "Robot is not licensed for choreography."
-        pass
         try:
             choreography = choreography_sequence_pb2.ChoreographySequence()
             text_format.Merge(data, choreography)
@@ -65,9 +64,6 @@ class SpotDance:
             for warn in err.response.warnings:
                 error_msg += warn
             return False, error_msg
-
-    def execute_dance(self, dance_name: str) -> tuple[bool, str]:
-        """uploads and executes the dance at filepath to Spot"""
         if not self._is_licensed_for_choreography:
             return False, "Robot is not licensed for choreography."
         if self._robot.is_estopped():
@@ -80,24 +76,19 @@ class SpotDance:
             client_start_time = time.time() + 5.0
             start_slice = 0  # start the choreography at the beginning
 
-            # Issue the command to the robot's choreography service.
-
             self._choreography_client.execute_choreography(
                 choreography_name=routine_name,
                 client_start_time=client_start_time,
                 choreography_starting_slice=start_slice,
             )
-
-            # Estimate how long the choreographed sequence will take, and sleep that long.
-
             total_choreography_slices = 0
             for move in choreography.moves:
+                total_choreography_slices = 0
                 total_choreography_slices += move.requested_slices
-            estimated_time_seconds = (
-                total_choreography_slices / choreography.slices_per_minute * 60.0
-            )
+                estimated_time_seconds = (
+                    total_choreography_slices / choreography.slices_per_minute * 60.0
+                )
             time.sleep(estimated_time_seconds)
-
             self._robot.power_off()
             return True, "sucess"
         except Exception as e:
