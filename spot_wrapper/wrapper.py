@@ -970,7 +970,6 @@ class SpotWrapper:
                 self._spot_dance = SpotDance(
                     self._robot,
                     self._choreography_client,
-                    self._is_licensed_for_choreography,
                 )
 
             self._robot_id = None
@@ -2509,10 +2508,28 @@ class SpotWrapper:
 
     @try_claim
     def execute_dance(self, data):
-        return self._spot_dance.execute_dance(data)
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.execute_dance(data)
+        else:
+            return False, "Spot is not licensed for choreography"
 
     def upload_animation(self, animation_file_content : str):
-        return self._spot_dance.upload_animation(animation_file_content)
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.upload_animation(animation_file_content)
+        else:
+            return False, "Spot is not licensed for choreography"
+        
+    def list_all_moves(self):
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.list_all_moves()
+        else:
+            return False, "Spot is not licensed for choreography", []
+        
+    def list_all_dances(self):
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.list_all_dances()
+        else:
+            return False, "Spot is not licensed for choreography", []
 
     def get_docking_state(self, **kwargs):
         """Get docking state of robot."""
