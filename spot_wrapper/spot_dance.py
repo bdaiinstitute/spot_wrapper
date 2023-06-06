@@ -59,12 +59,10 @@ class SpotDance:
         
     def execute_dance(self, data: str) -> tuple[bool, str]:
         """ Upload and execute dance """
-        if not self._is_licensed_for_choreography:
-            return False, "Robot is not licensed for choreography."
         if self._robot.is_estopped():
             error_msg = "robot is estopped. please use an external e-stop client"
             "such as the estop sdk example, to configure e-stop."
-            return false, error_msg
+            return False, error_msg
         try:
             choreography = choreography_sequence_pb2.ChoreographySequence()
             text_format.Merge(data, choreography)
@@ -97,13 +95,12 @@ class SpotDance:
             )
             total_choreography_slices = 0
             for move in choreography.moves:
-                total_choreography_slices = 0
                 total_choreography_slices += move.requested_slices
                 estimated_time_seconds = (
                     total_choreography_slices / choreography.slices_per_minute * 60.0
                 )
             time.sleep(estimated_time_seconds)
             self._robot.power_off()
-            return True, "sucess"
+            return True, "success"
         except Exception as e:
             return False, f"Error executing dance: {e}"
