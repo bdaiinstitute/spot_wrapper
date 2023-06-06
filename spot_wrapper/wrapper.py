@@ -970,6 +970,7 @@ class SpotWrapper:
                 self._spot_dance = SpotDance(
                     self._robot,
                     self._choreography_client,
+                    self._logger
                 )
 
             self._robot_id = None

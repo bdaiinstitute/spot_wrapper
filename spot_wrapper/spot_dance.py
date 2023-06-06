@@ -18,10 +18,12 @@ class SpotDance:
     def __init__(
         self,
         robot: Robot,
-        choreography_client: ChoreographyClient
+        choreography_client: ChoreographyClient,
+        logger
     ):
         self._robot = robot
         self._choreography_client = choreography_client
+        self._logger = logger
 
     def upload_animation(self, animation_file_content : str) -> tuple[bool, str]:
         """ uploads an animation file """
@@ -29,7 +31,7 @@ class SpotDance:
         tmp = tempfile.NamedTemporaryFile('wb')
         with open(tmp.name, 'w') as f:
             f.write(animation_file_content)
-        animation_pb = convert_animation_file_to_proto(tmp).proto
+        animation_pb = convert_animation_file_to_proto(tmp.name).proto
         try:
             upload_response = self._choreography_client.upload_animated_move(animation_pb)
         except Exception as e:
@@ -54,8 +56,6 @@ class SpotDance:
             return True, "success", moves
         except Exception as e:
             return False, f"request to choreography client for moves failed. Msg: {e}", []
-        
-
         
     def execute_dance(self, data: str) -> tuple[bool, str]:
         """ Upload and execute dance """
