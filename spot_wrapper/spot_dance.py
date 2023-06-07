@@ -1,5 +1,6 @@
 import time
 import tempfile
+import os
 
 from bosdyn.choreography.client.choreography import (
     load_choreography_sequence_from_txt_file,
@@ -25,24 +26,29 @@ class SpotDance:
         self._choreography_client = choreography_client
         self._logger = logger
 
-    def upload_animation(self, animation_file_content : str) -> tuple[bool, str]:
+    def upload_animation(self, animation_name : str, animation_file_content : str) -> tuple[bool, str]:
         """ uploads an animation file """
         # Load the animation file by saving the content to a temp file
-        tmp = tempfile.NamedTemporaryFile('wb')
-        with open(tmp.name, 'w') as f:
-            f.write(animation_file_content)
-        animation_pb = convert_animation_file_to_proto(tmp.name).proto
-        try:
-            upload_response = self._choreography_client.upload_animated_move(animation_pb)
-        except Exception as e:
-            error_msg = "Failed to upload animation: {}".format(e)
-            return False, error_msg
+        with tempfile.TemporaryDirectory() as temp_dir:
+            filename = os.path.join(temp_dir, animation_name + ".cha")
+            with open(filename, "w") as tmp:
+                tmp.write(animation_file_content)
+            try:
+                animation_pb = convert_animation_file_to_proto(filename).proto
+            except Exception as e:
+                return False, "Failed to convert animation file to protobuf message: {}".format(e)
+            try:
+                self._logger.info("Uploading the name {}".format(animation_name))
+                upload_response = self._choreography_client.upload_animated_move(animation_pb, animation_name)
+            except Exception as e:
+                error_msg = "Failed to upload animation: {}".format(e)
+                return False, error_msg
         return True, "Success"
     
     def list_all_dances(self) -> tuple[bool, str, list[str]]:
         """ list all uploaded dances"""
         try:
-            dances = self._choreography_client.list_all_sequences().sequences
+            dances = self._choreography_client.list_all_sequences().sequence_info
             dances = [dance.name for dance in dances]
             return True, "success", dances
         except Exception as e:

@@ -2514,9 +2514,9 @@ class SpotWrapper:
         else:
             return False, "Spot is not licensed for choreography"
 
-    def upload_animation(self, animation_file_content : str):
+    def upload_animation(self, animation_name : str, animation_file_content : str):
         if self._is_licensed_for_choreography:
-            return self._spot_dance.upload_animation(animation_file_content)
+            return self._spot_dance.upload_animation(animation_name, animation_file_content)
         else:
             return False, "Spot is not licensed for choreography"
         
