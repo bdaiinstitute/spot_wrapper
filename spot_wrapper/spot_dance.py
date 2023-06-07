@@ -66,8 +66,8 @@ class SpotDance:
     def execute_dance(self, data: str) -> tuple[bool, str]:
         """ Upload and execute dance """
         if self._robot.is_estopped():
-            error_msg = "robot is estopped. please use an external e-stop client"
-            "such as the estop sdk example, to configure e-stop."
+            error_msg = "Robot is estopped. Please use an external E-Stop client"
+            "such as the estop SDK example, to configure E-Stop."
             return False, error_msg
         try:
             choreography = choreography_sequence_pb2.ChoreographySequence()

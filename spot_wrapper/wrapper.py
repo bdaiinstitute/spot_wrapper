@@ -55,7 +55,6 @@ from bosdyn.client import ResponseError, RpcError, create_standard_sdk
 try:
     from bosdyn.choreography.client.choreography import (
         ChoreographyClient,
-        load_choreography_sequence_from_txt_file,
     )
     from .spot_dance import SpotDance
 
