@@ -777,12 +777,12 @@ class SpotWrapper:
                             )
                         else:
                             self._logger.info(
-                                f"Robot is not licensed for choreography"
+                                "Robot is not licensed for choreography."
                             )
                             self._is_licensed_for_choreography = False
                             self._choreography_client = None
                     else:
-                        self._logger.info(f"Choreography is not available.")
+                        self._logger.info("Choreography is not available.")
                         self._choreography_client = None
                         self._is_licensed_for_choreography = False
 
