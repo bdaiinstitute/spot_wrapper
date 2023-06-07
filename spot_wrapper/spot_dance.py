@@ -1,5 +1,5 @@
 import time
-from typing import Tuple
+import typing
 
 from bosdyn.choreography.client.choreography import (
     load_choreography_sequence_from_txt_file,
@@ -21,7 +21,7 @@ class SpotDance:
         self._choreography_client = choreography_client
         self._is_licensed_for_choreography = is_licensed_for_choreography
 
-    def execute_dance(self, filepath: str) -> Tuple[bool, str]:
+    def execute_dance(self, filepath: str) -> typing.Tuple[bool, str]:
         """uploads and executes the dance at filepath to Spot"""
 
         if not self._is_licensed_for_choreography:
