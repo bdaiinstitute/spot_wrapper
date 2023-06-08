@@ -776,9 +776,7 @@ class SpotWrapper:
                                 ChoreographyClient.default_service_name
                             )
                         else:
-                            self._logger.info(
-                                "Robot is not licensed for choreography."
-                            )
+                            self._logger.info("Robot is not licensed for choreography.")
                             self._is_licensed_for_choreography = False
                             self._choreography_client = None
                     else:
@@ -1770,7 +1768,7 @@ class SpotWrapper:
                 )
                 time_to_goal: Duration = joint_move_feedback.time_to_goal
                 time_to_goal_in_seconds: float = time_to_goal.seconds + (
-                    float(time_to_goal.nanos) / float(10**9)
+                    float(time_to_goal.nanos) / float(10 ** 9)
                 )
                 time.sleep(time_to_goal_in_seconds)
                 return True, "Spot Arm moved successfully"
