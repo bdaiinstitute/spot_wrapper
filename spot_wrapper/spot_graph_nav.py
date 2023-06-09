@@ -105,9 +105,9 @@ class SpotGraphNav:
                 "Re-using existing graph on robot. Check that the correct graph is loaded!"
             )
         if initial_localization_fiducial:
-            self._set_initial_localization_fiducial()
+            self.set_initial_localization_fiducial()
         if initial_localization_waypoint:
-            self._set_initial_localization_waypoint([initial_localization_waypoint])
+            self.set_initial_localization_waypoint([initial_localization_waypoint])
         self._list_graph_waypoint_and_edge_ids()
         self._get_localization_state()
 
@@ -166,7 +166,7 @@ class SpotGraphNav:
             f"Got robot state in kinematic odometry frame: \n{str(odom_tform_body)}"
         )
 
-    def _set_initial_localization_fiducial(self, *args):
+    def set_initial_localization_fiducial(self, *args):
         """Trigger localization when near a fiducial."""
         robot_state = self._robot_state_client.get_robot_state()
         current_odom_tform_body = get_odom_tform_body(
@@ -180,7 +180,7 @@ class SpotGraphNav:
             ko_tform_body=current_odom_tform_body,
         )
 
-    def _set_initial_localization_waypoint(self, *args):
+    def set_initial_localization_waypoint(self, *args):
         """Trigger localization to a waypoint."""
         # Take the first argument as the localization waypoint.
         if len(args) < 1:
