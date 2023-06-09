@@ -32,6 +32,7 @@ from bosdyn.client.image import ImageClient
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.power import PowerClient
+from bosdyn.client.robot import UnregisteredServiceError
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.world_object import WorldObjectClient
@@ -455,6 +456,8 @@ class SpotWrapper:
             self._logger.error(f"Error creating SDK object: {e}")
             self._valid = False
             return
+        if HAVE_CHOREOGRAPHY_MODULE:
+            self._sdk.register_service_client(ChoreographyClient)
 
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
@@ -631,6 +634,9 @@ class SpotWrapper:
             "rates": self._rates,
             "callbacks": self._callbacks,
         }
+        self.spot_image = SpotImages(
+            self._robot, self._logger, self._robot_params, self._robot_clients
+        )
 
         if self._robot.has_arm():
             self._spot_arm = SpotArm(
