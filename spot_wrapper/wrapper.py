@@ -1772,7 +1772,6 @@ class SpotWrapper:
                 time_to_goal_in_seconds: float = (
                     time_to_goal.seconds + time_to_goal.nanos / 1e9
                 )
-
                 time.sleep(time_to_goal_in_seconds)
                 return True, "Spot Arm moved successfully"
 
