@@ -967,9 +967,7 @@ class SpotWrapper:
 
             if self._is_licensed_for_choreography:
                 self._spot_dance = SpotDance(
-                    self._robot,
-                    self._choreography_client,
-                    self._logger
+                    self._robot, self._choreography_client, self._logger
                 )
 
             self._robot_id = None
@@ -1769,7 +1767,7 @@ class SpotWrapper:
                 )
                 time_to_goal: Duration = joint_move_feedback.time_to_goal
                 time_to_goal_in_seconds: float = time_to_goal.seconds + (
-                    float(time_to_goal.nanos) / float(10**9)
+                    float(time_to_goal.nanos) / float(10 ** 9)
                 )
                 time.sleep(time_to_goal_in_seconds)
                 return True, "Spot Arm moved successfully"
@@ -2513,19 +2511,23 @@ class SpotWrapper:
         else:
             return False, "Spot is not licensed for choreography"
 
-    def upload_animation(self, animation_name : str, animation_file_content : str):
+    def upload_animation(
+        self, animation_name: str, animation_file_content: str
+    ) -> typing.Tuple[bool, str]:
         if self._is_licensed_for_choreography:
-            return self._spot_dance.upload_animation(animation_name, animation_file_content)
+            return self._spot_dance.upload_animation(
+                animation_name, animation_file_content
+            )
         else:
             return False, "Spot is not licensed for choreography"
-        
-    def list_all_moves(self):
+
+    def list_all_moves(self) -> typing.Tuple[bool, str, typing.List[str]]:
         if self._is_licensed_for_choreography:
             return self._spot_dance.list_all_moves()
         else:
             return False, "Spot is not licensed for choreography", []
-        
-    def list_all_dances(self):
+
+    def list_all_dances(self) -> typing.Tuple[bool, str, typing.List[str]]:
         if self._is_licensed_for_choreography:
             return self._spot_dance.list_all_dances()
         else:
