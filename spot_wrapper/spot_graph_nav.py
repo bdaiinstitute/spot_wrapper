@@ -97,8 +97,8 @@ class SpotGraphNav:
         self._lease = self._lease_wallet.get_lease()
         self._lease_keepalive = LeaseKeepAlive(self._lease_client)
         if upload_filepath:
-            self._clear_graph()
-            self._upload_graph_and_snapshots(upload_filepath)
+            self.clear_graph()
+            self.upload_graph_and_snapshots(upload_filepath)
         else:
             self._download_current_graph()
             self._logger.info(
@@ -325,7 +325,7 @@ class SpotGraphNav:
         ) = self._update_waypoints_and_edges(graph, localization_id, self._logger)
         return self._current_annotation_name_to_wp_id, self._current_edges
 
-    def _upload_graph_and_snapshots(self, upload_filepath: str):
+    def upload_graph_and_snapshots(self, upload_filepath: str):
         """Upload the graph and snapshots to the robot."""
         self._logger.info("Loading the graph from disk into local storage...")
         with open(os.path.join(upload_filepath, "graph"), "rb") as graph_file:
@@ -539,7 +539,7 @@ class SpotGraphNav:
 
         return True, "Finished navigating route!"
 
-    def _clear_graph(self, *args) -> bool:
+    def clear_graph(self, *args) -> bool:
         """Clear the state of the map on the robot, removing all waypoints and edges."""
         result = self._graph_nav_client.clear_graph(lease=self._lease.lease_proto)
         self._init_current_graph_nav_state()

@@ -631,9 +631,6 @@ class SpotWrapper:
             "rates": self._rates,
             "callbacks": self._callbacks,
         }
-        self.spot_image = SpotImages(
-            self._robot, self._logger, self._robot_params, self._robot_clients
-        )
 
         if self._robot.has_arm():
             self._spot_arm = SpotArm(
