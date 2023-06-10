@@ -14,7 +14,11 @@ from bosdyn.client.async_tasks import AsyncPeriodicQuery
 from bosdyn.client.image import ImageClient, build_image_request
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.robot import Robot
-from bosdyn.client.robot_command import RobotCommandBuilder, RobotCommandClient
+from bosdyn.client.robot_command import (
+    RobotCommandBuilder,
+    RobotCommandClient,
+    block_until_arm_arrives,
+)
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.util import seconds_to_duration
 from google.protobuf.duration_pb2 import Duration
@@ -180,6 +184,19 @@ class SpotArm:
 
         return True, "Spot has an arm, is powered on, and standing"
 
+    def wait_for_arm_command_to_complete(self, cmd_id, timeout_sec=None):
+        """
+        Wrapper around the SDK function for convenience
+
+        Args:
+            cmd_id: ID of the command that we are waiting on
+            timeout_sec: After this time, timeout regardless of what the robot state is
+
+        """
+        block_until_arm_arrives(
+            self._robot_command_client, cmd_id=cmd_id, timeout_sec=timeout_sec
+        )
+
     def arm_stow(self) -> typing.Tuple[bool, str]:
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -191,9 +208,9 @@ class SpotArm:
                 stow = RobotCommandBuilder.arm_stow_command()
 
                 # Command issue with RobotCommandClient
-                self._robot_command_client.robot_command(stow)
+                cmd_id = self._robot_command_client.robot_command(stow)
                 self._logger.info("Command stow issued")
-                time.sleep(2.0)
+                self.wait_for_arm_command_to_complete(cmd_id)
 
         except Exception as e:
             return False, f"Exception occured while trying to stow: {e}"
@@ -211,9 +228,9 @@ class SpotArm:
                 unstow = RobotCommandBuilder.arm_ready_command()
 
                 # Command issue with RobotCommandClient
-                self._robot_command_client.robot_command(unstow)
+                cmd_id = self._robot_command_client.robot_command(unstow)
                 self._logger.info("Command unstow issued")
-                time.sleep(2.0)
+                self.wait_for_arm_command_to_complete(cmd_id)
 
         except Exception as e:
             return False, f"Exception occured while trying to unstow: {e}"
@@ -231,9 +248,9 @@ class SpotArm:
                 carry = RobotCommandBuilder.arm_carry_command()
 
                 # Command issue with RobotCommandClient
-                self._robot_command_client.robot_command(carry)
+                cmd_id = self._robot_command_client.robot_command(carry)
                 self._logger.info("Command carry issued")
-                time.sleep(2.0)
+                self.wait_for_arm_command_to_complete(cmd_id)
 
         except Exception as e:
             return False, f"Exception occured while carry mode was issued: {e}"
@@ -322,19 +339,7 @@ class SpotArm:
 
                 # Send the request
                 cmd_id = self._robot_command_client.robot_command(arm_command)
-
-                # Query for feedback to determine how long it will take
-                feedback_resp = self._robot_command_client.robot_command_feedback(
-                    cmd_id
-                )
-                joint_move_feedback = (
-                    feedback_resp.feedback.synchronized_feedback.arm_command_feedback.arm_joint_move_feedback
-                )
-                time_to_goal: Duration = joint_move_feedback.time_to_goal
-                time_to_goal_in_seconds: float = time_to_goal.seconds + (
-                    float(time_to_goal.nanos) / float(10**9)
-                )
-                time.sleep(time_to_goal_in_seconds)
+                self.wait_for_arm_command_to_complete(cmd_id)
                 return True, "Spot Arm moved successfully"
 
         except Exception as e:
@@ -398,11 +403,9 @@ class SpotArm:
                 )
 
                 # Send the request
-                self._robot_command_client.robot_command(robot_command)
+                cmd_id = self._robot_command_client.robot_command(robot_command)
                 self._logger.info("Force trajectory command sent")
-
-                time.sleep(float(traj_duration) + 1.0)
-
+                self.wait_for_arm_command_to_complete(cmd_id)
         except Exception as e:
             return False, f"Exception occured during arm movement: {e}"
 
@@ -419,9 +422,9 @@ class SpotArm:
                 command = RobotCommandBuilder.claw_gripper_open_command()
 
                 # Command issue with RobotCommandClient
-                self._robot_command_client.robot_command(command)
+                cmd_id = self._robot_command_client.robot_command(command)
                 self._logger.info("Command gripper open sent")
-                time.sleep(2.0)
+                self.wait_for_arm_command_to_complete(cmd_id)
 
         except Exception as e:
             return False, f"Exception occured while gripper was moving: {e}"
@@ -439,9 +442,9 @@ class SpotArm:
                 command = RobotCommandBuilder.claw_gripper_close_command()
 
                 # Command issue with RobotCommandClient
-                self._robot_command_client.robot_command(command)
+                cmd_id = self._robot_command_client.robot_command(command)
                 self._logger.info("Command gripper close sent")
-                time.sleep(2.0)
+                self.wait_for_arm_command_to_complete(cmd_id)
 
         except Exception as e:
             return False, f"Exception occured while gripper was moving: {e}"
@@ -467,9 +470,9 @@ class SpotArm:
                 command = RobotCommandBuilder.claw_gripper_open_angle_command(angle)
 
                 # Command issue with RobotCommandClient
-                self._robot_command_client.robot_command(command)
+                cmd_id = self._robot_command_client.robot_command(command)
                 self._logger.info("Command gripper open angle sent")
-                time.sleep(2.0)
+                self.wait_for_arm_command_to_complete(cmd_id)
 
         except Exception as e:
             return False, f"Exception occured while gripper was moving: {e}"
@@ -533,10 +536,9 @@ class SpotArm:
                 command = RobotCommandBuilder.build_synchro_command(robot_command)
 
                 # Send the request
-                self._robot_command_client.robot_command(robot_command)
+                cmd_id = self._robot_command_client.robot_command(robot_command)
                 self._logger.info("Moving arm to position.")
-
-                time.sleep(2.0)
+                self.wait_for_arm_command_to_complete(cmd_id)
 
         except Exception as e:
             return (
