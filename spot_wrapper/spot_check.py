@@ -1,14 +1,14 @@
-import typing
 import logging
 import time
+import typing
 
-from bosdyn.client.robot import Robot
+from bosdyn.api import header_pb2
 from bosdyn.client import robot_command
+from bosdyn.client.lease import LeaseClient, LeaseWallet, Lease
+from bosdyn.client.robot import Robot
 from bosdyn.client.spot_check import SpotCheckClient, run_spot_check
 from bosdyn.client.spot_check import spot_check_pb2
-from bosdyn.api import header_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
-from bosdyn.client.lease import LeaseClient, LeaseWallet, Lease
 
 
 class SpotCheck:

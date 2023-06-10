@@ -1,22 +1,22 @@
+import logging
 import time
 import typing
-import logging
 
-from bosdyn.util import seconds_to_duration
-from bosdyn.client.async_tasks import AsyncPeriodicQuery
+from bosdyn.api import arm_command_pb2
+from bosdyn.api import geometry_pb2
+from bosdyn.api import image_pb2
+from bosdyn.api import manipulation_api_pb2
+from bosdyn.api import robot_command_pb2
+from bosdyn.api import synchronized_command_pb2
+from bosdyn.api import trajectory_pb2
 from bosdyn.client import robot_command
-from bosdyn.client.robot import Robot
-from bosdyn.client.robot_state import RobotStateClient
-from bosdyn.client.robot_command import RobotCommandBuilder, RobotCommandClient
+from bosdyn.client.async_tasks import AsyncPeriodicQuery
 from bosdyn.client.image import ImageClient, build_image_request
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
-from bosdyn.api import robot_command_pb2
-from bosdyn.api import arm_command_pb2
-from bosdyn.api import synchronized_command_pb2
-from bosdyn.api import geometry_pb2
-from bosdyn.api import trajectory_pb2
-from bosdyn.api import manipulation_api_pb2
-from bosdyn.api import image_pb2
+from bosdyn.client.robot import Robot
+from bosdyn.client.robot_command import RobotCommandBuilder, RobotCommandClient
+from bosdyn.client.robot_state import RobotStateClient
+from bosdyn.util import seconds_to_duration
 from google.protobuf.duration_pb2 import Duration
 
 """List of hand image sources for asynchronous periodic query"""

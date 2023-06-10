@@ -1,5 +1,5 @@
-import typing
 import logging
+import typing
 
 from bosdyn.client.async_tasks import AsyncPeriodicQuery
 from bosdyn.client.robot import Robot

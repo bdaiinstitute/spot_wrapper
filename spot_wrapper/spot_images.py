@@ -1,15 +1,15 @@
-import typing
 import logging
+import typing
 from collections import namedtuple
 from dataclasses import dataclass
 
-from bosdyn.client.robot import Robot
+from bosdyn.api import image_pb2
 from bosdyn.client.image import (
     ImageClient,
     build_image_request,
     UnsupportedPixelFormatRequestedError,
 )
-from bosdyn.api import image_pb2
+from bosdyn.client.robot import Robot
 
 """List of body image sources for periodic query"""
 CAMERA_IMAGE_SOURCES = [

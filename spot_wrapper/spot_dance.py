@@ -1,12 +1,12 @@
 import time
 
+from bosdyn.choreography.client.choreography import ChoreographyClient
 from bosdyn.choreography.client.choreography import (
     load_choreography_sequence_from_txt_file,
 )
 from bosdyn.client import ResponseError
 from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.robot import Robot
-from bosdyn.choreography.client.choreography import ChoreographyClient
 
 
 class SpotDance:

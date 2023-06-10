@@ -1,10 +1,10 @@
-import typing
 import logging
+import typing
 
-from bosdyn.client.robot import Robot
+from bosdyn.api.docking import docking_pb2
 from bosdyn.client import robot_command
 from bosdyn.client.docking import DockingClient, blocking_dock_robot, blocking_undock
-from bosdyn.api.docking import docking_pb2
+from bosdyn.client.robot import Robot
 
 
 class SpotDocking:

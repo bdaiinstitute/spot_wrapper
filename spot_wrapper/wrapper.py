@@ -6,38 +6,35 @@ import typing
 
 import bosdyn.client.auth
 from bosdyn.api import image_pb2
+from bosdyn.api import lease_pb2
+from bosdyn.api import point_cloud_pb2
 from bosdyn.api import robot_command_pb2
 from bosdyn.api import robot_state_pb2
 from bosdyn.api import world_object_pb2
-from bosdyn.api import lease_pb2
-from bosdyn.api import point_cloud_pb2
 from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
 from bosdyn.client import create_standard_sdk, ResponseError, RpcError
 from bosdyn.client import frame_helpers
 from bosdyn.client import math_helpers
-from bosdyn.client import robot_command
-from bosdyn.client.robot import UnregisteredServiceError
-from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.async_tasks import AsyncPeriodicQuery, AsyncTasks
 from bosdyn.client.docking import DockingClient
 from bosdyn.client.estop import (
     EstopClient,
     EstopEndpoint,
     EstopKeepAlive,
-    MotorsOnError,
 )
 from bosdyn.client.graph_nav import GraphNavClient
-from bosdyn.client.map_processing import MapProcessingServiceClient
 from bosdyn.client.image import ImageClient
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
+from bosdyn.client.license import LicenseClient
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
+from bosdyn.client.map_processing import MapProcessingServiceClient
 from bosdyn.client.power import PowerClient
 from bosdyn.client.robot import UnregisteredServiceError
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
 from bosdyn.client.robot_state import RobotStateClient
-from bosdyn.client.world_object import WorldObjectClient
 from bosdyn.client.spot_check import SpotCheckClient
-from bosdyn.client.license import LicenseClient
+from bosdyn.client.time_sync import TimeSyncEndpoint
+from bosdyn.client.world_object import WorldObjectClient
 
 try:
     from bosdyn.choreography.client.choreography import (
