@@ -115,7 +115,9 @@ class AsyncRobotState(AsyncPeriodicQuery):
     """
 
     def __init__(self, client, logger, rate, callback):
-        super(AsyncRobotState, self).__init__("robot-state", client, logger, period_sec=1.0 / max(rate, 1.0))
+        super(AsyncRobotState, self).__init__(
+            "robot-state", client, logger, period_sec=1.0 / max(rate, 1.0)
+        )
         self._callback = None
         if rate > 0.0:
             self._callback = callback
@@ -138,7 +140,9 @@ class AsyncMetrics(AsyncPeriodicQuery):
     """
 
     def __init__(self, client, logger, rate, callback):
-        super(AsyncMetrics, self).__init__("robot-metrics", client, logger, period_sec=1.0 / max(rate, 1.0))
+        super(AsyncMetrics, self).__init__(
+            "robot-metrics", client, logger, period_sec=1.0 / max(rate, 1.0)
+        )
         self._callback = None
         if rate > 0.0:
             self._callback = callback
@@ -161,7 +165,9 @@ class AsyncLease(AsyncPeriodicQuery):
     """
 
     def __init__(self, client, logger, rate, callback):
-        super(AsyncLease, self).__init__("lease", client, logger, period_sec=1.0 / max(rate, 1.0))
+        super(AsyncLease, self).__init__(
+            "lease", client, logger, period_sec=1.0 / max(rate, 1.0)
+        )
         self._callback = None
         if rate > 0.0:
             self._callback = callback
@@ -191,13 +197,19 @@ class AsyncIdle(AsyncPeriodicQuery):
     def _start_query(self):
         if self._spot_wrapper._last_stand_command != None:
             try:
-                response = self._client.robot_command_feedback(self._spot_wrapper._last_stand_command)
-                status = response.feedback.synchronized_feedback.mobility_command_feedback.stand_feedback.status
+                response = self._client.robot_command_feedback(
+                    self._spot_wrapper._last_stand_command
+                )
+                status = (
+                    response.feedback.synchronized_feedback.mobility_command_feedback.stand_feedback.status
+                )
                 self._spot_wrapper._robot_params["is_sitting"] = False
                 if status == basic_command_pb2.StandCommand.Feedback.STATUS_IS_STANDING:
                     self._spot_wrapper._robot_params["is_standing"] = True
                     self._spot_wrapper._last_stand_command = None
-                elif status == basic_command_pb2.StandCommand.Feedback.STATUS_IN_PROGRESS:
+                elif (
+                    status == basic_command_pb2.StandCommand.Feedback.STATUS_IN_PROGRESS
+                ):
                     self._spot_wrapper._robot_params["is_standing"] = False
                 else:
                     self._logger.warning("Stand command in unknown state")
@@ -209,7 +221,9 @@ class AsyncIdle(AsyncPeriodicQuery):
         if self._spot_wrapper._last_sit_command != None:
             try:
                 self._spot_wrapper._robot_params["is_standing"] = False
-                response = self._client.robot_command_feedback(self._spot_wrapper._last_sit_command)
+                response = self._client.robot_command_feedback(
+                    self._spot_wrapper._last_sit_command
+                )
                 if (
                     response.feedback.synchronized_feedback.mobility_command_feedback.sit_feedback.status
                     == basic_command_pb2.SitCommand.Feedback.STATUS_IS_SITTING
@@ -232,31 +246,49 @@ class AsyncIdle(AsyncPeriodicQuery):
 
         if self._spot_wrapper._last_trajectory_command != None:
             try:
-                response = self._client.robot_command_feedback(self._spot_wrapper._last_trajectory_command)
+                response = self._client.robot_command_feedback(
+                    self._spot_wrapper._last_trajectory_command
+                )
                 status = (
                     response.feedback.synchronized_feedback.mobility_command_feedback.se2_trajectory_feedback.status
                 )
                 # STATUS_AT_GOAL always means that the robot reached the goal. If the trajectory command did not
                 # request precise positioning, then STATUS_NEAR_GOAL also counts as reaching the goal
-                if status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_AT_GOAL or (
-                    status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_NEAR_GOAL
-                    and not self._spot_wrapper._last_trajectory_command_precise
+                if (
+                    status
+                    == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_AT_GOAL
+                    or (
+                        status
+                        == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_NEAR_GOAL
+                        and not self._spot_wrapper._last_trajectory_command_precise
+                    )
                 ):
                     self._spot_wrapper._robot_params["at_goal"] = True
                     # Clear the command once at the goal
                     self._spot_wrapper._last_trajectory_command = None
                     self._spot_wrapper._trajectory_status_unknown = False
-                elif status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_GOING_TO_GOAL:
+                elif (
+                    status
+                    == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_GOING_TO_GOAL
+                ):
                     is_moving = True
-                elif status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_NEAR_GOAL:
+                elif (
+                    status
+                    == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_NEAR_GOAL
+                ):
                     is_moving = True
                     self._spot_wrapper._robot_params["near_goal"] = True
-                elif status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_UNKNOWN:
+                elif (
+                    status
+                    == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_UNKNOWN
+                ):
                     self._spot_wrapper._trajectory_status_unknown = True
                     self._spot_wrapper._last_trajectory_command = None
                 else:
                     self._logger.error(
-                        "Received trajectory command status outside of expected range, value is {}".format(status)
+                        "Received trajectory command status outside of expected range, value is {}".format(
+                            status
+                        )
                     )
                     self._spot_wrapper._last_trajectory_command = None
             except (ResponseError, RpcError) as e:
@@ -290,7 +322,9 @@ class AsyncEStopMonitor(AsyncPeriodicQuery):
     """
 
     def __init__(self, client, logger, rate, spot_wrapper):
-        super(AsyncEStopMonitor, self).__init__("estop_alive", client, logger, period_sec=1.0 / rate)
+        super(AsyncEStopMonitor, self).__init__(
+            "estop_alive", client, logger, period_sec=1.0 / rate
+        )
         self._spot_wrapper = spot_wrapper
 
     def _start_query(self):
@@ -299,10 +333,20 @@ class AsyncEStopMonitor(AsyncPeriodicQuery):
             return
 
         last_estop_status = self._spot_wrapper._estop_keepalive.status_queue.queue[-1]
-        if last_estop_status[0] == self._spot_wrapper._estop_keepalive.KeepAliveStatus.ERROR:
-            self._logger.error("Estop keepalive has an error: {}".format(last_estop_status[1]))
-        elif last_estop_status == self._spot_wrapper._estop_keepalive.KeepAliveStatus.DISABLED:
-            self._logger.error("Estop keepalive is disabled: {}".format(last_estop_status[1]))
+        if (
+            last_estop_status[0]
+            == self._spot_wrapper._estop_keepalive.KeepAliveStatus.ERROR
+        ):
+            self._logger.error(
+                "Estop keepalive has an error: {}".format(last_estop_status[1])
+            )
+        elif (
+            last_estop_status
+            == self._spot_wrapper._estop_keepalive.KeepAliveStatus.DISABLED
+        ):
+            self._logger.error(
+                "Estop keepalive is disabled: {}".format(last_estop_status[1])
+            )
         else:
             # estop keepalive is ok
             pass
@@ -426,7 +470,9 @@ class SpotWrapper:
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
 
-        authenticated = self.authenticate(self._robot, self._username, self._password, self._logger)
+        authenticated = self.authenticate(
+            self._robot, self._username, self._password, self._logger
+        )
         if not authenticated:
             self._valid = False
             return
@@ -441,35 +487,65 @@ class SpotWrapper:
         initialised = False
         while not initialised:
             try:
-                self._robot_state_client = self._robot.ensure_client(RobotStateClient.default_service_name)
-                self._world_objects_client = self._robot.ensure_client(WorldObjectClient.default_service_name)
-                self._robot_command_client = self._robot.ensure_client(RobotCommandClient.default_service_name)
-                self._graph_nav_client = self._robot.ensure_client(GraphNavClient.default_service_name)
-                self._map_processing_client = self._robot.ensure_client(MapProcessingServiceClient.default_service_name)
-                self._power_client = self._robot.ensure_client(PowerClient.default_service_name)
-                self._lease_client = self._robot.ensure_client(LeaseClient.default_service_name)
+                self._robot_state_client = self._robot.ensure_client(
+                    RobotStateClient.default_service_name
+                )
+                self._world_objects_client = self._robot.ensure_client(
+                    WorldObjectClient.default_service_name
+                )
+                self._robot_command_client = self._robot.ensure_client(
+                    RobotCommandClient.default_service_name
+                )
+                self._graph_nav_client = self._robot.ensure_client(
+                    GraphNavClient.default_service_name
+                )
+                self._map_processing_client = self._robot.ensure_client(
+                    MapProcessingServiceClient.default_service_name
+                )
+                self._power_client = self._robot.ensure_client(
+                    PowerClient.default_service_name
+                )
+                self._lease_client = self._robot.ensure_client(
+                    LeaseClient.default_service_name
+                )
                 self._lease_wallet = self._lease_client.lease_wallet
-                self._image_client = self._robot.ensure_client(ImageClient.default_service_name)
-                self._estop_client = self._robot.ensure_client(EstopClient.default_service_name)
-                self._docking_client = self._robot.ensure_client(DockingClient.default_service_name)
-                self._spot_check_client = self._robot.ensure_client(SpotCheckClient.default_service_name)
+                self._image_client = self._robot.ensure_client(
+                    ImageClient.default_service_name
+                )
+                self._estop_client = self._robot.ensure_client(
+                    EstopClient.default_service_name
+                )
+                self._docking_client = self._robot.ensure_client(
+                    DockingClient.default_service_name
+                )
+                self._spot_check_client = self._robot.ensure_client(
+                    SpotCheckClient.default_service_name
+                )
                 try:
-                    self._point_cloud_client = self._robot.ensure_client(VELODYNE_SERVICE_NAME)
+                    self._point_cloud_client = self._robot.ensure_client(
+                        VELODYNE_SERVICE_NAME
+                    )
                 except UnregisteredServiceError as e:
                     self._point_cloud_client = None
                     self._logger.info("Velodyne point cloud service is not available.")
 
-                self._license_client = self._robot.ensure_client(LicenseClient.default_service_name)
+                self._license_client = self._robot.ensure_client(
+                    LicenseClient.default_service_name
+                )
 
                 if HAVE_CHOREOGRAPHY_MODULE:
-                    if self._license_client.get_feature_enabled([ChoreographyClient.license_name])[
-                        ChoreographyClient.license_name
-                    ]:
+                    if self._license_client.get_feature_enabled(
+                        [ChoreographyClient.license_name]
+                    )[ChoreographyClient.license_name]:
                         self._sdk.register_service_client(ChoreographyClient)
-                        self._choreography_client = self._robot.ensure_client(ChoreographyClient.default_service_name)
+                        self._choreography_client = self._robot.ensure_client(
+                            ChoreographyClient.default_service_name
+                        )
                         self._is_licensed_for_choreography = True
                     else:
-                        self._logger.info(f"Robot is not licensed for choreography: {e}")
+                        self._logger.info(
+                            f"Robot is not licensed for choreography: {e}"
+                        )
                         self._is_licensed_for_choreography = False
                         self._choreography_client = None
                 else:
@@ -508,7 +584,9 @@ class SpotWrapper:
                 sleep_secs = 15
                 self._logger.warning(
                     "Unable to create client service: {}. This usually means the robot hasn't "
-                    "finished booting yet. Will wait {} seconds and try again.".format(e, sleep_secs)
+                    "finished booting yet. Will wait {} seconds and try again.".format(
+                        e, sleep_secs
+                    )
                 )
                 time.sleep(sleep_secs)
 
@@ -532,8 +610,12 @@ class SpotWrapper:
             max(0.0, self._rates.get("lease", 0.0)),
             self._callbacks.get("lease", None),
         )
-        self._idle_task = AsyncIdle(self._robot_command_client, self._logger, 10.0, self)
-        self._estop_monitor = AsyncEStopMonitor(self._estop_client, self._logger, 20.0, self)
+        self._idle_task = AsyncIdle(
+            self._robot_command_client, self._logger, 10.0, self
+        )
+        self._estop_monitor = AsyncEStopMonitor(
+            self._estop_client, self._logger, 20.0, self
+        )
 
         self._estop_endpoint = None
         self._estop_keepalive = None
@@ -560,7 +642,9 @@ class SpotWrapper:
             "rates": self._rates,
             "callbacks": self._callbacks,
         }
-        self.spot_image = SpotImages(self._robot, self._logger, self._robot_params, self._robot_clients)
+        self.spot_image = SpotImages(
+            self._robot, self._logger, self._robot_params, self._robot_clients
+        )
 
         if self._robot.has_arm():
             self._spot_arm = SpotArm(
@@ -575,9 +659,15 @@ class SpotWrapper:
         else:
             self._spot_arm = None
 
-        self._spot_docking = SpotDocking(self._robot, self._logger, self._robot_params, self._robot_clients)
-        self._spot_graph_nav = SpotGraphNav(self._robot, self._logger, self._robot_params, self._robot_clients)
-        self._spot_check = SpotCheck(self._robot, self._logger, self._robot_params, self._robot_clients)
+        self._spot_docking = SpotDocking(
+            self._robot, self._logger, self._robot_params, self._robot_clients
+        )
+        self._spot_graph_nav = SpotGraphNav(
+            self._robot, self._logger, self._robot_params, self._robot_clients
+        )
+        self._spot_check = SpotCheck(
+            self._robot, self._logger, self._robot_params, self._robot_clients
+        )
         self._spot_images = SpotImages(
             self._robot,
             self._logger,
@@ -587,13 +677,17 @@ class SpotWrapper:
         )
 
         if self._point_cloud_client:
-            self._spot_eap = SpotEAP(self._robot, self._logger, self._robot_params, self._robot_clients)
+            self._spot_eap = SpotEAP(
+                self._robot, self._logger, self._robot_params, self._robot_clients
+            )
             self._point_cloud_task = self._spot_eap.async_task
             robot_tasks.append(self._point_cloud_task)
         else:
             self._spot_eap = None
 
-        self._spot_world_objects = SpotWorldObjects(self._robot, self._logger, self._robot_params, self._robot_clients)
+        self._spot_world_objects = SpotWorldObjects(
+            self._robot, self._logger, self._robot_params, self._robot_clients
+        )
         self._world_objects_task = self._spot_world_objects.async_task
         robot_tasks.append(self._world_objects_task)
 
@@ -790,7 +884,10 @@ class SpotWrapper:
         """Get a lease for the robot, a handle on the estop endpoint, and the ID of the robot."""
         if self.lease is not None:
             for resource in self.lease:
-                if resource.resource == "all-leases" and SPOT_CLIENT_NAME in resource.lease_owner.client_name:
+                if (
+                    resource.resource == "all-leases"
+                    and SPOT_CLIENT_NAME in resource.lease_owner.client_name
+                ):
                     return True, "We already claimed the lease"
 
         try:
@@ -819,7 +916,9 @@ class SpotWrapper:
 
     def resetEStop(self):
         """Get keepalive for eStop"""
-        self._estop_endpoint = EstopEndpoint(self._estop_client, SPOT_CLIENT_NAME, self._estop_timeout)
+        self._estop_endpoint = EstopEndpoint(
+            self._estop_client, SPOT_CLIENT_NAME, self._estop_timeout
+        )
         self._estop_endpoint.force_simple_setup()  # Set this endpoint as the robot's sole estop.
         self._estop_keepalive = EstopKeepAlive(self._estop_endpoint)
 
@@ -932,13 +1031,17 @@ class SpotWrapper:
     @try_claim(power_on=True)
     def simple_stand(self, monitor_command=True):
         """If the e-stop is enabled, and the motor power is enabled, stand the robot up."""
-        response = self._robot_command(RobotCommandBuilder.synchro_stand_command(params=self._mobility_params))
+        response = self._robot_command(
+            RobotCommandBuilder.synchro_stand_command(params=self._mobility_params)
+        )
         if monitor_command:
             self._last_stand_command = response[2]
         return response[0], response[1]
 
     @try_claim(power_on=True)
-    def stand(self, monitor_command=True, body_height=0, body_yaw=0, body_pitch=0, body_roll=0):
+    def stand(
+        self, monitor_command=True, body_height=0, body_yaw=0, body_pitch=0, body_roll=0
+    ):
         """
         If the e-stop is enabled, and the motor power is enabled, stand the robot up.
         Executes a stand command, but one where the robot will assume the pose specified by the given parameters.
@@ -957,11 +1060,15 @@ class SpotWrapper:
             # If any of the orientation parameters are nonzero use them to pose the body
             body_orientation = EulerZXY(yaw=body_yaw, pitch=body_pitch, roll=body_roll)
             response = self._robot_command(
-                RobotCommandBuilder.synchro_stand_command(body_height=body_height, footprint_R_body=body_orientation)
+                RobotCommandBuilder.synchro_stand_command(
+                    body_height=body_height, footprint_R_body=body_orientation
+                )
             )
         else:
             # Otherwise just use the mobility params
-            response = self._robot_command(RobotCommandBuilder.synchro_stand_command(params=self._mobility_params))
+            response = self._robot_command(
+                RobotCommandBuilder.synchro_stand_command(params=self._mobility_params)
+            )
 
         if monitor_command:
             self._last_stand_command = response[2]
@@ -976,7 +1083,9 @@ class SpotWrapper:
             dir_hint: 1 rolls to the right side of the robot, 2 to the left
         """
         if self._robot_params["is_sitting"]:
-            response = self._robot_command(RobotCommandBuilder.battery_change_pose_command(dir_hint))
+            response = self._robot_command(
+                RobotCommandBuilder.battery_change_pose_command(dir_hint)
+            )
             return response[0], response[1]
         return False, "Call sit before trying to roll over"
 
@@ -989,7 +1098,9 @@ class SpotWrapper:
     def clear_behavior_fault(self, id):
         """Clear the behavior fault defined by id."""
         try:
-            rid = self._robot_command_client.clear_behavior_fault(behavior_fault_id=id, lease=None)
+            rid = self._robot_command_client.clear_behavior_fault(
+                behavior_fault_id=id, lease=None
+            )
             return True, "Success", rid
         except Exception as e:
             return False, f"Exception while clearing behavior fault: {e}", None
@@ -1042,7 +1153,9 @@ class SpotWrapper:
         """
         end_time = time.time() + cmd_duration
         response = self._robot_command(
-            RobotCommandBuilder.synchro_velocity_command(v_x=v_x, v_y=v_y, v_rot=v_rot, params=self._mobility_params),
+            RobotCommandBuilder.synchro_velocity_command(
+                v_x=v_x, v_y=v_y, v_rot=v_rot, params=self._mobility_params
+            ),
             end_time_secs=end_time,
             timesync_endpoint=self._robot.time_sync.endpoint,
         )
@@ -1124,7 +1237,9 @@ class SpotWrapper:
             self._last_trajectory_command = response[2]
         return response[0], response[1]
 
-    def robot_command(self, robot_command: robot_command_pb2.RobotCommand) -> typing.Tuple[bool, str]:
+    def robot_command(
+        self, robot_command: robot_command_pb2.RobotCommand
+    ) -> typing.Tuple[bool, str]:
         end_time = time.time() + MAX_COMMAND_DURATION
         return self._robot_command(
             robot_command,
@@ -1132,7 +1247,9 @@ class SpotWrapper:
             timesync_endpoint=self._robot.time_sync.endpoint,
         )
 
-    def get_robot_command_feedback(self, cmd_id: int) -> robot_command_pb2.RobotCommandFeedbackResponse:
+    def get_robot_command_feedback(
+        self, cmd_id: int
+    ) -> robot_command_pb2.RobotCommandFeedbackResponse:
         return self._robot_command_client.robot_command_feedback(cmd_id)
 
     def check_is_powered_on(self):
