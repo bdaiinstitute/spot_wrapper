@@ -1767,7 +1767,7 @@ class SpotWrapper:
                 )
                 time_to_goal: Duration = joint_move_feedback.time_to_goal
                 time_to_goal_in_seconds: float = time_to_goal.seconds + (
-                    float(time_to_goal.nanos) / float(10 ** 9)
+                    float(time_to_goal.nanos) / float(10**9)
                 )
                 time.sleep(time_to_goal_in_seconds)
                 return True, "Spot Arm moved successfully"
