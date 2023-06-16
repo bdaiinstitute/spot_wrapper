@@ -112,7 +112,7 @@ class SpotDance:
         try:
             self._robot.power_on()
             routine_name = choreography.name
-            client_start_time = time.time() + 5.0
+            client_start_time = time.time()
             start_slice = 0  # start the choreography at the beginning
 
             self._choreography_client.execute_choreography(
@@ -127,7 +127,6 @@ class SpotDance:
                     total_choreography_slices / choreography.slices_per_minute * 60.0
                 )
             time.sleep(estimated_time_seconds)
-            self._robot.power_off()
             return True, "success"
         except Exception as e:
             return False, f"Error executing dance: {e}"
