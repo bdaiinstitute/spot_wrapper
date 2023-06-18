@@ -1079,7 +1079,7 @@ class SpotWrapper:
         Args:
             dir_hint: 1 rolls to the right side of the robot, 2 to the left
         """
-        if self._robot_params["is_sitting"]:
+        if self._is_sitting:
             response = self._robot_command(
                 RobotCommandBuilder.battery_change_pose_command(dir_hint)
             )
@@ -1187,8 +1187,8 @@ class SpotWrapper:
         if mobility_params is None:
             mobility_params = self._mobility_params
         self._trajectory_status_unknown = False
-        self._robot_params["at_goal"] = False
-        self._robot_params["near_goal"] = False
+        self._at_goal = False
+        self._near_goal = False
         self._last_trajectory_command_precise = precise_position
         self._logger.info("got command duration of {}".format(cmd_duration))
         end_time = time.time() + cmd_duration
