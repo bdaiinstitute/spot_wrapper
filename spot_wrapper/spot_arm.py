@@ -548,7 +548,62 @@ class SpotArm:
 
         return True, "Moved arm successfully"
 
-    def grasp_3d(self, frame: str, object_rt_frame: typing.List[float]):
+    @staticmethod
+    def block_until_manipulation_completes(
+        manipulation_client: ManipulationApiClient,
+        cmd_id: int,
+        timeout_sec: float = None,
+    ):
+        """
+        Helper that blocks until the arm achieves a finishing state for the specific manipulation command.
+
+        Args:
+         manipulation_client: manipulation client, used to request feedback
+         cmd_id: command ID returned by the robot when the arm movement command was sent.
+         timeout_sec: optional number of seconds after which we'll return no matter what
+                      the robot's state is.
+
+        Returns:
+            True if successfully completed the grasp, False if the grasp failed
+        """
+        if timeout_sec is not None:
+            start_time = time.time()
+            end_time = start_time + timeout_sec
+            now = time.time()
+
+        while timeout_sec is None or now < end_time:
+            feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
+                manipulation_cmd_id=cmd_id
+            )
+
+            # Send the request
+            response = manipulation_client.manipulation_api_feedback_command(
+                manipulation_api_feedback_request=feedback_request
+            )
+            manipulation_state = response.current_state
+            # TODO: Incorporate more of the feedback states if needed for different grasp commands.
+            if manipulation_state == manipulation_api_pb2.MANIP_STATE_GRASP_SUCCEEDED:
+                return True
+            elif manipulation_state == manipulation_api_pb2.MANIP_STATE_GRASP_FAILED:
+                return False
+
+            time.sleep(0.1)
+            now = time.time()
+        return False
+
+    def grasp_3d(
+        self, frame: str, object_rt_frame: typing.List[float]
+    ) -> typing.Tuple[bool, str]:
+        """
+        Attempt to grasp an object
+
+        Args:
+            frame: Frame in the which the object_rt_frame vector is given
+            object_rt_frame: xyz position of the object in the given frame
+
+        Returns:
+            Bool indicating success, and a message with information.
+        """
         try:
             frm = str(frame)
             pos = geometry_pb2.Vec3(
@@ -566,39 +621,17 @@ class SpotArm:
                 manipulation_api_request=grasp_request
             )
 
-            # Get feedback from the robot
-            while True:
-                feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
-                    manipulation_cmd_id=cmd_response.manipulation_cmd_id
-                )
+            success = self.block_until_manipulation_completes(
+                self._manipulation_api_client, cmd_response.cmd_id
+            )
 
-                # Send the request
-                response = (
-                    self._manipulation_api_client.manipulation_api_feedback_command(
-                        manipulation_api_feedback_request=feedback_request
-                    )
-                )
-
-                print(
-                    "Current state: ",
-                    manipulation_api_pb2.ManipulationFeedbackState.Name(
-                        response.current_state
-                    ),
-                )
-
-                if (
-                    response.current_state
-                    == manipulation_api_pb2.MANIP_STATE_GRASP_SUCCEEDED
-                    or response.current_state
-                    == manipulation_api_pb2.MANIP_STATE_GRASP_FAILED
-                ):
-                    break
-
-                time.sleep(0.25)
-
-            self._robot.logger.info("Finished grasp.")
-
+            if success:
+                msg = "Grasped successfully"
+                self._logger.info(msg)
+                return True, msg
+            else:
+                msg = "Grasp failed."
+                self._logger.info(msg)
+                return False, msg
         except Exception as e:
             return False, f"An error occured while trying to grasp from pose {e}"
-
-        return True, "Grasped successfully"
