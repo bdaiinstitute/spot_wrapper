@@ -39,7 +39,6 @@ from bosdyn.client.world_object import WorldObjectClient
 try:
     from bosdyn.choreography.client.choreography import (
         ChoreographyClient,
-        load_choreography_sequence_from_txt_file,
     )
     from .spot_dance import SpotDance
 
@@ -690,9 +689,7 @@ class SpotWrapper:
 
         if self._is_licensed_for_choreography:
             self._spot_dance = SpotDance(
-                self._robot,
-                self._choreography_client,
-                self._is_licensed_for_choreography,
+                self._robot, self._choreography_client, self._logger
             )
 
         self._async_tasks = AsyncTasks(robot_tasks)
@@ -1254,3 +1251,32 @@ class SpotWrapper:
         power_state = self._robot_state_client.get_robot_state().power_state
         self._powered_on = power_state.motor_power_state == power_state.STATE_ON
         return self._powered_on
+
+    @try_claim
+    def execute_dance(self, data):
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.execute_dance(data)
+        else:
+            return False, "Spot is not licensed for choreography"
+
+    def upload_animation(
+        self, animation_name: str, animation_file_content: str
+    ) -> typing.Tuple[bool, str]:
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.upload_animation(
+                animation_name, animation_file_content
+            )
+        else:
+            return False, "Spot is not licensed for choreography"
+
+    def list_all_moves(self) -> typing.Tuple[bool, str, typing.List[str]]:
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.list_all_moves()
+        else:
+            return False, "Spot is not licensed for choreography", []
+
+    def list_all_dances(self) -> typing.Tuple[bool, str, typing.List[str]]:
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.list_all_dances()
+        else:
+            return False, "Spot is not licensed for choreography", []
