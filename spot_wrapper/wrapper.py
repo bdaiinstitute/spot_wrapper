@@ -794,7 +794,7 @@ class SpotWrapper:
     @property
     def id(self) -> str:
         """Return robot's ID"""
-        return self._robot_params["robot_id"]
+        return self._robot_id
 
     @property
     def robot_state(self) -> robot_state_pb2.RobotState:
@@ -829,25 +829,25 @@ class SpotWrapper:
     @property
     def is_standing(self) -> bool:
         """Return boolean of standing state"""
-        return self._robot_params["is_standing"]
+        return self._is_standing
 
     @property
     def is_sitting(self) -> bool:
         """Return boolean of standing state"""
-        return self._robot_params["is_sitting"]
+        return self._is_sitting
 
     @property
     def is_moving(self) -> bool:
         """Return boolean of walking state"""
-        return self._robot_params["is_moving"]
+        return self._is_moving
 
     @property
     def near_goal(self) -> bool:
-        return self._robot_params["near_goal"]
+        return self._near_goal
 
     @property
     def at_goal(self) -> bool:
-        return self._robot_params["at_goal"]
+        return self._at_goal
 
     def is_estopped(self, timeout=None) -> bool:
         return self._robot.is_estopped(timeout=timeout)
@@ -888,7 +888,7 @@ class SpotWrapper:
                     return True, "We already claimed the lease"
 
         try:
-            self._robot_params["robot_id"] = self._robot.get_id()
+            self._robot_id = self._robot.get_id()
             self.getLease()
             if self._start_estop and not self.check_is_powered_on():
                 # If we are requested to start the estop, and the robot is not already powered on, then we reset the
