@@ -20,8 +20,8 @@ from bosdyn.client.robot_command import (
     block_until_arm_arrives,
 )
 from bosdyn.client.robot_state import RobotStateClient
+from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.util import seconds_to_duration
-from google.protobuf.duration_pb2 import Duration
 
 """List of hand image sources for asynchronous periodic query"""
 HAND_IMAGE_SOURCES = [
@@ -95,12 +95,14 @@ class SpotArm:
         self._rates: typing.Dict[str, float] = robot_params["rates"]
         self._callbacks: typing.Dict[str, typing.Callable] = robot_params["callbacks"]
 
+        self._hand_image_requests = []
         self._hand_image_task: AsyncImageService = None
         self.initialize_hand_image_service()
 
     def initialize_hand_image_service(self):
-        self._hand_image_requests = []
-
+        """
+        Initialises the hand image task for retrieving the hand image
+        """
         for source in HAND_IMAGE_SOURCES:
             self._hand_image_requests.append(
                 build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
@@ -114,19 +116,21 @@ class SpotArm:
             self._hand_image_requests,
         )
 
-        self.camera_task_name_to_task_mapping: typing.Dict[str, AsyncImageService] = {
-            "hand_image": self._hand_image_task,
-        }
-
     @property
-    def hand_image_task(self):
+    def hand_image_task(self) -> AsyncImageService:
+        """
+        Get the hand image task
+
+        Returns:
+            Async image service for getting the hand image
+        """
         return self._hand_image_task
 
     def _manipulation_request(
         self,
         request_proto: manipulation_api_pb2,
-        end_time_secs=None,
-        timesync_endpoint=None,
+        end_time_secs: typing.Optional[float] = None,
+        timesync_endpoint: typing.Optional[TimeSyncEndpoint] = None,
     ):
         """Generic function for sending requests to the manipulation api of a robot.
         Args:
@@ -134,7 +138,9 @@ class SpotArm:
         """
         try:
             command_id = self._manipulation_api_client.manipulation_api_command(
-                manipulation_api_request=request_proto
+                manipulation_api_request=request_proto,
+                end_time_secs=end_time_secs,
+                timesync_endpoint=timesync_endpoint,
             ).manipulation_cmd_id
 
             return True, "Success", command_id
@@ -186,7 +192,7 @@ class SpotArm:
 
     def wait_for_arm_command_to_complete(self, cmd_id, timeout_sec=None):
         """
-        Wrapper around the SDK function for convenience
+        Wait until a command issued to the arm complets. Wrapper around the SDK function for convenience
 
         Args:
             cmd_id: ID of the command that we are waiting on
@@ -198,6 +204,12 @@ class SpotArm:
         )
 
     def arm_stow(self) -> typing.Tuple[bool, str]:
+        """
+        Moves the arm to the stowed position
+
+        Returns:
+            Boolean success, string message
+        """
         try:
             success, msg = self.ensure_arm_power_and_stand()
             if not success:
@@ -218,6 +230,12 @@ class SpotArm:
         return True, "Stow arm success"
 
     def arm_unstow(self) -> typing.Tuple[bool, str]:
+        """
+        Unstows the arm
+
+        Returns:
+            Boolean success, string message
+        """
         try:
             success, msg = self.ensure_arm_power_and_stand()
             if not success:
@@ -345,7 +363,7 @@ class SpotArm:
         except Exception as e:
             return False, f"Exception occured during arm movement: {e}"
 
-    def create_wrench_from_msg(self, forces, torques):
+    def create_wrench_from_forces_and_torques(self, forces, torques):
         force = geometry_pb2.Vec3(x=forces[0], y=forces[1], z=forces[2])
         torque = geometry_pb2.Vec3(x=torques[0], y=torques[1], z=torques[2])
         return geometry_pb2.Wrench(force=force, torque=torque)
@@ -361,14 +379,18 @@ class SpotArm:
                 traj_duration = data.duration
 
                 # first point on trajectory
-                wrench0 = self.create_wrench_from_msg(data.forces_pt0, data.torques_pt0)
+                wrench0 = self.create_wrench_from_forces_and_torques(
+                    data.forces_pt0, data.torques_pt0
+                )
                 t0 = seconds_to_duration(0)
                 traj_point0 = trajectory_pb2.WrenchTrajectoryPoint(
                     wrench=wrench0, time_since_reference=t0
                 )
 
                 # Second point on the trajectory
-                wrench1 = self.create_wrench_from_msg(data.forces_pt1, data.torques_pt1)
+                wrench1 = self.create_wrench_from_forces_and_torques(
+                    data.forces_pt1, data.torques_pt1
+                )
                 t1 = seconds_to_duration(traj_duration)
                 traj_point1 = trajectory_pb2.WrenchTrajectoryPoint(
                     wrench=wrench1, time_since_reference=t1
@@ -412,6 +434,12 @@ class SpotArm:
         return True, "Moved arm successfully"
 
     def gripper_open(self) -> typing.Tuple[bool, str]:
+        """
+        Fully opens the gripper
+
+        Returns:
+            Boolean success, string message
+        """
         try:
             success, msg = self.ensure_arm_power_and_stand()
             if not success:
@@ -432,6 +460,12 @@ class SpotArm:
         return True, "Open gripper success"
 
     def gripper_close(self) -> typing.Tuple[bool, str]:
+        """
+        Closes the gripper
+
+        Returns:
+            Boolean success, string message
+        """
         try:
             success, msg = self.ensure_arm_power_and_stand()
             if not success:
@@ -452,8 +486,15 @@ class SpotArm:
         return True, "Closed gripper successfully"
 
     def gripper_angle_open(self, gripper_ang: float) -> typing.Tuple[bool, str]:
-        # takes an angle between 0 (closed) and 90 (fully opened) and opens the
-        # gripper at this angle
+        """
+        Takes an angle between 0 (closed) and 90 (fully opened) and opens the gripper at this angle
+
+        Args:
+            gripper_ang: Angle to which the gripper should be opened
+
+        Returns:
+            Boolean success, string message
+        """
         if gripper_ang > 90 or gripper_ang < 0:
             return False, "Gripper angle must be between 0 and 90"
         try:
@@ -480,6 +521,15 @@ class SpotArm:
         return True, "Opened gripper successfully"
 
     def hand_pose(self, data) -> typing.Tuple[bool, str]:
+        """
+        Set the pose of the hand
+
+        Args:
+            data:
+
+        Returns:
+            Boolean success, string message
+        """
         try:
             success, msg = self.ensure_arm_power_and_stand()
             if not success:
@@ -516,7 +566,7 @@ class SpotArm:
                 )
 
                 arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
-                    root_frame_name=data.frame,
+                    root_frame_name=frame,
                     pose_trajectory_in_task=hand_trajectory,
                     force_remain_near_current_joint_configuration=True,
                 )
@@ -553,7 +603,7 @@ class SpotArm:
         manipulation_client: ManipulationApiClient,
         cmd_id: int,
         timeout_sec: float = None,
-    ):
+    ) -> bool:
         """
         Helper that blocks until the arm achieves a finishing state for the specific manipulation command.
 
