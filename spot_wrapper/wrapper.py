@@ -592,6 +592,7 @@ class SpotWrapper:
         get_lease_on_action: bool = False,
         continually_try_stand: bool = True,
         rgb_cameras: bool = True,
+        payload_credentials_file: str = None,
     ):
         """
         Args:
@@ -616,6 +617,7 @@ class SpotWrapper:
         self._username = username
         self._password = password
         self._hostname = hostname
+        self._payload_credentials_file = payload_credentials_file
         self._robot_name = robot_name
         self._use_take_lease = use_take_lease
         self._get_lease_on_action = get_lease_on_action
@@ -723,7 +725,7 @@ class SpotWrapper:
         self._robot = self._sdk.create_robot(self._hostname)
 
         authenticated = self.authenticate(
-            self._robot, self._username, self._password, self._logger
+            self._robot, self._username, self._password, self._logger, self._payload_credentials_file
         )
         if not authenticated:
             self._valid = False
@@ -977,7 +979,7 @@ class SpotWrapper:
             self._lease = None
 
     @staticmethod
-    def authenticate(robot, username, password, logger):
+    def authenticate(robot, username, password, logger, payload_credentials_file=None):
         """
         Authenticate with a robot through the bosdyn API. A blocking function which will wait until authenticated (if
         the robot is still booting) or login fails
@@ -987,6 +989,7 @@ class SpotWrapper:
             username: Username to authenticate with
             password: Password for the given username
             logger: Logger with which to print messages
+            payload_credentials_file: Path to the file to read payload credentials from
 
         Returns:
 
@@ -995,7 +998,13 @@ class SpotWrapper:
         while not authenticated:
             try:
                 logger.info("Trying to authenticate with robot...")
-                robot.authenticate(username, password)
+                if payload_credentials_file is not None:
+                    logger.info("Authenticating from payload credentials...")
+                    robot.authenticate_from_payload_credentials(
+                        *bosdyn.client.util.read_payload_credentials(
+                            payload_credentials_file))
+                else:
+                    robot.authenticate(username, password)
                 robot.time_sync.wait_for_sync(10)
                 logger.info("Successfully authenticated.")
                 authenticated = True
