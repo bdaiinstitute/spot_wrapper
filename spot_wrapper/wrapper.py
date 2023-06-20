@@ -724,9 +724,12 @@ class SpotWrapper:
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
 
-        authenticated = self.authenticate(
-            self._robot, self._username, self._password, self._logger, self._payload_credentials_file
-        )
+        authenticated = False
+        if(self._payload_credentials_file):
+            authenticated = self.authenticate_from_payload_credentials(self._robot, self._payload_credentials_file, self._logger)
+        else:
+            authenticated = self.authenticate(self._robot, self._username, self._password, self._logger)
+
         if not authenticated:
             self._valid = False
             return
@@ -979,7 +982,7 @@ class SpotWrapper:
             self._lease = None
 
     @staticmethod
-    def authenticate(robot, username, password, logger, payload_credentials_file=None):
+    def authenticate(robot, username, password, logger):
         """
         Authenticate with a robot through the bosdyn API. A blocking function which will wait until authenticated (if
         the robot is still booting) or login fails
@@ -989,8 +992,7 @@ class SpotWrapper:
             username: Username to authenticate with
             password: Password for the given username
             logger: Logger with which to print messages
-            payload_credentials_file: Path to the file to read payload credentials from
-
+            
         Returns:
 
         """
@@ -998,13 +1000,7 @@ class SpotWrapper:
         while not authenticated:
             try:
                 logger.info("Trying to authenticate with robot...")
-                if payload_credentials_file is not None:
-                    logger.info("Authenticating from payload credentials...")
-                    robot.authenticate_from_payload_credentials(
-                        *bosdyn.client.util.read_payload_credentials(
-                            payload_credentials_file))
-                else:
-                    robot.authenticate(username, password)
+                robot.authenticate(username, password)
                 robot.time_sync.wait_for_sync(10)
                 logger.info("Successfully authenticated.")
                 authenticated = True
@@ -1022,6 +1018,46 @@ class SpotWrapper:
                 raise err
 
         return authenticated
+
+    @staticmethod
+    def authenticate_from_payload_credentials(robot, payload_credentials_file, logger):
+        """
+        Authenticate with a robot through the bosdyn API from payload credentials. A blocking function which will 
+        wait until authenticated (if the robot is still booting) or login fails
+
+        Args:
+            robot: Robot object which we are authenticating with
+            payload_credentials_file: Path to the file to read payload credentials from
+            logger: Logger with which to print messages
+
+        Returns:
+            boolean indicating if authenticated or not
+        """
+        authenticated = False
+        while not authenticated:
+            try:
+                logger.info("Trying to authenticate with robot from payload credentials...")
+                robot.authenticate_from_payload_credentials(
+                    *bosdyn.client.util.read_payload_credentials(
+                        payload_credentials_file))
+                robot.time_sync.wait_for_sync(10)
+                logger.info("Successfully authenticated.")
+                authenticated = True
+            except RpcError as err:
+                sleep_secs = 15
+                logger.warn(
+                    "Failed to communicate with robot: {}\nEnsure the robot is powered on and you can "
+                    "ping {}. Robot may still be booting. Will retry in {} seconds".format(
+                        err, robot.address, sleep_secs
+                    )
+                )
+                time.sleep(sleep_secs)
+            except bosdyn.client.auth.InvalidLoginError as err:
+                logger.error("Failed to log in to robot: {}".format(err))
+                raise err
+
+        return authenticated
+    
 
     @property
     def robot_name(self):
