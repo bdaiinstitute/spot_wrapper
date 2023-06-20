@@ -2765,7 +2765,7 @@ class SpotWrapper:
             )
         return result
 
-    def get_gripper_camera_params(self) -> Tuple[Optional[gripper_camera_param_pb2.GripperCameraParams], str]:
+    def get_gripper_camera_params(self) -> typing.Tuple[typing.Optional[gripper_camera_param_pb2.GripperCameraParams], str]:
         """
         Gets the gripper camera params using the GripperCameraParamClient.
 
@@ -2777,7 +2777,6 @@ class SpotWrapper:
         if self._gripper_camera_param_client is None:
             self._logger.error("Gripper camera param client has not been initialized.")
 
-        # TODO: build request?
         req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
 
         try:
@@ -2789,7 +2788,7 @@ class SpotWrapper:
 
         return res.params, "Success"
 
-    def set_gripper_camera_params(self, params: gripper_camera_param_pb2.GripperCameraParams) -> Tuple[bool, str]:
+    def set_gripper_camera_params(self, params: gripper_camera_param_pb2.GripperCameraParams) -> typing.Tuple[bool, str]:
         """
         Sets the gripper camera params using the GripperCameraParamClient.
 
@@ -2804,9 +2803,7 @@ class SpotWrapper:
         if self._gripper_camera_param_client is None:
             self._logger.error("Gripper camera param client has not been initialized.")
 
-        # TODO: build request?
-        req = gripper_camera_param_pb2.GripperCameraParamRequest()
-        req.params = params
+        req = gripper_camera_param_pb2.GripperCameraParamRequest(params=params)
 
         try:
             res = self._gripper_camera_param_client.set_camera_params(req)
