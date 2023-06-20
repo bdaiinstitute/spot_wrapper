@@ -725,10 +725,14 @@ class SpotWrapper:
         self._robot = self._sdk.create_robot(self._hostname)
 
         authenticated = False
-        if(self._payload_credentials_file):
-            authenticated = self.authenticate_from_payload_credentials(self._robot, self._payload_credentials_file, self._logger)
+        if self._payload_credentials_file:
+            authenticated = self.authenticate_from_payload_credentials(
+                self._robot, self._payload_credentials_file, self._logger
+            )
         else:
-            authenticated = self.authenticate(self._robot, self._username, self._password, self._logger)
+            authenticated = self.authenticate(
+                self._robot, self._username, self._password, self._logger
+            )
 
         if not authenticated:
             self._valid = False
@@ -1031,15 +1035,19 @@ class SpotWrapper:
             logger: Logger with which to print messages
 
         Returns:
-        
+
         """
         authenticated = False
         while not authenticated:
             try:
-                logger.info("Trying to authenticate with robot from payload credentials...")
+                logger.info(
+                    "Trying to authenticate with robot from payload credentials..."
+                )
                 robot.authenticate_from_payload_credentials(
                     *bosdyn.client.util.read_payload_credentials(
-                        payload_credentials_file))
+                        payload_credentials_file
+                    )
+                )
                 robot.time_sync.wait_for_sync(10)
                 logger.info("Successfully authenticated.")
                 authenticated = True
@@ -1057,7 +1065,6 @@ class SpotWrapper:
                 raise err
 
         return authenticated
-    
 
     @property
     def robot_name(self):
