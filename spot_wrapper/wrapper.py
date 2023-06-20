@@ -18,6 +18,7 @@ from bosdyn.api import robot_command_pb2
 from bosdyn.api import robot_state_pb2
 from bosdyn.api import synchronized_command_pb2
 from bosdyn.api import trajectory_pb2
+from bosdyn.api import gripper_camera_param_pb2
 from bosdyn.api.graph_nav import graph_nav_pb2
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.api.graph_nav import nav_pb2
@@ -51,6 +52,7 @@ from bosdyn.client.world_object import WorldObjectClient
 from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.license import LicenseClient
 from bosdyn.client import ResponseError, RpcError, create_standard_sdk
+from bosdyn.client.gripper_camera_param import GripperCameraParamClient
 
 try:
     from bosdyn.choreography.client.choreography import (
@@ -802,6 +804,14 @@ class SpotWrapper:
                     else:
                         self._manipulation_api_client = None
                         self._logger.info("Manipulation API is not available.")
+
+                    if self._robot.has_arm():
+                        self._gripper_camera_param_client = self._robot.ensure_client(
+                                GripperCameraParamClient.default_service_name
+                        )
+                    else:
+                        self._gripper_camera_param_client = None
+                        self._logger.info("Gripper camera param client is not available.")
 
                     initialised = True
                 except Exception as e:
@@ -2754,3 +2764,56 @@ class SpotWrapper:
                 )
             )
         return result
+
+    def get_gripper_camera_params(self) -> Tuple[Optional[gripper_camera_param_pb2.GripperCameraParams], str]:
+        """
+        Gets the gripper camera params using the GripperCameraParamClient.
+
+        Returns:
+            None, <error message> on error
+            params, "Success" on success where params is a GripperCameraParams object
+        """
+
+        if self._gripper_camera_param_client is None:
+            self._logger.error("Gripper camera param client has not been initialized.")
+
+        # TODO: build request?
+        req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
+
+        try:
+            res = self._gripper_camera_param_client.get_camera_params(req)
+        except (ResponseError, RPCError) as e:
+            message = f"Call to get_camera_params failed: {e}"
+            self._logger.error(message)
+            return None, message
+
+        return res.params, "Success"
+
+    def set_gripper_camera_params(self, params: gripper_camera_param_pb2.GripperCameraParams) -> Tuple[bool, str]:
+        """
+        Sets the gripper camera params using the GripperCameraParamClient.
+
+        Args:
+           params: A GripperCameraParams object with the params to be set 
+
+        Returns:
+            False, <error message> on error
+            True, "Success" on success
+        """
+
+        if self._gripper_camera_param_client is None:
+            self._logger.error("Gripper camera param client has not been initialized.")
+
+        # TODO: build request?
+        req = gripper_camera_param_pb2.GripperCameraParamRequest()
+        req.params = params
+
+        try:
+            res = self._gripper_camera_param_client.set_camera_params(req)
+        except (ResponseError, RpcError) as e:
+            message = f"Call to set_camera_params failed: {e}"
+            self._logger.error(message)
+            return False, message
+
+        return True, "Success"
+
