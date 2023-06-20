@@ -992,7 +992,7 @@ class SpotWrapper:
             username: Username to authenticate with
             password: Password for the given username
             logger: Logger with which to print messages
-            
+
         Returns:
 
         """
@@ -1031,7 +1031,7 @@ class SpotWrapper:
             logger: Logger with which to print messages
 
         Returns:
-            boolean indicating if authenticated or not
+        
         """
         authenticated = False
         while not authenticated:
