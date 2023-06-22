@@ -2295,22 +2295,31 @@ class SpotWrapper:
             ko_tform_body=current_odom_tform_body,
         )
 
-    def _set_initial_localization_waypoint(self, *args):
-        """Trigger localization to a waypoint."""
+    def _set_initial_localization_waypoint(self, waypoint_id):
+        """Trigger localization to a waypoint.
+        
+        Args:
+            waypoint_id (int): ID of waypoint to be localized.
+
+        Returns:
+            result (bool): success flag of localization
+            message (str): message about result.
+        """
         # Take the first argument as the localization waypoint.
-        if len(args) < 1:
-            # If no waypoint id is given as input, then return without initializing.
-            self._logger.error("No waypoint specified to initialize to.")
-            return
+        if type(waypoint_id) is not str:
+            if type(waypoint_id) is list and len(waypoint_id) > 1 and type(waypoint_id[0]) is list:
+                waypoint_id = waypoint_id[0][0]
+            else:
+                return False, "No waypoint specified to initialize to."
         destination_waypoint = graph_nav_util.find_unique_waypoint_id(
-            args[0][0],
+            waypoint_id,
             self._current_graph,
             self._current_annotation_name_to_wp_id,
             self._logger,
         )
         if not destination_waypoint:
             # Failed to find the unique waypoint id.
-            return
+            return False, 'Failed to find the unique waypoint id.'
 
         robot_state = self._robot_state_client.get_robot_state()
         current_odom_tform_body = get_odom_tform_body(
@@ -2328,6 +2337,8 @@ class SpotWrapper:
             fiducial_init=graph_nav_pb2.SetLocalizationRequest.FIDUCIAL_INIT_NO_FIDUCIAL,
             ko_tform_body=current_odom_tform_body,
         )
+
+        return True, 'Success'
 
     def _list_graph_waypoint_and_edge_ids(self, *args):
         """List the waypoint ids and edge ids of the graph currently on the robot."""
