@@ -1789,8 +1789,7 @@ class SpotWrapper:
             return False, f"Error: {e}"
 
     def cancel_navigation(self) -> None:
-        """Cancel navigation of a robot from start_navigation()
-        """
+        """Cancel navigation of a robot from start_navigation()"""
         self._cancel_navigate_to()
 
     @try_claim
