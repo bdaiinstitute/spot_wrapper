@@ -1541,7 +1541,7 @@ class SpotWrapper:
             )
         ]
 
-    def clear_graph(self) -> tuple(bool, str):
+    def clear_graph(self) -> typing.Tuple(bool, str):
         """Clear a graph in a robot.
 
         Returns:
@@ -1554,7 +1554,7 @@ class SpotWrapper:
         except Exception as e:
             return False, f"Error: {e}"
 
-    def upload_graph(self, upload_path: str) -> tuple(bool, str):
+    def upload_graph(self, upload_path: str) -> typing.Tuple(bool, str):
         """Upload graph and snapshots to robot.
 
         Args:
@@ -1566,7 +1566,7 @@ class SpotWrapper:
         except Exception as e:
             return False, f"Error: {e}"
 
-    def download_graph(self, download_path: str) -> tuple(bool, str):
+    def download_graph(self, download_path: str) -> typing.Tuple(bool, str):
         """Download graph and snapshots from robot.
 
         Args:
@@ -2282,7 +2282,9 @@ class SpotWrapper:
             f.write(data)
             f.close()
 
-    def _download_graph_and_snapshots(self, download_path: str) -> tuple(bool, str):
+    def _download_graph_and_snapshots(
+        self, download_path: str
+    ) -> typing.Tuple(bool, str):
         """Download the graph and snapshots from the robot.
 
         Args:
