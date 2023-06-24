@@ -2227,6 +2227,70 @@ class SpotWrapper:
                 "please localize the robot"
             )
 
+    def _write_bytes_while_download(self, filepath: str, data: bytes):
+        """Write data to a file.
+        
+        Args:
+            filepath (str) : Path of file wher data will be written.
+            data (bytes) : Bytes of data"""
+        directory = os.path.dirname(filepath)
+        os.makedirs(directory, exist_ok=True)
+        with open(filepath, "wb+") as f:
+            f.write(data)
+            f.close()
+
+    def _download_full_graph_from_robot(self, download_path: str):
+        """Download the graph and snapshots from the robot.
+        
+        Args:
+            download_path (str): Directory where graph and snapshotw are downloaded from robot.
+            
+        Returns:
+            success (bool): success flag
+            message (str): message"""
+        graph = self._graph_nav_client.download_graph()
+        if graph is None:
+            return False, "Failed to download the graph."
+        graph_bytes = graph.SerializeToString()
+        self._write_bytes_while_download(
+            os.path.join(download_path, "graph"),
+            graph_bytes
+        )
+        # Download the waypoint and edge snapshots.
+        for waypoint in graph.waypoints:
+            try:
+                waypoint_snapshot = self._graph_nav_client.download_waypoint_snapshot(
+                    waypoint.snapshot_id
+                )
+            except Exception:
+                self.logger.warn("Failed to download waypoint snapshot: %s", waypoint.snapshot_id)
+                continue
+            self._write_bytes_while_download(
+                os.path.join(
+                    download_path,
+                    "waypoint_snapshots",
+                    waypoint.snapshot_id
+                ),
+                waypoint_snapshot.SerializeToString(),
+            )
+        for edge in graph.edges:
+            try:
+                edge_snapshot = self._graph_nav_client.download_edge_snapshot(
+                    edge.snapshot_id
+                )
+            except Exception:
+                self.logger.warn("Failed to download edge snapshot: %s", edge.snapshot_id)
+                continue
+            self._write_bytes_while_download(
+                os.path.join(
+                    download_path,
+                    "edge_snapshots",
+                    edge.snapshot_id
+                ),
+                edge_snapshot.SerializeToString(),
+            )
+        return True, "Success"
+
     @try_claim
     def _navigate_to(self, *args):
         """Navigate to a specific waypoint."""
