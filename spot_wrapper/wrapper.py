@@ -1788,6 +1788,27 @@ class SpotWrapper:
         except Exception as e:
             return False, f"Error: {e}"
 
+    def cancel_navigation(self) -> None:
+        """Cancel navigation of a robot from start_navigation()
+        """
+        self._cancel_navigate_to()
+
+    @try_claim
+    def start_navigation(self, target_waypoint_id: str) -> tuple(bool, str, str):
+        """Navigate a robot to specified waypoint id with GraphNav
+
+        Args:
+            target_waypoint_id (str) : Waypont id string for where to goal
+
+        Returns:
+            result (bool) : success flag
+            message (str) : message about result
+            state (str) : state of result. options are 'aborted', 'failed', 'preempted', 'succeeded'.
+        """
+        self._get_localization_state()
+        resp = self._start_navigate_to(target_waypoint_id)
+        return resp
+
     @try_claim
     def navigate_to(
         self,
