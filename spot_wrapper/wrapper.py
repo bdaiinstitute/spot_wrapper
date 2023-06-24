@@ -1553,10 +1553,10 @@ class SpotWrapper:
             return True, "Success"
         except Exception as e:
             return False, f"Error: {e}"
-        
+
     def upload_graph(self, upload_path: str) -> tuple(bool, str):
         """Upload graph and snapshots to robot.
-        
+
         Args:
             upload_path (str): Path to the directory of the map."""
         try:
@@ -1577,7 +1577,9 @@ class SpotWrapper:
             message (str): message about result
         """
         try:
-            success, message = self._download_graph_and_snapshots(download_path=download_path)
+            success, message = self._download_graph_and_snapshots(
+                download_path=download_path
+            )
             return success, message
         except Exception as e:
             return False, f"Error: {e}"
@@ -2270,7 +2272,7 @@ class SpotWrapper:
 
     def _write_bytes_while_download(self, filepath: str, data: bytes):
         """Write data to a file.
-        
+
         Args:
             filepath (str) : Path of file wher data will be written.
             data (bytes) : Bytes of data"""
@@ -2282,10 +2284,10 @@ class SpotWrapper:
 
     def _download_graph_and_snapshots(self, download_path: str) -> tuple(bool, str):
         """Download the graph and snapshots from the robot.
-        
+
         Args:
             download_path (str): Directory where graph and snapshotw are downloaded from robot.
-            
+
         Returns:
             success (bool): success flag
             message (str): message"""
@@ -2294,8 +2296,7 @@ class SpotWrapper:
             return False, "Failed to download the graph."
         graph_bytes = graph.SerializeToString()
         self._write_bytes_while_download(
-            os.path.join(download_path, "graph"),
-            graph_bytes
+            os.path.join(download_path, "graph"), graph_bytes
         )
         # Download the waypoint and edge snapshots.
         for waypoint in graph.waypoints:
@@ -2304,14 +2305,12 @@ class SpotWrapper:
                     waypoint.snapshot_id
                 )
             except Exception:
-                self.logger.warn("Failed to download waypoint snapshot: %s", waypoint.snapshot_id)
+                self.logger.warn(
+                    "Failed to download waypoint snapshot: %s", waypoint.snapshot_id
+                )
                 continue
             self._write_bytes_while_download(
-                os.path.join(
-                    download_path,
-                    "waypoint_snapshots",
-                    waypoint.snapshot_id
-                ),
+                os.path.join(download_path, "waypoint_snapshots", waypoint.snapshot_id),
                 waypoint_snapshot.SerializeToString(),
             )
         for edge in graph.edges:
@@ -2320,14 +2319,12 @@ class SpotWrapper:
                     edge.snapshot_id
                 )
             except Exception:
-                self.logger.warn("Failed to download edge snapshot: %s", edge.snapshot_id)
+                self.logger.warn(
+                    "Failed to download edge snapshot: %s", edge.snapshot_id
+                )
                 continue
             self._write_bytes_while_download(
-                os.path.join(
-                    download_path,
-                    "edge_snapshots",
-                    edge.snapshot_id
-                ),
+                os.path.join(download_path, "edge_snapshots", edge.snapshot_id),
                 edge_snapshot.SerializeToString(),
             )
         return True, "Success"
