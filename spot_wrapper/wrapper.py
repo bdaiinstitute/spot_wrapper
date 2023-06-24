@@ -1753,6 +1753,35 @@ class SpotWrapper:
                 f"Got an error during downloading graph and snapshots from the robot: {e}",
             )
 
+    def set_localization_fiducial(self) -> tuple(bool, str):
+        """Localize a robot according to near fiducials.
+        
+        Returns:
+            success (bool): success flag
+            message (str): message about result
+        """
+        try:
+            self._set_initial_localization_fiducial()
+            return True, "Success"
+        except Exception as e:
+            return False, f"Error: {e}"
+
+    def set_localization_waypoint(self, waypoint_id: str) -> tuple(bool, str):
+        """Localize a robot to specified waypoint.
+        
+        Args:
+            waypoint_id (int): ID of waypoint to be localized.
+
+        Returns:
+            result (bool): success flag of localization
+            message (str): message about result.
+        """
+        try:
+            resp = self._set_initial_localization_waypoint(waypoint_id)
+            return resp[0], resp[1]
+        except Exception as e:
+            return False, f"Error: {e}"
+
     @try_claim
     def navigate_to(
         self,
