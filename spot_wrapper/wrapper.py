@@ -1541,6 +1541,47 @@ class SpotWrapper:
             )
         ]
 
+    def clear_graph(self) -> tuple(bool, str):
+        """Clear a graph in a robot.
+
+        Returns:
+            success (bool): success flag
+            message (str): message about result
+        """
+        try:
+            self._clear_graph()
+            return True, "Success"
+        except Exception as e:
+            return False, f"Error: {e}"
+        
+    def upload_graph(self, upload_path: str) -> tuple(bool, str):
+        """Upload graph and snapshots to robot.
+        
+        Args:
+            upload_path (str): Path to the directory of the map."""
+        try:
+            self._clear_graph()
+            self._upload_graph_and_snapshots(upload_path)
+            return True, "Success"
+        except Exception as e:
+            return False, f"Error: {e}"
+
+    def download_graph(self, download_path: str) -> tuple(bool, str):
+        """Download graph and snapshots from robot.
+
+        Args:
+            download_path (str): Directory where graph and snapshotw are downloaded from robot.
+
+        Returns:
+            success (bool): success flag
+            message (str): message about result
+        """
+        try:
+            success, message = self._download_graph_and_snapshots(download_path=download_path)
+            return success, message
+        except Exception as e:
+            return False, f"Error: {e}"
+
     @try_claim
     def navigate_to(
         self,
