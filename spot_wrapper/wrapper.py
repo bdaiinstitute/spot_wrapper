@@ -1527,7 +1527,7 @@ class SpotWrapper:
             manipulation_api_feedback_request=feedback_request
         )
 
-    def list_graph(self, upload_path):
+    def list_graph(self, upload_path=None):
         """List waypoint ids of garph_nav
         Args:
           upload_path : Path to the root directory of the map.
