@@ -1753,9 +1753,9 @@ class SpotWrapper:
                 f"Got an error during downloading graph and snapshots from the robot: {e}",
             )
 
-    def set_localization_fiducial(self) -> tuple(bool, str):
+    def set_localization_fiducial(self) -> typing.Tuple[bool, str]:
         """Localize a robot according to near fiducials.
-        
+
         Returns:
             success (bool): success flag
             message (str): message about result
@@ -1766,9 +1766,9 @@ class SpotWrapper:
         except Exception as e:
             return False, f"Error: {e}"
 
-    def set_localization_waypoint(self, waypoint_id: str) -> tuple(bool, str):
+    def set_localization_waypoint(self, waypoint_id: str) -> typing.Tuple[bool, str]:
         """Localize a robot to specified waypoint.
-        
+
         Args:
             waypoint_id (int): ID of waypoint to be localized.
 
@@ -2326,7 +2326,7 @@ class SpotWrapper:
 
     def _set_initial_localization_waypoint(self, waypoint_id):
         """Trigger localization to a waypoint.
-        
+
         Args:
             waypoint_id (int): ID of waypoint to be localized.
 
@@ -2336,7 +2336,11 @@ class SpotWrapper:
         """
         # Take the first argument as the localization waypoint.
         if type(waypoint_id) is not str:
-            if type(waypoint_id) is list and len(waypoint_id) > 1 and type(waypoint_id[0]) is list:
+            if (
+                type(waypoint_id) is list
+                and len(waypoint_id) > 1
+                and type(waypoint_id[0]) is list
+            ):
                 waypoint_id = waypoint_id[0][0]
             else:
                 return False, "No waypoint specified to initialize to."
@@ -2348,7 +2352,7 @@ class SpotWrapper:
         )
         if not destination_waypoint:
             # Failed to find the unique waypoint id.
-            return False, 'Failed to find the unique waypoint id.'
+            return False, "Failed to find the unique waypoint id."
 
         robot_state = self._robot_state_client.get_robot_state()
         current_odom_tform_body = get_odom_tform_body(
@@ -2367,7 +2371,7 @@ class SpotWrapper:
             ko_tform_body=current_odom_tform_body,
         )
 
-        return True, 'Success'
+        return True, "Success"
 
     def _list_graph_waypoint_and_edge_ids(self, *args):
         """List the waypoint ids and edge ids of the graph currently on the robot."""
