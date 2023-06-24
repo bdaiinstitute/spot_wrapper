@@ -2239,7 +2239,7 @@ class SpotWrapper:
             f.write(data)
             f.close()
 
-    def _download_full_graph_from_robot(self, download_path: str):
+    def _download_graph_and_snapshots(self, download_path: str) -> tuple(bool, str):
         """Download the graph and snapshots from the robot.
         
         Args:
