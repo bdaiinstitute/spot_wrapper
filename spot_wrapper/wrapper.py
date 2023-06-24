@@ -1,3 +1,4 @@
+from distutils.dist import command_re
 import functools
 import logging
 import math
@@ -473,7 +474,10 @@ class AsyncIdle(AsyncPeriodicQuery):
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper.last_trajectory_command = None
 
-        self._spot_wrapper.is_moving = is_moving
+        if self._spot_wrapper._last_navigate_to_command != None:
+            is_moving = True
+
+        self._spot_wrapper._is_moving = is_moving
 
         # We must check if any command currently has a non-None value for its id. If we don't do this, this stand
         # command can cause other commands to be interrupted before they get to start
@@ -655,6 +659,8 @@ class SpotWrapper:
         self._state = RobotState()
         self._trajectory_status_unknown = False
         self._command_data = RobotCommandData()
+        self._last_navigate_to_command = None
+        self._state_navigation_valid = None
 
         self._front_image_requests = []
         for source in front_image_sources:
@@ -2534,6 +2540,79 @@ class SpotWrapper:
                 edge_snapshot.SerializeToString(),
             )
         return True, "Success"
+
+    def _cancel_navigate_to(self):
+        self._navigate_to_valid = False
+
+    @try_claim
+    def _start_navigation(self, target_waypoint_id):
+        self._lease = self._lease_wallet.get_lease()
+        destination_waypoint = graph_nav_util.find_unique_waypoint_id(
+            target_waypoint_id,
+            self._current_graph,
+            self._current_annotation_name_to_wp_id,
+            self._logger,
+        )
+
+        if not destination_waypoint:
+            self.logger.error(
+                "Failed to find waypoint %s in current graph.", target_waypoint_id
+            )
+            return (
+                False,
+                f"Failed to find waypoint {target_waypoint_id} in current graph.",
+                "aborted",
+            )
+
+        self.logger.info("Starting navigation to %s", destination_waypoint)
+
+        self._lease = self._lease_wallet.advance()
+        sublease = self._lease.create_sublease()
+        self._lease_keepalive.shutdown()
+
+        self._state_navigation_valid = True
+        nav_to_cmd_id = None
+        while self._state_navigation_valid:
+            time.sleep(0.5)
+            try:
+                nav_to_cmd_id = self._graph_nav_client.navigate_to(
+                    destination_waypoint,
+                    1.0,
+                    leases=[sublease.lease_proto],
+                    command_id=nav_to_cmd_id,
+                )
+                self._last_navigate_to_command = nav_to_cmd_id
+            except ResponseError as e:
+                self._logger.error("Error while navitation: %s", e)
+                break
+
+            if self._check_success(nav_to_cmd_id):
+                break
+
+        self._last_navigate_to_command = None
+        self._lease = self._lease_wallet.advance()
+        self._lease_keepalive = LeaseKeepAlive(self._lease_client)
+
+        if self._state_navigation_valid:
+            return False, "Navigation is canceled", "preempted"
+
+        status = self._graph_nav_client.navigation_feedback(nav_to_cmd_id)
+        if (
+            status.status
+            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_REACHED_GOAL
+        ):
+            return True, "Successfully completed the navigation commands!", "succeeded"
+        elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_LOST:
+            return False, "Robot got lost when navigating the route,", "failed"
+        elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_STUCK:
+            return False, "Robot got stuck when navigating the route,", "failed"
+        elif (
+            status.status
+            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_ROBOT_IMPAIRED
+        ):
+            return False, "Robot is impaired.", "failed"
+        else:
+            return False, "Navigation command is not complete yet.", "failed"
 
     @try_claim
     def _navigate_to(self, *args):
