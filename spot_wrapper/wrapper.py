@@ -1819,7 +1819,7 @@ class SpotWrapper:
         if initial_localization_fiducial:
             self._set_initial_localization_fiducial()
         if initial_localization_waypoint:
-            self._set_initial_localization_waypoint([initial_localization_waypoint])
+            self._set_initial_localization_waypoint(initial_localization_waypoint)
         self._list_graph_waypoint_and_edge_ids()
         self._get_localization_state()
         resp = self._navigate_to([navigate_to])
@@ -2328,22 +2328,13 @@ class SpotWrapper:
         """Trigger localization to a waypoint.
 
         Args:
-            waypoint_id (int): ID of waypoint to be localized.
+            waypoint_id (str): ID of waypoint to be localized.
 
         Returns:
             result (bool): success flag of localization
             message (str): message about result.
         """
         # Take the first argument as the localization waypoint.
-        if type(waypoint_id) is not str:
-            if (
-                type(waypoint_id) is list
-                and len(waypoint_id) > 1
-                and type(waypoint_id[0]) is list
-            ):
-                waypoint_id = waypoint_id[0][0]
-            else:
-                return False, "No waypoint specified to initialize to."
         destination_waypoint = graph_nav_util.find_unique_waypoint_id(
             waypoint_id,
             self._current_graph,
