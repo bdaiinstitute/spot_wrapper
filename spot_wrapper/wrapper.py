@@ -2400,11 +2400,11 @@ class SpotWrapper:
         for index, waypoint_snapshot_id in enumerate(response.unknown_waypoint_snapshot_ids):
             waypoint_snapshot = self._current_waypoint_snapshots[waypoint_snapshot_id]
             self._graph_nav_client.upload_waypoint_snapshot(waypoint_snapshot)
-            self._logger.info("Uploaded waypont snapshot {}/{} {}".format(index + 1, len(self._current_waypoint_snapshots),waypoint_snapshot.id))
+            self._logger.info("Uploaded waypont snapshot {}/{} {}".format(index + 1, len(response.unknown_waypoint_snapshot_ids), waypoint_snapshot.id))
         for index, edge_snapshot_id in enumerate(response.unknown_edge_snapshot_ids):
             edge_snapshot = self._current_edge_snapshots[edge_snapshot_id]
             self._graph_nav_client.upload_edge_snapshot(edge_snapshot)
-            self._logger.info("Uploaded edge snapshot {}/{} {}".format(index + 1, len(self._current_edge_snapshots),edge_snapshot.id))
+            self._logger.info("Uploaded edge snapshot {}/{} {}".format(index + 1, len(response.unknown_edge_snapshot_ids), edge_snapshot.id))
 
         # The upload is complete! Check that the robot is localized to the graph,
         # and it if is not, prompt the user to localize the robot before attempting
