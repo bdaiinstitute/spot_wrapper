@@ -1557,6 +1557,7 @@ class SpotWrapper:
            initial_localization_fiducial : Tells the initializer whether to use fiducials
            initial_localization_waypoint : Waypoint id string of current robot position (optional)
         """
+        
         # Filepath for uploading a saved graph's and snapshots too.
         if upload_path[-1] == "/":
             upload_filepath = upload_path[:-1]
@@ -1569,17 +1570,18 @@ class SpotWrapper:
         self._powered_on = self._started_powered_on
 
         # FIX ME somehow,,,, if the robot is stand, need to sit the robot before starting garph nav
-        if self.is_standing and not self.is_moving:
-            self.sit()
+        # TODO: see if the code works with the robot sitting down
+        # if self.is_standing and not self.is_moving:
+        #     self.sit()
 
         # TODO verify estop  / claim / power_on
-        self._clear_graph()
-        self._upload_graph_and_snapshots(upload_filepath)
-        if initial_localization_fiducial:
-            self._set_initial_localization_fiducial()
-        if initial_localization_waypoint:
-            self._set_initial_localization_waypoint([initial_localization_waypoint])
-        self._list_graph_waypoint_and_edge_ids()
+        # self._clear_graph()
+        # self._upload_graph_and_snapshots(upload_filepath)
+        # if initial_localization_fiducial:
+        #     self._set_initial_localization_fiducial()
+        # if initial_localization_waypoint:
+        #     self._set_initial_localization_waypoint([initial_localization_waypoint])
+        # self._list_graph_waypoint_and_edge_ids()
         self._get_localization_state()
         resp = self._navigate_to([navigate_to])
 
@@ -2235,7 +2237,6 @@ class SpotWrapper:
             # If no waypoint id is given as input, then return without requesting navigation.
             self._logger.info("No waypoint provided as a destination for navigate to.")
             return
-
         self._lease = self._lease_wallet.get_lease()
         destination_waypoint = graph_nav_util.find_unique_waypoint_id(
             args[0][0],
@@ -2277,7 +2278,9 @@ class SpotWrapper:
         # Update the lease and power off the robot if appropriate.
         if self._powered_on and not self._started_powered_on:
             # Sit the robot down + power off after the navigation command is complete.
-            self.toggle_power(should_power_on=False)
+            #TODO: make sure this works
+            pass
+            # self.toggle_power(should_power_on=False)
 
         status = self._graph_nav_client.navigation_feedback(nav_to_cmd_id)
         if (
