@@ -10,19 +10,19 @@ import bosdyn.client
 import cv2
 import numpy as np
 from aiortc import RTCConfiguration
-from bosdyn.api.spot_cam import audio_pb2
-from bosdyn.api.spot_cam.ptz_pb2 import PtzDescription, PtzVelocity, PtzPosition
 from bosdyn.client import Robot
 from bosdyn.client import spot_cam
-from bosdyn.client.payload import PayloadClient
-from bosdyn.client.spot_cam.audio import AudioClient
 from bosdyn.client.spot_cam.compositor import CompositorClient
-from bosdyn.client.spot_cam.health import HealthClient
 from bosdyn.client.spot_cam.lighting import LightingClient
-from bosdyn.client.spot_cam.media_log import MediaLogClient
 from bosdyn.client.spot_cam.power import PowerClient
-from bosdyn.client.spot_cam.ptz import PtzClient
+from bosdyn.client.spot_cam.health import HealthClient
+from bosdyn.client.spot_cam.audio import AudioClient
 from bosdyn.client.spot_cam.streamquality import StreamQualityClient
+from bosdyn.client.spot_cam.ptz import PtzClient
+from bosdyn.client.spot_cam.media_log import MediaLogClient
+from bosdyn.client.payload import PayloadClient
+from bosdyn.api.spot_cam.ptz_pb2 import PtzDescription, PtzVelocity, PtzPosition
+from bosdyn.api.spot_cam import audio_pb2
 
 from spot_wrapper.cam_webrtc_client import WebRTCClient
 from spot_wrapper.wrapper import SpotWrapper
