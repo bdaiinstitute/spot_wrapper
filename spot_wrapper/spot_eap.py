@@ -1,12 +1,10 @@
 import logging
 import typing
 
+from bosdyn.api.point_cloud_pb2 import PointCloudRequest
 from bosdyn.client.async_tasks import AsyncPeriodicQuery
+from bosdyn.client.common import FutureWrapper
 from bosdyn.client.point_cloud import PointCloudClient, build_pc_request
-from bosdyn.client.robot import Robot
-
-"""List of point cloud sources"""
-point_cloud_sources = ["velodyne-point-cloud"]
 
 
 class AsyncPointCloudService(AsyncPeriodicQuery):
@@ -14,14 +12,25 @@ class AsyncPointCloudService(AsyncPeriodicQuery):
     Class to get point cloud at regular intervals.  get_point_cloud_from_sources_async query sent to the robot at
     every tick.  Callback registered to defined callback function.
 
-    Attributes:
-        client: The Client to a service on the robot
-        logger: Logger object
-        rate: Rate (Hz) to trigger the query
-        callback: Callback function to call when the results of the query are available
     """
 
-    def __init__(self, client, logger, rate, callback, point_cloud_requests):
+    def __init__(
+        self,
+        client: PointCloudClient,
+        logger: logging.Logger,
+        rate: float,
+        callback: typing.Callable,
+        point_cloud_requests: PointCloudRequest,
+    ) -> None:
+        """
+
+        Args:
+            client: The Client to a service on the robot
+            logger: Logger object
+            rate: Rate (Hz) to trigger the query
+            callback: Callback function to call when the results of the query are available
+            point_cloud_requests
+        """
         super(AsyncPointCloudService, self).__init__(
             "robot_point_cloud_service", client, logger, period_sec=1.0 / max(rate, 1.0)
         )
@@ -30,7 +39,7 @@ class AsyncPointCloudService(AsyncPeriodicQuery):
             self._callback = callback
         self._point_cloud_requests = point_cloud_requests
 
-    def _start_query(self):
+    def _start_query(self) -> typing.Optional[FutureWrapper]:
         if self._callback and self._point_cloud_requests:
             callback_future = self._client.get_point_cloud_async(
                 self._point_cloud_requests
@@ -40,19 +49,28 @@ class AsyncPointCloudService(AsyncPeriodicQuery):
 
 
 class SpotEAP:
+    """
+    Get pointclouds from the EAP
+    """
     def __init__(
         self,
-        robot: Robot,
         logger: logging.Logger,
-        robot_params: typing.Dict[str, typing.Any],
-        robot_clients: typing.Dict[str, typing.Any],
-    ):
-        self._robot = robot
+        point_cloud_client: PointCloudClient,
+        point_cloud_sources: typing.List[str],
+        rate: float = 10,
+        callback: typing.Optional[typing.Callable] = None,
+    ) -> None:
+        """
+
+        Args:
+            logger:
+            point_cloud_client:
+            point_cloud_sources:
+            rate:
+            callback:
+        """
         self._logger = logger
-        self._robot_params = robot_params
-        self._rates: typing.Dict[str, float] = robot_params["rates"]
-        self._callbacks: typing.Dict[str, typing.Callable] = robot_params["callbacks"]
-        self._point_cloud_client: PointCloudClient = robot_clients["point_cloud_client"]
+        self._point_cloud_client = point_cloud_client
 
         self._point_cloud_requests = []
         for source in point_cloud_sources:
@@ -61,8 +79,8 @@ class SpotEAP:
         self._point_cloud_task = AsyncPointCloudService(
             self._point_cloud_client,
             self._logger,
-            max(0.0, self._rates.get("point_cloud", 0.0)),
-            self._callbacks.get("lidar_points", None),
+            rate,
+            callback,
             self._point_cloud_requests,
         )
 

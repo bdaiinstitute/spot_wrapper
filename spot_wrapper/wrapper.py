@@ -77,6 +77,8 @@ from . import graph_nav_util
 from bosdyn.api import basic_command_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
+from .spot_eap import SpotEAP
+
 front_image_sources = [
     "frontleft_fisheye_image",
     "frontright_fisheye_image",
@@ -948,14 +950,18 @@ class SpotWrapper:
         ]
 
         if self._point_cloud_client:
-            self._point_cloud_task = AsyncPointCloudService(
-                self._point_cloud_client,
+            self._spot_eap = SpotEAP(
                 self._logger,
-                max(0.0, self._rates.get("point_cloud", 0.0)),
+                self._point_cloud_client,
+                point_cloud_sources,
+                # If the parameter isn't given assume we don't want any clouds
+                self._rates.get("point_cloud", 0.0),
                 self._callbacks.get("lidar_points", None),
-                self._point_cloud_requests,
             )
+            self._point_cloud_task = self._spot_eap.async_task
             robot_tasks.append(self._point_cloud_task)
+        else:
+            self._spot_eap = None
 
         self._async_tasks = AsyncTasks(robot_tasks)
 
@@ -1019,6 +1025,11 @@ class SpotWrapper:
     @property
     def frame_prefix(self):
         return self._frame_prefix
+
+    @property
+    def spot_eap_lidar(self) -> SpotEAP:
+        """Return SpotEAP instance"""
+        return self._spot_eap
 
     @property
     def logger(self):
