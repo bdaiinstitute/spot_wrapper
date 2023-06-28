@@ -1443,7 +1443,9 @@ class SpotWrapper:
 
         return True, "Was already powered on"
 
-    def set_mobility_params(self, mobility_params: spot_command_pb2.MobilityParams) -> None:
+    def set_mobility_params(
+        self, mobility_params: spot_command_pb2.MobilityParams
+    ) -> None:
         """Set Params for mobility and movement
 
         Args:
