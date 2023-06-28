@@ -1009,11 +1009,11 @@ class SpotWrapper:
         return authenticated
 
     @property
-    def robot_name(self):
+    def robot_name(self) -> str:
         return self._robot_name
 
     @property
-    def frame_prefix(self):
+    def frame_prefix(self) -> str:
         return self._frame_prefix
 
     @property
@@ -1506,7 +1506,9 @@ class SpotWrapper:
             self._last_trajectory_command = response[2]
         return response[0], response[1]
 
-    def robot_command(self, robot_command: robot_command_pb2.RobotCommand) -> typing.Tuple[bool, str]:
+    def robot_command(
+        self, robot_command: robot_command_pb2.RobotCommand
+    ) -> typing.Tuple[bool, str]:
         end_time = time.time() + MAX_COMMAND_DURATION
         return self._robot_command(
             robot_command,
@@ -1522,7 +1524,9 @@ class SpotWrapper:
             timesync_endpoint=self._robot.time_sync.endpoint,
         )
 
-    def get_robot_command_feedback(self, cmd_id: int) -> robot_command_pb2.RobotCommandFeedbackResponse:
+    def get_robot_command_feedback(
+        self, cmd_id: int
+    ) -> robot_command_pb2.RobotCommandFeedbackResponse:
         return self._robot_command_client.robot_command_feedback(cmd_id)
 
     def get_manipulation_command_feedback(self, cmd_id):
