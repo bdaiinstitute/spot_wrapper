@@ -707,252 +707,253 @@ class SpotWrapper:
             self._valid = False
             return
 
-        if self._robot:
-            # Clients
-            self._logger.info("Creating clients...")
-            initialised = False
-            while not initialised:
-                try:
-                    self._robot_state_client = self._robot.ensure_client(
-                        RobotStateClient.default_service_name
-                    )
-                    self._world_objects_client = self._robot.ensure_client(
-                        WorldObjectClient.default_service_name
-                    )
-                    self._robot_command_client = self._robot.ensure_client(
-                        RobotCommandClient.default_service_name
-                    )
-                    self._graph_nav_client = self._robot.ensure_client(
-                        GraphNavClient.default_service_name
-                    )
-                    self._power_client = self._robot.ensure_client(
-                        PowerClient.default_service_name
-                    )
-                    self._lease_client = self._robot.ensure_client(
-                        LeaseClient.default_service_name
-                    )
-                    self._lease_wallet = self._lease_client.lease_wallet
-                    self._image_client = self._robot.ensure_client(
-                        ImageClient.default_service_name
-                    )
-                    self._estop_client = self._robot.ensure_client(
-                        EstopClient.default_service_name
-                    )
-                    self._docking_client = self._robot.ensure_client(
-                        DockingClient.default_service_name
-                    )
-                    self._license_client = self._robot.ensure_client(
-                        LicenseClient.default_service_name
-                    )
+        if not self._robot:
+            self._logger.error("Failed to create robot object")
+            self._valid = False
+            return
 
-                    if HAVE_CHOREOGRAPHY:
-                        if self._license_client.get_feature_enabled(
-                            [ChoreographyClient.license_name]
-                        )[ChoreographyClient.license_name]:
-                            self._is_licensed_for_choreography = True
-                            self._choreography_client = self._robot.ensure_client(
-                                ChoreographyClient.default_service_name
-                            )
-                        else:
-                            self._logger.info(
-                                f"Robot is not licensed for choreography: {e}"
-                            )
-                            self._is_licensed_for_choreography = False
-                            self._choreography_client = None
-                    else:
-                        self._logger.info(f"Choreography is not available.")
-                        self._choreography_client = None
-                        self._is_licensed_for_choreography = False
+        self._logger.info("Creating clients...")
+        initialised = False
+        while not initialised:
+            try:
+                self._robot_state_client = self._robot.ensure_client(
+                    RobotStateClient.default_service_name
+                )
+                self._world_objects_client = self._robot.ensure_client(
+                    WorldObjectClient.default_service_name
+                )
+                self._robot_command_client = self._robot.ensure_client(
+                    RobotCommandClient.default_service_name
+                )
+                self._graph_nav_client = self._robot.ensure_client(
+                    GraphNavClient.default_service_name
+                )
+                self._power_client = self._robot.ensure_client(
+                    PowerClient.default_service_name
+                )
+                self._lease_client = self._robot.ensure_client(
+                    LeaseClient.default_service_name
+                )
+                self._lease_wallet = self._lease_client.lease_wallet
+                self._image_client = self._robot.ensure_client(
+                    ImageClient.default_service_name
+                )
+                self._estop_client = self._robot.ensure_client(
+                    EstopClient.default_service_name
+                )
+                self._docking_client = self._robot.ensure_client(
+                    DockingClient.default_service_name
+                )
+                self._license_client = self._robot.ensure_client(
+                    LicenseClient.default_service_name
+                )
 
-                    try:
-                        self._point_cloud_client = self._robot.ensure_client(
-                            VELODYNE_SERVICE_NAME
+                if HAVE_CHOREOGRAPHY:
+                    if self._license_client.get_feature_enabled(
+                        [ChoreographyClient.license_name]
+                    )[ChoreographyClient.license_name]:
+                        self._is_licensed_for_choreography = True
+                        self._choreography_client = self._robot.ensure_client(
+                            ChoreographyClient.default_service_name
                         )
-                    except UnregisteredServiceError:
-                        self._point_cloud_client = None
+                    else:
                         self._logger.info(
-                            "No velodyne point cloud service is available."
+                            f"Robot is not licensed for choreography: {e}"
                         )
+                        self._is_licensed_for_choreography = False
+                        self._choreography_client = None
+                else:
+                    self._logger.info(f"Choreography is not available.")
+                    self._choreography_client = None
+                    self._is_licensed_for_choreography = False
 
-                    if self._robot.has_arm():
-                        self._manipulation_api_client = self._robot.ensure_client(
-                            ManipulationApiClient.default_service_name
+                try:
+                    self._point_cloud_client = self._robot.ensure_client(
+                        VELODYNE_SERVICE_NAME
+                    )
+                except UnregisteredServiceError:
+                    self._point_cloud_client = None
+                    self._logger.info("No velodyne point cloud service is available.")
+
+                if self._robot.has_arm():
+                    self._manipulation_api_client = self._robot.ensure_client(
+                        ManipulationApiClient.default_service_name
+                    )
+                else:
+                    self._manipulation_api_client = None
+                    self._logger.info("Manipulation API is not available.")
+
+                initialised = True
+            except Exception as e:
+                sleep_secs = 15
+                self._logger.warning(
+                    "Unable to create client service: {}. This usually means the robot hasn't "
+                    "finished booting yet. Will wait {} seconds and try again.".format(
+                        e, sleep_secs
+                    )
+                )
+                time.sleep(sleep_secs)
+
+        # Add hand camera requests
+        if self._robot.has_arm():
+            self._camera_image_requests.append(
+                build_image_request(
+                    "hand_color_image",
+                    image_format=image_pb2.Image.FORMAT_JPEG,
+                    pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                    quality_percent=50,
+                )
+            )
+            self._depth_image_requests.append(
+                build_image_request(
+                    "hand_depth",
+                    pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
+                )
+            )
+            self._depth_registered_image_requests.append(
+                build_image_request(
+                    "hand_depth_in_hand_color_frame",
+                    pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
+                )
+            )
+
+        # Build image requests by camera
+        self._image_requests_by_camera = {}
+        for camera in IMAGE_SOURCES_BY_CAMERA:
+            if camera == "hand" and not self._robot.has_arm():
+                continue
+            self._image_requests_by_camera[camera] = {}
+            image_types = IMAGE_SOURCES_BY_CAMERA[camera]
+            for image_type in image_types:
+                if image_type.startswith("depth"):
+                    image_format = image_pb2.Image.FORMAT_RAW
+                    pixel_format = image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
+                else:
+                    image_format = image_pb2.Image.FORMAT_JPEG
+                    if camera == "hand" or self._rgb_cameras:
+                        pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
+                    elif camera != "hand":
+                        self._logger.info(
+                            f"Switching {camera}:{image_type} to greyscale image format."
                         )
-                    else:
-                        self._manipulation_api_client = None
-                        self._logger.info("Manipulation API is not available.")
+                        pixel_format = image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8
 
-                    initialised = True
-                except Exception as e:
-                    sleep_secs = 15
-                    self._logger.warning(
-                        "Unable to create client service: {}. This usually means the robot hasn't "
-                        "finished booting yet. Will wait {} seconds and try again.".format(
-                            e, sleep_secs
-                        )
-                    )
-                    time.sleep(sleep_secs)
-
-            # Add hand camera requests
-            if self._robot.has_arm():
-                self._camera_image_requests.append(
-                    build_image_request(
-                        "hand_color_image",
-                        image_format=image_pb2.Image.FORMAT_JPEG,
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
-                    )
-                )
-                self._depth_image_requests.append(
-                    build_image_request(
-                        "hand_depth",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
-                    )
-                )
-                self._depth_registered_image_requests.append(
-                    build_image_request(
-                        "hand_depth_in_hand_color_frame",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
-                    )
+                source = IMAGE_SOURCES_BY_CAMERA[camera][image_type]
+                self._image_requests_by_camera[camera][
+                    image_type
+                ] = build_image_request(
+                    source,
+                    image_format=image_format,
+                    pixel_format=pixel_format,
+                    quality_percent=75,
                 )
 
-            # Build image requests by camera
-            self._image_requests_by_camera = {}
-            for camera in IMAGE_SOURCES_BY_CAMERA:
-                if camera == "hand" and not self._robot.has_arm():
-                    continue
-                self._image_requests_by_camera[camera] = {}
-                image_types = IMAGE_SOURCES_BY_CAMERA[camera]
-                for image_type in image_types:
-                    if image_type.startswith("depth"):
-                        image_format = image_pb2.Image.FORMAT_RAW
-                        pixel_format = image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
-                    else:
-                        image_format = image_pb2.Image.FORMAT_JPEG
-                        if camera == "hand" or self._rgb_cameras:
-                            pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
-                        elif camera != "hand":
-                            self._logger.info(
-                                f"Switching {camera}:{image_type} to greyscale image format."
-                            )
-                            pixel_format = image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8
+        # Store the most recent knowledge of the state of the robot based on rpc calls.
+        self._init_current_graph_nav_state()
 
-                    source = IMAGE_SOURCES_BY_CAMERA[camera][image_type]
-                    self._image_requests_by_camera[camera][
-                        image_type
-                    ] = build_image_request(
-                        source,
-                        image_format=image_format,
-                        pixel_format=pixel_format,
-                        quality_percent=75,
-                    )
+        # Async Tasks
+        self._async_task_list = []
+        self._robot_state_task = AsyncRobotState(
+            self._robot_state_client,
+            self._logger,
+            max(0.0, self._rates.get("robot_state", 0.0)),
+            self._callbacks.get("robot_state", None),
+        )
+        self._robot_metrics_task = AsyncMetrics(
+            self._robot_state_client,
+            self._logger,
+            max(0.0, self._rates.get("metrics", 0.0)),
+            self._callbacks.get("metrics", None),
+        )
+        self._lease_task = AsyncLease(
+            self._lease_client,
+            self._logger,
+            max(0.0, self._rates.get("lease", 0.0)),
+            self._callbacks.get("lease", None),
+        )
+        self._front_image_task = AsyncImageService(
+            self._image_client,
+            self._logger,
+            max(0.0, self._rates.get("front_image", 0.0)),
+            self._callbacks.get("front_image", None),
+            self._front_image_requests,
+        )
+        self._side_image_task = AsyncImageService(
+            self._image_client,
+            self._logger,
+            max(0.0, self._rates.get("side_image", 0.0)),
+            self._callbacks.get("side_image", None),
+            self._side_image_requests,
+        )
+        self._rear_image_task = AsyncImageService(
+            self._image_client,
+            self._logger,
+            max(0.0, self._rates.get("rear_image", 0.0)),
+            self._callbacks.get("rear_image", None),
+            self._rear_image_requests,
+        )
+        self._hand_image_task = AsyncImageService(
+            self._image_client,
+            self._logger,
+            max(0.0, self._rates.get("hand_image", 0.0)),
+            self._callbacks.get("hand_image", None),
+            self._hand_image_requests,
+        )
 
-            # Store the most recent knowledge of the state of the robot based on rpc calls.
-            self._init_current_graph_nav_state()
+        self._idle_task = AsyncIdle(
+            self._robot_command_client, self._logger, 10.0, self
+        )
+        self._estop_monitor = AsyncEStopMonitor(
+            self._estop_client, self._logger, 20.0, self
+        )
 
-            # Async Tasks
-            self._async_task_list = []
-            self._robot_state_task = AsyncRobotState(
-                self._robot_state_client,
+        self._estop_endpoint = None
+        self._estop_keepalive = None
+
+        robot_tasks = [
+            self._robot_state_task,
+            self._robot_metrics_task,
+            self._lease_task,
+            self._front_image_task,
+            self._idle_task,
+            self._estop_monitor,
+        ]
+
+        if self._point_cloud_client:
+            self._point_cloud_task = AsyncPointCloudService(
+                self._point_cloud_client,
                 self._logger,
-                max(0.0, self._rates.get("robot_state", 0.0)),
-                self._callbacks.get("robot_state", None),
+                max(0.0, self._rates.get("point_cloud", 0.0)),
+                self._callbacks.get("lidar_points", None),
+                self._point_cloud_requests,
             )
-            self._robot_metrics_task = AsyncMetrics(
-                self._robot_state_client,
-                self._logger,
-                max(0.0, self._rates.get("metrics", 0.0)),
-                self._callbacks.get("metrics", None),
-            )
-            self._lease_task = AsyncLease(
-                self._lease_client,
-                self._logger,
-                max(0.0, self._rates.get("lease", 0.0)),
-                self._callbacks.get("lease", None),
-            )
-            self._front_image_task = AsyncImageService(
-                self._image_client,
-                self._logger,
-                max(0.0, self._rates.get("front_image", 0.0)),
-                self._callbacks.get("front_image", None),
-                self._front_image_requests,
-            )
-            self._side_image_task = AsyncImageService(
-                self._image_client,
-                self._logger,
-                max(0.0, self._rates.get("side_image", 0.0)),
-                self._callbacks.get("side_image", None),
-                self._side_image_requests,
-            )
-            self._rear_image_task = AsyncImageService(
-                self._image_client,
-                self._logger,
-                max(0.0, self._rates.get("rear_image", 0.0)),
-                self._callbacks.get("rear_image", None),
-                self._rear_image_requests,
-            )
-            self._hand_image_task = AsyncImageService(
-                self._image_client,
-                self._logger,
-                max(0.0, self._rates.get("hand_image", 0.0)),
-                self._callbacks.get("hand_image", None),
-                self._hand_image_requests,
+            robot_tasks.append(self._point_cloud_task)
+
+        self._spot_world_objects = SpotWorldObjects(
+            self._logger,
+            self._world_objects_client,
+            self._rates.get("world_objects", 10),
+            self._callbacks.get("world_objects", None),
+        )
+        self._world_objects_task = self._spot_world_objects.async_task
+        robot_tasks.append(self._world_objects_task)
+
+        self._async_tasks = AsyncTasks(robot_tasks)
+
+        self.camera_task_name_to_task_mapping = {
+            "hand_image": self._hand_image_task,
+            "side_image": self._side_image_task,
+            "rear_image": self._rear_image_task,
+            "front_image": self._front_image_task,
+        }
+
+        if self._is_licensed_for_choreography:
+            self._spot_dance = SpotDance(
+                self._robot, self._choreography_client, self._logger
             )
 
-            self._idle_task = AsyncIdle(
-                self._robot_command_client, self._logger, 10.0, self
-            )
-            self._estop_monitor = AsyncEStopMonitor(
-                self._estop_client, self._logger, 20.0, self
-            )
-
-            self._estop_endpoint = None
-            self._estop_keepalive = None
-
-            robot_tasks = [
-                self._robot_state_task,
-                self._robot_metrics_task,
-                self._lease_task,
-                self._front_image_task,
-                self._idle_task,
-                self._estop_monitor,
-            ]
-
-            if self._point_cloud_client:
-                self._point_cloud_task = AsyncPointCloudService(
-                    self._point_cloud_client,
-                    self._logger,
-                    max(0.0, self._rates.get("point_cloud", 0.0)),
-                    self._callbacks.get("lidar_points", None),
-                    self._point_cloud_requests,
-                )
-                robot_tasks.append(self._point_cloud_task)
-
-            self._spot_world_objects = SpotWorldObjects(
-                self._logger,
-                self._world_objects_client,
-                self._rates.get("world_objects", 10),
-                self._callbacks.get("world_objects", None),
-            )
-            self._world_objects_task = self._spot_world_objects.async_task
-            robot_tasks.append(self._world_objects_task)
-
-            self._async_tasks = AsyncTasks(robot_tasks)
-
-            self.camera_task_name_to_task_mapping = {
-                "hand_image": self._hand_image_task,
-                "side_image": self._side_image_task,
-                "rear_image": self._rear_image_task,
-                "front_image": self._front_image_task,
-            }
-
-            if self._is_licensed_for_choreography:
-                self._spot_dance = SpotDance(
-                    self._robot, self._choreography_client, self._logger
-                )
-
-            self._robot_id = None
-            self._lease = None
+        self._robot_id = None
+        self._lease = None
 
     @staticmethod
     def authenticate(robot, username, password, logger):
@@ -1508,7 +1509,7 @@ class SpotWrapper:
             manipulation_api_feedback_request=feedback_request
         )
 
-    def list_graph(self, upload_path):
+    def list_graph(self, upload_path=None):
         """List waypoint ids of garph_nav
         Args:
           upload_path : Path to the root directory of the map.
