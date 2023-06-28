@@ -18,6 +18,7 @@ from bosdyn.api import robot_command_pb2
 from bosdyn.api import robot_state_pb2
 from bosdyn.api import synchronized_command_pb2
 from bosdyn.api import trajectory_pb2
+from bosdyn.api import world_object_pb2
 from bosdyn.api.graph_nav import graph_nav_pb2
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.api.graph_nav import nav_pb2
@@ -78,6 +79,7 @@ from . import graph_nav_util
 from bosdyn.api import basic_command_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
+from .spot_world_objects import SpotWorldObjects
 from .spot_check import SpotCheck
 
 front_image_sources = [
@@ -517,31 +519,6 @@ class AsyncEStopMonitor(AsyncPeriodicQuery):
             pass
 
 
-class AsyncWorldObjects(AsyncPeriodicQuery):
-    """Class to get world objects.  list_world_objects_async query sent to the robot at every tick.  Callback registered to defined callback function.
-
-    Attributes:
-        client: The Client to a service on the robot
-        logger: Logger object
-        rate: Rate (Hz) to trigger the query
-        callback: Callback function to call when the results of the query are available
-    """
-
-    def __init__(self, client, logger, rate, callback):
-        super(AsyncWorldObjects, self).__init__(
-            "world-objects", client, logger, period_sec=1.0 / max(rate, 1.0)
-        )
-        self._callback = None
-        if rate > 0.0:
-            self._callback = callback
-
-    def _start_query(self):
-        if self._callback:
-            callback_future = self._client.list_world_objects_async()
-            callback_future.add_done_callback(self._callback)
-            return callback_future
-
-
 def try_claim(func=None, *, power_on=False):
     """
     Decorator which tries to acquire the lease before executing the wrapped function
@@ -933,12 +910,6 @@ class SpotWrapper:
         self._estop_monitor = AsyncEStopMonitor(
             self._estop_client, self._logger, 20.0, self
         )
-        self._world_objects_task = AsyncWorldObjects(
-            self._world_objects_client,
-            self._logger,
-            10.0,
-            self._callbacks.get("world_objects", None),
-        )
 
         self._estop_endpoint = None
         self._estop_keepalive = None
@@ -950,7 +921,6 @@ class SpotWrapper:
             self._front_image_task,
             self._idle_task,
             self._estop_monitor,
-            self._world_objects_task,
         ]
 
         self._spot_check = SpotCheck(
@@ -971,6 +941,15 @@ class SpotWrapper:
                 self._point_cloud_requests,
             )
             robot_tasks.append(self._point_cloud_task)
+
+        self._spot_world_objects = SpotWorldObjects(
+            self._logger,
+            self._world_objects_client,
+            self._rates.get("world_objects", 10),
+            self._callbacks.get("world_objects", None),
+        )
+        self._world_objects_task = self._spot_world_objects.async_task
+        robot_tasks.append(self._world_objects_task)
 
         self._async_tasks = AsyncTasks(robot_tasks)
 
@@ -1071,9 +1050,14 @@ class SpotWrapper:
         return self._lease_task.proto
 
     @property
-    def world_objects(self):
+    def spot_world_objects(self) -> SpotWorldObjects:
+        """Return SpotWorldObjects instance"""
+        return self._spot_world_objects
+
+    @property
+    def world_objects(self) -> world_object_pb2.ListWorldObjectResponse:
         """Return most recent proto from _world_objects_task"""
-        return self._world_objects_task.proto
+        return self.spot_world_objects.async_task.proto
 
     @property
     def front_images(self):
@@ -1418,11 +1402,6 @@ class SpotWrapper:
     def get_mobility_params(self):
         """Get mobility params"""
         return self._mobility_params
-
-    def list_world_objects(self, object_types, time_start_point):
-        return self._world_objects_client.list_world_objects(
-            object_types, time_start_point
-        )
 
     @try_claim
     def velocity_cmd(self, v_x, v_y, v_rot, cmd_duration=0.125):
