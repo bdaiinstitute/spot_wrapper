@@ -64,11 +64,11 @@ class SpotEAP:
         """
 
         Args:
-            logger:
-            point_cloud_client:
-            point_cloud_sources:
-            rate:
-            callback:
+            logger: Logger to use
+            point_cloud_client: Instantiated point cloud client
+            point_cloud_sources: Sources from which pointclouds should be retrieved
+            rate: Rate at which to retrieve clouds
+            callback: Returned clouds will be passed to this callback
         """
         self._logger = logger
         self._point_cloud_client = point_cloud_client
