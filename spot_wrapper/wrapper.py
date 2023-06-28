@@ -589,7 +589,7 @@ class SpotWrapper:
         start_estop: bool = True,
         estop_timeout: float = 9.0,
         rates: typing.Optional[typing.Dict[str, float]] = None,
-        callbacks: typing.Optional[typing.Dict[str, float]] = None,
+        callbacks: typing.Optional[typing.Dict[str, typing.Callable]] = None,
         use_take_lease: bool = False,
         get_lease_on_action: bool = False,
         continually_try_stand: bool = True,
