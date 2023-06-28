@@ -19,7 +19,7 @@ class AsyncWorldObjects(AsyncPeriodicQuery):
         client: WorldObjectClient,
         logger: logging.Logger,
         rate: float,
-        callback: typing.Callable,
+        callback: typing.Optional[typing.Callable] = None,
     ) -> None:
         """
         Args:
@@ -52,7 +52,7 @@ class SpotWorldObjects:
         logger: logging.Logger,
         world_object_client: WorldObjectClient,
         rate: float = 10,
-        callback: typing.Callable = None,
+        callback: typing.Optional[typing.Callable] = None,
     ) -> None:
         """
 
