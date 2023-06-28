@@ -18,6 +18,7 @@ from bosdyn.api import robot_command_pb2
 from bosdyn.api import robot_state_pb2
 from bosdyn.api import synchronized_command_pb2
 from bosdyn.api import trajectory_pb2
+from bosdyn.api import world_object_pb2
 from bosdyn.api.graph_nav import graph_nav_pb2
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.api.graph_nav import nav_pb2
@@ -781,22 +782,6 @@ class SpotWrapper:
                         self._manipulation_api_client = None
                         self._logger.info("Manipulation API is not available.")
 
-                    self._robot_clients = {
-                        "robot_state_client": self._robot_state_client,
-                        "robot_command_client": self._robot_command_client,
-                        "graph_nav_client": self._graph_nav_client,
-                        "power_client": self._power_client,
-                        "lease_client": self._lease_client,
-                        "image_client": self._image_client,
-                        "estop_client": self._estop_client,
-                        "docking_client": self._docking_client,
-                        "robot_command_method": self._robot_command,
-                        "world_objects_client": self._world_objects_client,
-                        "manipulation_api_client": self._manipulation_api_client,
-                        "choreography_client": self._choreography_client,
-                        "point_cloud_client": self._point_cloud_client,
-                    }
-
                     initialised = True
                 except Exception as e:
                     sleep_secs = 15
@@ -933,19 +918,6 @@ class SpotWrapper:
                 self._estop_monitor,
             ]
 
-            # Store
-            self._robot_params = {
-                "is_standing": self._is_standing,
-                "is_sitting": self._is_sitting,
-                "is_moving": self._is_moving,
-                "at_goal": self._at_goal,
-                "near_goal": self._near_goal,
-                "robot_id": self._robot_id,
-                "estop_timeout": self._estop_timeout,
-                "rates": self._rates,
-                "callbacks": self._callbacks,
-            }
-
             if self._point_cloud_client:
                 self._point_cloud_task = AsyncPointCloudService(
                     self._point_cloud_client,
@@ -957,7 +929,10 @@ class SpotWrapper:
                 robot_tasks.append(self._point_cloud_task)
 
             self._spot_world_objects = SpotWorldObjects(
-                self._robot, self._logger, self._robot_params, self._robot_clients
+                self._logger,
+                self._world_objects_client,
+                self._rates.get("world_objects", 10),
+                self._callbacks.get("world_objects", None),
             )
             self._world_objects_task = self._spot_world_objects.async_task
             robot_tasks.append(self._world_objects_task)
@@ -1059,6 +1034,11 @@ class SpotWrapper:
     def spot_world_objects(self) -> SpotWorldObjects:
         """Return SpotWorldObjects instance"""
         return self._spot_world_objects
+
+    @property
+    def world_objects(self) -> world_object_pb2.ListWorldObjectResponse:
+        """Return most recent proto from _world_objects_task"""
+        return self.spot_world_objects.async_task.proto
 
     @property
     def front_images(self):
