@@ -52,6 +52,7 @@ class SpotEAP:
     """
     Get pointclouds from the EAP
     """
+
     def __init__(
         self,
         logger: logging.Logger,
