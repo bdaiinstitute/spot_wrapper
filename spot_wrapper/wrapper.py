@@ -316,36 +316,6 @@ class AsyncImageService(AsyncPeriodicQuery):
             return callback_future
 
 
-class AsyncPointCloudService(AsyncPeriodicQuery):
-    """
-    Class to get point cloud at regular intervals.  get_point_cloud_from_sources_async query sent to the robot at
-    every tick.  Callback registered to defined callback function.
-
-    Attributes:
-        client: The Client to a service on the robot
-        logger: Logger object
-        rate: Rate (Hz) to trigger the query
-        callback: Callback function to call when the results of the query are available
-    """
-
-    def __init__(self, client, logger, rate, callback, point_cloud_requests):
-        super(AsyncPointCloudService, self).__init__(
-            "robot_point_cloud_service", client, logger, period_sec=1.0 / max(rate, 1.0)
-        )
-        self._callback = None
-        if rate > 0.0:
-            self._callback = callback
-        self._point_cloud_requests = point_cloud_requests
-
-    def _start_query(self):
-        if self._callback and self._point_cloud_requests:
-            callback_future = self._client.get_point_cloud_async(
-                self._point_cloud_requests
-            )
-            callback_future.add_done_callback(self._callback)
-            return callback_future
-
-
 class AsyncIdle(AsyncPeriodicQuery):
     """Class to check if the robot is moving, and if not, command a stand with the set mobility parameters
 
@@ -650,10 +620,6 @@ class SpotWrapper:
             self._rear_image_requests.append(
                 build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
             )
-
-        self._point_cloud_requests = []
-        for source in point_cloud_sources:
-            self._point_cloud_requests.append(build_pc_request(source))
 
         self._hand_image_requests = []
         for source in hand_image_sources:
