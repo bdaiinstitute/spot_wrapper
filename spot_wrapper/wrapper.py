@@ -1099,10 +1099,10 @@ class SpotWrapper:
     def at_goal(self) -> bool:
         return self._at_goal
 
-    def is_estopped(self, timeout=None) -> bool:
+    def is_estopped(self, timeout: typing.Optional[float] = None) -> bool:
         return self._robot.is_estopped(timeout=timeout)
 
-    def has_arm(self, timeout=None) -> bool:
+    def has_arm(self, timeout: typing.Optional[float] = None) -> bool:
         return self._robot.has_arm(timeout=timeout)
 
     @property
@@ -1169,7 +1169,7 @@ class SpotWrapper:
         self._estop_endpoint.force_simple_setup()  # Set this endpoint as the robot's sole estop.
         self._estop_keepalive = EstopKeepAlive(self._estop_endpoint)
 
-    def assertEStop(self, severe=True) -> typing.Tuple[bool, str]:
+    def assertEStop(self, severe: bool = True) -> typing.Tuple[bool, str]:
         """Forces the robot into eStop state.
 
         Args:
@@ -1297,7 +1297,7 @@ class SpotWrapper:
         return response[0], response[1]
 
     @try_claim(power_on=True)
-    def simple_stand(self, monitor_command=True):
+    def simple_stand(self, monitor_command: bool = True):
         """If the e-stop is enabled, and the motor power is enabled, stand the robot up."""
         response = self._robot_command(
             RobotCommandBuilder.synchro_stand_command(params=self._mobility_params)
@@ -1308,8 +1308,13 @@ class SpotWrapper:
 
     @try_claim(power_on=True)
     def stand(
-        self, monitor_command=True, body_height=0, body_yaw=0, body_pitch=0, body_roll=0
-    ):
+        self,
+        monitor_command: bool = True,
+        body_height: float = 0,
+        body_yaw: float = 0,
+        body_pitch: float = 0,
+        body_roll: float = 0,
+    ) -> typing.Tuple[bool, str]:
         """
         If the e-stop is enabled, and the motor power is enabled, stand the robot up.
         Executes a stand command, but one where the robot will assume the pose specified by the given parameters.
@@ -1322,6 +1327,9 @@ class SpotWrapper:
             body_yaw: Yaw of the body in radians
             body_pitch: Pitch of the body in radians
             body_roll: Roll of the body in radians
+
+        Returns:
+            Tuple of bool success and a string message
 
         """
         if any([body_height, body_yaw, body_pitch, body_roll]):
@@ -1343,12 +1351,15 @@ class SpotWrapper:
         return response[0], response[1]
 
     @try_claim(power_on=True)
-    def battery_change_pose(self, dir_hint: int = 1):
+    def battery_change_pose(self, dir_hint: int = 1) -> typing.Tuple[bool, str]:
         """
         Put the robot into the battery change pose
 
         Args:
             dir_hint: 1 rolls to the right side of the robot, 2 to the left
+
+        Returns:
+            Tuple of bool success and a string message
         """
         if self._is_sitting:
             response = self._robot_command(
@@ -1358,24 +1369,39 @@ class SpotWrapper:
         return False, "Call sit before trying to roll over"
 
     @try_claim
-    def safe_power_off(self):
-        """Stop the robot's motion and sit if possible.  Once sitting, disable motor power."""
+    def safe_power_off(self) -> typing.Tuple[bool, str]:
+        """
+        Stop the robot's motion and sit if possible.  Once sitting, disable motor power.
+
+        Returns:
+            Tuple of bool success and a string message
+        """
         response = self._robot_command(RobotCommandBuilder.safe_power_off_command())
         return response[0], response[1]
 
-    def clear_behavior_fault(self, id):
-        """Clear the behavior fault defined by id."""
+    def clear_behavior_fault(self, fault_id: int) -> typing.Tuple[bool, str, typing.Optional[bool]]:
+        """
+        Clear the behavior fault defined by the given id.
+
+        Returns:
+            Tuple of bool success, string message, and bool indicating whether the status was cleared
+        """
         try:
             rid = self._robot_command_client.clear_behavior_fault(
-                behavior_fault_id=id, lease=None
+                behavior_fault_id=fault_id, lease=None
             )
             return True, "Success", rid
         except Exception as e:
             return False, f"Exception while clearing behavior fault: {e}", None
 
     @try_claim
-    def power_on(self):
-        """Enble the motor power if e-stop is enabled."""
+    def power_on(self) -> typing.Tuple[bool, str]:
+        """
+        Enable the motor power if e-stop is enabled.
+
+        Returns:
+            Tuple of bool success and a string message
+        """
         # Don't bother trying to power on if we are already powered on
         if not self.check_is_powered_on():
             # If we are requested to start the estop, we have to acquire it when powering on.
@@ -1412,13 +1438,18 @@ class SpotWrapper:
     def velocity_cmd(
         self, v_x: float, v_y: float, v_rot: float, cmd_duration: float = 0.125
     ) -> typing.Tuple[bool, str]:
-        """Send a velocity motion command to the robot.
+        """
+
+        Send a velocity motion command to the robot.
 
         Args:
             v_x: Velocity in the X direction in meters
             v_y: Velocity in the Y direction in meters
             v_rot: Angular velocity around the Z axis in radians
             cmd_duration: (optional) Time-to-live for the command in seconds.  Default is 125ms (assuming 10Hz command rate).
+
+        Returns:
+            Tuple of bool success and a string message
         """
         end_time = time.time() + cmd_duration
         response = self._robot_command(
@@ -1453,8 +1484,10 @@ class SpotWrapper:
             precise_position: if set to false, the status STATUS_NEAR_GOAL and STATUS_AT_GOAL will be equivalent. If
             true, the robot must complete its final positioning before it will be considered to have successfully
             reached the goal.
+            mobility_params: Mobility parameters to send along with this command
 
-        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
+        Returns:
+            (bool, str) tuple indicating whether the command was successfully sent, and a message
         """
         if mobility_params is None:
             mobility_params = self._mobility_params
