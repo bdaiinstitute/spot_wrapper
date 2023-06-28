@@ -7,9 +7,7 @@ from bosdyn.client.world_object import WorldObjectClient
 
 
 class AsyncWorldObjects(AsyncPeriodicQuery):
-    """Class to get world objects.  list_world_objects_async query sent to the robot at every tick.  Callback registered to defined callback function.
-
-    """
+    """Class to get world objects.  list_world_objects_async query sent to the robot at every tick.  Callback registered to defined callback function."""
 
     def __init__(
         self,
@@ -43,6 +41,7 @@ class SpotWorldObjects:
     """
     Module which allows access to world objects observed by the robot
     """
+
     def __init__(
         self,
         logger: logging.Logger,
