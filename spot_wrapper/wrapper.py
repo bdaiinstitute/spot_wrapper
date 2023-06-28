@@ -208,7 +208,7 @@ def robotToLocalTime(timestamp: Timestamp, robot: Robot) -> Timestamp:
     rtime.seconds = timestamp.seconds - robot.time_sync.endpoint.clock_skew.seconds
     rtime.nanos = timestamp.nanos - robot.time_sync.endpoint.clock_skew.nanos
     if rtime.nanos < 0:
-        rtime.nanos = rtime.nanos + 1000000000
+        rtime.nanos = rtime.nanos + int(1e9)
         rtime.seconds = rtime.seconds - 1
 
     # Workaround for timestamps being incomplete
@@ -1820,8 +1820,8 @@ class SpotWrapper:
                     feedback_resp.feedback.synchronized_feedback.arm_command_feedback.arm_joint_move_feedback
                 )
                 time_to_goal: Duration = joint_move_feedback.time_to_goal
-                time_to_goal_in_seconds: float = time_to_goal.seconds + (
-                    float(time_to_goal.nanos) / float(10**9)
+                time_to_goal_in_seconds: float = (
+                    time_to_goal.seconds + time_to_goal.nanos / 1e9
                 )
                 time.sleep(time_to_goal_in_seconds)
                 return True, "Spot Arm moved successfully"
@@ -1892,7 +1892,7 @@ class SpotWrapper:
                 self._robot_command_client.robot_command(robot_command)
                 self._logger.info("Force trajectory command sent")
 
-                time.sleep(float(traj_duration) + 1.0)
+                time.sleep(traj_duration + 1.0)
 
         except Exception as e:
             return False, f"Exception occured during arm movement: {e}"
