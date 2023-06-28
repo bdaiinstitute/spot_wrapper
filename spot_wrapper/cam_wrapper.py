@@ -170,7 +170,7 @@ class CompositorWrapper:
         Returns:
             Name of the currently displayed screen
         """
-        return self.client.get_screen().name
+        return self.client.get_screen()
 
     def set_ir_colormap(self, colormap, min_temp, max_temp, auto_scale=True):
         """
