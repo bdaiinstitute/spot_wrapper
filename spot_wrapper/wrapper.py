@@ -19,6 +19,7 @@ from bosdyn.api import robot_state_pb2
 from bosdyn.api import synchronized_command_pb2
 from bosdyn.api import trajectory_pb2
 from bosdyn.api import world_object_pb2
+from bosdyn.api import point_cloud_pb2
 from bosdyn.api.graph_nav import graph_nav_pb2
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.api.graph_nav import nav_pb2
@@ -1037,9 +1038,9 @@ class SpotWrapper:
         return self._hand_image_task.proto
 
     @property
-    def point_clouds(self):
+    def point_clouds(self) -> typing.List[point_cloud_pb2.PointCloudResponse]:
         """Return latest proto from the _point_cloud_task"""
-        return self._point_cloud_task.proto
+        return self.spot_eap_lidar.async_task.proto
 
     @property
     def is_standing(self):
