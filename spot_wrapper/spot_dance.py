@@ -2,7 +2,6 @@ import time
 import tempfile
 import os
 
-from bosdyn.choreography.client.choreography import ChoreographyClient
 from bosdyn.choreography.client.choreography import (
     load_choreography_sequence_from_txt_file,
     ChoreographyClient,
