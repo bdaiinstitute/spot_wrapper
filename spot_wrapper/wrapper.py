@@ -594,7 +594,7 @@ class SpotWrapper:
         get_lease_on_action: bool = False,
         continually_try_stand: bool = True,
         rgb_cameras: bool = True,
-    ):
+    ) -> None:
         """
         Args:
             username: Username for authentication with the robot
@@ -971,7 +971,9 @@ class SpotWrapper:
             self._lease = None
 
     @staticmethod
-    def authenticate(robot, username, password, logger):
+    def authenticate(
+        robot: Robot, username: str, password: str, logger: logging.Logger
+    ) -> bool:
         """
         Authenticate with a robot through the bosdyn API. A blocking function which will wait until authenticated (if
         the robot is still booting) or login fails
@@ -983,7 +985,7 @@ class SpotWrapper:
             logger: Logger with which to print messages
 
         Returns:
-
+            boolean indicating whether authentication was successful
         """
         authenticated = False
         while not authenticated:
@@ -1110,7 +1112,7 @@ class SpotWrapper:
         """Return the time skew between local and spot time"""
         return self._robot.time_sync.endpoint.clock_skew
 
-    def resetMobilityParams(self):
+    def resetMobilityParams(self) -> None:
         """
         Resets the mobility parameters used for motion commands to the default values provided by the bosdyn api.
         Returns:
@@ -1154,14 +1156,14 @@ class SpotWrapper:
             self._logger.error(traceback.format_exc())
             return False, str(err)
 
-    def updateTasks(self):
+    def updateTasks(self) -> None:
         """Loop through all periodic tasks and update their data if needed."""
         try:
             self._async_tasks.update()
         except Exception as e:
             self._logger.error(f"Update tasks failed with error: {str(e)}")
 
-    def resetEStop(self):
+    def resetEStop(self) -> None:
         """Get keepalive for eStop"""
         self._estop_endpoint = EstopEndpoint(
             self._estop_client, SPOT_CLIENT_NAME, self._estop_timeout
@@ -1193,14 +1195,14 @@ class SpotWrapper:
         except Exception as e:
             return False, f"Exception while attempting to disengage estop {e}"
 
-    def releaseEStop(self):
+    def releaseEStop(self) -> None:
         """Stop eStop keepalive"""
         if self._estop_keepalive:
             self._estop_keepalive.stop()
             self._estop_keepalive = None
             self._estop_endpoint = None
 
-    def getLease(self):
+    def getLease(self) -> None:
         """Get a lease for the robot and keep the lease alive automatically."""
         if self._use_take_lease:
             self._lease = self._lease_client.take()
@@ -1209,7 +1211,7 @@ class SpotWrapper:
 
         self._lease_keepalive = LeaseKeepAlive(self._lease_client)
 
-    def releaseLease(self):
+    def releaseLease(self) -> None:
         """Return the lease on the body."""
         if self._lease:
             self._lease_client.return_lease(self._lease)
@@ -1224,7 +1226,7 @@ class SpotWrapper:
         except Exception as e:
             return False, f"Exception while attempting to release the lease: {e}"
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Release control of robot as gracefully as posssible."""
         if self._robot.time_sync:
             self._robot.time_sync.stop()
@@ -1278,27 +1280,49 @@ class SpotWrapper:
             return False, str(e), None
 
     @try_claim
-    def stop(self):
-        """Stop the robot's motion."""
+    def stop(self) -> typing.Tuple[bool, str]:
+        """
+        Stop any action the robot is currently doing.
+
+        Returns:
+            Tuple of bool success and a string message
+
+        """
         response = self._robot_command(RobotCommandBuilder.stop_command())
         return response[0], response[1]
 
     @try_claim(power_on=True)
-    def self_right(self):
-        """Have the robot self-right itself."""
+    def self_right(self) -> typing.Tuple[bool, str]:
+        """
+        Have the robot self-right.
+
+        Returns:
+            Tuple of bool success and a string message
+        """
         response = self._robot_command(RobotCommandBuilder.selfright_command())
         return response[0], response[1]
 
     @try_claim(power_on=True)
-    def sit(self):
-        """Stop the robot's motion and sit down if able."""
+    def sit(self) -> typing.Tuple[bool, str]:
+        """
+        Stop the robot's motion and sit down if able.
+
+        Returns:
+            Tuple of bool success and a string message
+
+        """
         response = self._robot_command(RobotCommandBuilder.synchro_sit_command())
         self._last_sit_command = response[2]
         return response[0], response[1]
 
     @try_claim(power_on=True)
-    def simple_stand(self, monitor_command: bool = True):
-        """If the e-stop is enabled, and the motor power is enabled, stand the robot up."""
+    def simple_stand(self, monitor_command: bool = True) -> typing.Tuple[bool, str]:
+        """
+        If the e-stop is enabled, and the motor power is enabled, stand the robot up.
+
+        Returns:
+            Tuple of bool success and a string message
+        """
         response = self._robot_command(
             RobotCommandBuilder.synchro_stand_command(params=self._mobility_params)
         )
@@ -1419,7 +1443,7 @@ class SpotWrapper:
 
         return True, "Was already powered on"
 
-    def set_mobility_params(self, mobility_params: spot_command_pb2.MobilityParams):
+    def set_mobility_params(self, mobility_params: spot_command_pb2.MobilityParams) -> None:
         """Set Params for mobility and movement
 
         Args:
