@@ -58,7 +58,6 @@ class SpotDance:
                 return False, error_msg
         return True, "Success"
 
-
     def list_all_dances(self) -> Tuple[bool, str, List[str]]:
         """list all uploaded dances"""
         try:
