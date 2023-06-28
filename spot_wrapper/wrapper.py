@@ -1379,7 +1379,9 @@ class SpotWrapper:
         response = self._robot_command(RobotCommandBuilder.safe_power_off_command())
         return response[0], response[1]
 
-    def clear_behavior_fault(self, fault_id: int) -> typing.Tuple[bool, str, typing.Optional[bool]]:
+    def clear_behavior_fault(
+        self, fault_id: int
+    ) -> typing.Tuple[bool, str, typing.Optional[bool]]:
         """
         Clear the behavior fault defined by the given id.
 
