@@ -1,13 +1,18 @@
 import logging
 import typing
 
+from bosdyn.api.world_object_pb2 import ListWorldObjectResponse
+from bosdyn.api.world_object_pb2 import WorldObjectType
 from bosdyn.client.async_tasks import AsyncPeriodicQuery
-from bosdyn.client.robot import Robot
+from bosdyn.client.common import FutureWrapper
 from bosdyn.client.world_object import WorldObjectClient
 
 
 class AsyncWorldObjects(AsyncPeriodicQuery):
-    """Class to get world objects.  list_world_objects_async query sent to the robot at every tick.  Callback registered to defined callback function."""
+    """
+    Class to get world objects. list_world_objects_async query sent to the robot at every tick. Callback
+    registered to defined callback function.
+    """
 
     def __init__(
         self,
@@ -15,7 +20,7 @@ class AsyncWorldObjects(AsyncPeriodicQuery):
         logger: logging.Logger,
         rate: float,
         callback: typing.Callable,
-    ):
+    ) -> None:
         """
         Args:
             client: Client to the world object service on the robot
@@ -23,14 +28,14 @@ class AsyncWorldObjects(AsyncPeriodicQuery):
             rate: Rate (Hz) to trigger the query
             callback: Callback function to call when the results of the query are available
         """
-        super(AsyncWorldObjects, self).__init__(
+        super().__init__(
             "world-objects", client, logger, period_sec=1.0 / max(rate, 1.0)
         )
         self._callback = None
         if rate > 0.0:
             self._callback = callback
 
-    def _start_query(self):
+    def _start_query(self) -> typing.Optional[FutureWrapper]:
         if self._callback:
             callback_future = self._client.list_world_objects_async()
             callback_future.add_done_callback(self._callback)
@@ -48,7 +53,7 @@ class SpotWorldObjects:
         world_object_client: WorldObjectClient,
         rate: float = 10,
         callback: typing.Callable = None,
-    ):
+    ) -> None:
         """
 
         Args:
@@ -73,7 +78,20 @@ class SpotWorldObjects:
         """
         return self._world_objects_task
 
-    def list_world_objects(self, object_types, time_start_point):
+    def list_world_objects(
+        self, object_types: typing.List[WorldObjectType], time_start_point: float
+    ) -> ListWorldObjectResponse:
+        """
+        Get a list of world objects with the specified types which were seen after the given time point
+
+        Args:
+            object_types: List of object types which should be retrieved
+            time_start_point: Objects observed after this time will be filtered out of the response
+
+        Returns:
+            List world object response containing the filtered list of world objects
+
+        """
         return self._world_objects_client.list_world_objects(
             object_types, time_start_point
         )
