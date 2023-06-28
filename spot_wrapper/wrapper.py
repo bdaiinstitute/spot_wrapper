@@ -27,7 +27,7 @@ from bosdyn.client import frame_helpers
 from bosdyn.client import math_helpers
 from bosdyn.client import robot_command
 from bosdyn.client.async_tasks import AsyncPeriodicQuery, AsyncTasks
-from bosdyn.client.docking import DockingClient, blocking_dock_robot, blocking_undock
+from bosdyn.client.docking import DockingClient
 from bosdyn.client.estop import (
     EstopClient,
     EstopEndpoint,
@@ -78,6 +78,7 @@ from . import graph_nav_util
 from bosdyn.api import basic_command_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
+from .spot_docking import SpotDocking
 from .spot_world_objects import SpotWorldObjects
 
 
@@ -919,6 +920,14 @@ class SpotWrapper:
             self._estop_monitor,
         ]
 
+        self._spot_docking = SpotDocking(
+            self._robot,
+            self._logger,
+            self._robot_params,
+            self._docking_client,
+            self._robot_command_client,
+        )
+
         if self._point_cloud_client:
             self._point_cloud_task = AsyncPointCloudService(
                 self._point_cloud_client,
@@ -1035,6 +1044,11 @@ class SpotWrapper:
     def spot_world_objects(self) -> SpotWorldObjects:
         """Return SpotWorldObjects instance"""
         return self._spot_world_objects
+
+    @property
+    def spot_docking(self) -> SpotDocking:
+        """Return SpotDocking instance"""
+        return self._spot_docking
 
     @property
     def world_objects(self) -> world_object_pb2.ListWorldObjectResponse:
@@ -2458,35 +2472,6 @@ class SpotWrapper:
         return None
 
     @try_claim
-    def dock(self, dock_id):
-        """Dock the robot to the docking station with fiducial ID [dock_id]."""
-        try:
-            # Make sure we're powered on and standing
-            self._robot.power_on()
-            self.stand()
-            # Dock the robot
-            self._last_docking_command = dock_id
-            blocking_dock_robot(self._robot, dock_id)
-            self._last_docking_command = None
-            # Necessary to reset this as docking often causes the last stand command to go into an unknown state
-            self._last_stand_command = None
-            return True, "Success"
-        except Exception as e:
-            return False, f"Exception while trying to dock: {e}"
-
-    @try_claim
-    def undock(self, timeout=20):
-        """Power motors on and undock the robot from the station."""
-        try:
-            # Maker sure we're powered on
-            self._robot.power_on()
-            # Undock the robot
-            blocking_undock(self._robot, timeout)
-            return True, "Success"
-        except Exception as e:
-            return False, f"Exception while trying to undock: {e}"
-
-    @try_claim
     def execute_dance(self, data):
         if self._is_licensed_for_choreography:
             return self._spot_dance.execute_dance(data)
@@ -2514,11 +2499,6 @@ class SpotWrapper:
             return self._spot_dance.list_all_dances()
         else:
             return False, "Spot is not licensed for choreography", []
-
-    def get_docking_state(self, **kwargs):
-        """Get docking state of robot."""
-        state = self._docking_client.get_docking_state(**kwargs)
-        return state
 
     def update_image_tasks(self, image_name):
         """Adds an async tasks to retrieve images from the specified image source"""

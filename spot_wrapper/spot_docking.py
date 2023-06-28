@@ -8,20 +8,24 @@ from bosdyn.client.robot import Robot
 
 
 class SpotDocking:
+    """
+    Interactions with spot's autonomous docking station
+    """
+
     def __init__(
         self,
         robot: Robot,
         logger: logging.Logger,
         robot_params: typing.Dict[str, typing.Any],
-        robot_clients: typing.Dict[str, typing.Any],
-    ):
+        docking_client: DockingClient,
+        robot_command_client: robot_command.RobotCommandClient,
+    ) -> None:
         self._robot = robot
         self._logger = logger
-        self._docking_client: DockingClient = robot_clients["docking_client"]
-        self._robot_command_client: robot_command.RobotCommandClient = robot_clients[
-            "robot_command_client"
-        ]
+        self._docking_client: DockingClient = docking_client
+        self._robot_command_client = robot_command_client
         self._robot_params = robot_params
+        self.last_docking_command = None
 
     def dock(self, dock_id: int) -> typing.Tuple[bool, str]:
         """Dock the robot to the docking station with fiducial ID [dock_id]."""
