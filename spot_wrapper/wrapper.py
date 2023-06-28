@@ -13,8 +13,11 @@ import bosdyn.client.auth
 from bosdyn.api import arm_command_pb2
 from bosdyn.api import geometry_pb2
 from bosdyn.api import image_pb2
+from bosdyn.api import lease_pb2
+from bosdyn.api import point_cloud_pb2
 from bosdyn.api import manipulation_api_pb2
 from bosdyn.api import robot_command_pb2
+from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
 from bosdyn.api import robot_state_pb2
 from bosdyn.api import synchronized_command_pb2
 from bosdyn.api import trajectory_pb2
@@ -47,6 +50,7 @@ from bosdyn.client.power import safe_power_off, PowerClient, power_on
 from bosdyn.client.robot import UnregisteredServiceError
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
 from bosdyn.client.robot_state import RobotStateClient
+from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
 from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.license import LicenseClient
@@ -66,6 +70,7 @@ from bosdyn.geometry import EulerZXY
 from bosdyn.util import seconds_to_duration
 from google.protobuf.duration_pb2 import Duration
 
+SPOT_CLIENT_NAME = "ros_spot"
 MAX_COMMAND_DURATION = 1e5
 
 ### Release
@@ -574,8 +579,6 @@ def try_claim(func=None, *, power_on=False):
 class SpotWrapper:
     """Generic wrapper class to encompass release 1.1.4 API features as well as maintaining leases automatically"""
 
-    SPOT_CLIENT_NAME = "ros_spot"
-
     def __init__(
         self,
         username: str,
@@ -585,8 +588,8 @@ class SpotWrapper:
         logger: logging.Logger,
         start_estop: bool = True,
         estop_timeout: float = 9.0,
-        rates: typing.Optional[typing.Dict] = None,
-        callbacks: typing.Optional[typing.Dict] = None,
+        rates: typing.Optional[typing.Dict[str, float]] = None,
+        callbacks: typing.Optional[typing.Dict[str, float]] = None,
         use_take_lease: bool = False,
         get_lease_on_action: bool = False,
         continually_try_stand: bool = True,
@@ -616,6 +619,8 @@ class SpotWrapper:
         self._password = password
         self._hostname = hostname
         self._robot_name = robot_name
+        self._rates = rates or {}
+        self._callbacks = callbacks or {}
         self._use_take_lease = use_take_lease
         self._get_lease_on_action = get_lease_on_action
         self._continually_try_stand = continually_try_stand
@@ -624,14 +629,6 @@ class SpotWrapper:
         if robot_name is not None:
             self._frame_prefix = robot_name + "/"
         self._logger = logger
-        if rates is None:
-            self._rates = {}
-        else:
-            self._rates = rates
-        if callbacks is None:
-            self._callbacks = {}
-        else:
-            self._callbacks = callbacks
         self._estop_timeout = estop_timeout
         self._start_estop = start_estop
         self._keep_alive = True
@@ -711,7 +708,7 @@ class SpotWrapper:
             )
 
         try:
-            self._sdk = create_standard_sdk(self.SPOT_CLIENT_NAME)
+            self._sdk = create_standard_sdk(SPOT_CLIENT_NAME)
         except Exception as e:
             self._logger.error("Error creating SDK object: %s", e)
             self._valid = False
@@ -1020,32 +1017,32 @@ class SpotWrapper:
         return self._frame_prefix
 
     @property
-    def logger(self):
+    def logger(self) -> logging.Logger:
         """Return logger instance of the SpotWrapper"""
         return self._logger
 
     @property
-    def is_valid(self):
+    def is_valid(self) -> bool:
         """Return boolean indicating if the wrapper initialized successfully"""
         return self._valid
 
     @property
-    def id(self):
+    def id(self) -> str:
         """Return robot's ID"""
         return self._robot_id
 
     @property
-    def robot_state(self):
+    def robot_state(self) -> robot_state_pb2.RobotState:
         """Return latest proto from the _robot_state_task"""
         return self._robot_state_task.proto
 
     @property
-    def metrics(self):
+    def metrics(self) -> robot_state_pb2.RobotMetrics:
         """Return latest proto from the _robot_metrics_task"""
         return self._robot_metrics_task.proto
 
     @property
-    def lease(self):
+    def lease(self) -> typing.List[lease_pb2.LeaseResource]:
         """Return latest proto from the _lease_task"""
         return self._lease_task.proto
 
@@ -1075,41 +1072,41 @@ class SpotWrapper:
         return self._hand_image_task.proto
 
     @property
-    def point_clouds(self):
+    def point_clouds(self) -> typing.List[point_cloud_pb2.PointCloudResponse]:
         """Return latest proto from the _point_cloud_task"""
         return self._point_cloud_task.proto
 
     @property
-    def is_standing(self):
+    def is_standing(self) -> bool:
         """Return boolean of standing state"""
         return self._is_standing
 
     @property
-    def is_sitting(self):
+    def is_sitting(self) -> bool:
         """Return boolean of standing state"""
         return self._is_sitting
 
     @property
-    def is_moving(self):
+    def is_moving(self) -> bool:
         """Return boolean of walking state"""
         return self._is_moving
 
     @property
-    def near_goal(self):
+    def near_goal(self) -> bool:
         return self._near_goal
 
     @property
-    def at_goal(self):
+    def at_goal(self) -> bool:
         return self._at_goal
 
-    def is_estopped(self, timeout=None):
+    def is_estopped(self, timeout=None) -> bool:
         return self._robot.is_estopped(timeout=timeout)
 
-    def has_arm(self, timeout=None):
+    def has_arm(self, timeout=None) -> bool:
         return self._robot.has_arm(timeout=timeout)
 
     @property
-    def time_skew(self):
+    def time_skew(self) -> Timestamp:
         """Return the time skew between local and spot time"""
         return self._robot.time_sync.endpoint.clock_skew
 
@@ -1120,7 +1117,7 @@ class SpotWrapper:
         """
         self._mobility_params = RobotCommandBuilder.mobility_params()
 
-    def robotToLocalTime(self, timestamp):
+    def robotToLocalTime(self, timestamp) -> Timestamp:
         """Takes a timestamp and an estimated skew and return seconds and nano seconds in local time
 
         Args:
@@ -1130,13 +1127,13 @@ class SpotWrapper:
         """
         return robotToLocalTime(timestamp, self._robot)
 
-    def claim(self):
+    def claim(self) -> typing.Tuple[bool, str]:
         """Get a lease for the robot, a handle on the estop endpoint, and the ID of the robot."""
         if self.lease is not None:
             for resource in self.lease:
                 if (
                     resource.resource == "all-leases"
-                    and self.SPOT_CLIENT_NAME in resource.lease_owner.client_name
+                    and SPOT_CLIENT_NAME in resource.lease_owner.client_name
                 ):
                     return True, "We already claimed the lease"
 
@@ -1154,7 +1151,7 @@ class SpotWrapper:
             self._logger.error("Failed to initialize robot communication: %s", err)
             return False, str(err)
         except Exception as err:
-            print(traceback.format_exc(), flush=True)
+            self._logger.error(traceback.format_exc())
             return False, str(err)
 
     def updateTasks(self):
@@ -1162,17 +1159,17 @@ class SpotWrapper:
         try:
             self._async_tasks.update()
         except Exception as e:
-            print(f"Update tasks failed with error: {str(e)}")
+            self._logger.error(f"Update tasks failed with error: {str(e)}")
 
     def resetEStop(self):
         """Get keepalive for eStop"""
         self._estop_endpoint = EstopEndpoint(
-            self._estop_client, self.SPOT_CLIENT_NAME, self._estop_timeout
+            self._estop_client, SPOT_CLIENT_NAME, self._estop_timeout
         )
         self._estop_endpoint.force_simple_setup()  # Set this endpoint as the robot's sole estop.
         self._estop_keepalive = EstopKeepAlive(self._estop_endpoint)
 
-    def assertEStop(self, severe=True):
+    def assertEStop(self, severe=True) -> typing.Tuple[bool, str]:
         """Forces the robot into eStop state.
 
         Args:
@@ -1188,7 +1185,7 @@ class SpotWrapper:
         except Exception as e:
             return False, f"Exception while attempting to estop: {e}"
 
-    def disengageEStop(self):
+    def disengageEStop(self) -> typing.Tuple[bool, str]:
         """Disengages the E-Stop"""
         try:
             self._estop_keepalive.allow()
@@ -1218,7 +1215,7 @@ class SpotWrapper:
             self._lease_client.return_lease(self._lease)
             self._lease = None
 
-    def release(self):
+    def release(self) -> typing.Tuple[bool, str]:
         """Return the lease on the body and the eStop handle."""
         try:
             self.releaseLease()
@@ -1234,13 +1231,21 @@ class SpotWrapper:
         self.releaseLease()
         self.releaseEStop()
 
-    def _robot_command(self, command_proto, end_time_secs=None, timesync_endpoint=None):
+    def _robot_command(
+        self,
+        command_proto: robot_command_pb2.RobotCommand,
+        end_time_secs: typing.Optional[float] = None,
+        timesync_endpoint: typing.Optional[TimeSyncEndpoint] = None,
+    ) -> typing.Tuple[bool, str, typing.Optional[str]]:
         """Generic blocking function for sending commands to robots.
 
         Args:
             command_proto: robot_command_pb2 object to send to the robot.  Usually made with RobotCommandBuilder
             end_time_secs: (optional) Time-to-live for the command in seconds
             timesync_endpoint: (optional) Time sync endpoint
+
+        Returns:
+            Tuple of bool success, string message, and the command ID
         """
         try:
             command_id = self._robot_command_client.robot_command(
@@ -1386,7 +1391,7 @@ class SpotWrapper:
 
         return True, "Was already powered on"
 
-    def set_mobility_params(self, mobility_params):
+    def set_mobility_params(self, mobility_params: spot_command_pb2.MobilityParams):
         """Set Params for mobility and movement
 
         Args:
@@ -1394,7 +1399,7 @@ class SpotWrapper:
         """
         self._mobility_params = mobility_params
 
-    def get_mobility_params(self):
+    def get_mobility_params(self) -> spot_command_pb2.MobilityParams:
         """Get mobility params"""
         return self._mobility_params
 
@@ -1404,7 +1409,9 @@ class SpotWrapper:
         )
 
     @try_claim
-    def velocity_cmd(self, v_x, v_y, v_rot, cmd_duration=0.125):
+    def velocity_cmd(
+        self, v_x: float, v_y: float, v_rot: float, cmd_duration: float = 0.125
+    ) -> typing.Tuple[bool, str]:
         """Send a velocity motion command to the robot.
 
         Args:
@@ -1427,14 +1434,14 @@ class SpotWrapper:
     @try_claim
     def trajectory_cmd(
         self,
-        goal_x,
-        goal_y,
-        goal_heading,
-        cmd_duration,
-        frame_name="odom",
-        precise_position=False,
-        mobility_params=None,
-    ):
+        goal_x: float,
+        goal_y: float,
+        goal_heading: float,
+        cmd_duration: float,
+        frame_name: str = "odom",
+        precise_position: bool = False,
+        mobility_params: spot_command_pb2.MobilityParams = None,
+    ) -> typing.Tuple[bool, str]:
         """Send a trajectory motion command to the robot.
 
         Args:
@@ -1499,7 +1506,7 @@ class SpotWrapper:
             self._last_trajectory_command = response[2]
         return response[0], response[1]
 
-    def robot_command(self, robot_command):
+    def robot_command(self, robot_command: robot_command_pb2.RobotCommand) -> typing.Tuple[bool, str]:
         end_time = time.time() + MAX_COMMAND_DURATION
         return self._robot_command(
             robot_command,
@@ -1515,7 +1522,7 @@ class SpotWrapper:
             timesync_endpoint=self._robot.time_sync.endpoint,
         )
 
-    def get_robot_command_feedback(self, cmd_id):
+    def get_robot_command_feedback(self, cmd_id: int) -> robot_command_pb2.RobotCommandFeedbackResponse:
         return self._robot_command_client.robot_command_feedback(cmd_id)
 
     def get_manipulation_command_feedback(self, cmd_id):
@@ -2420,7 +2427,7 @@ class SpotWrapper:
         self.check_is_powered_on()
         return self._powered_on
 
-    def check_is_powered_on(self):
+    def check_is_powered_on(self) -> bool:
         """Determine if the robot is powered on or off."""
         power_state = self._robot_state_client.get_robot_state().power_state
         self._powered_on = power_state.motor_power_state == power_state.STATE_ON
