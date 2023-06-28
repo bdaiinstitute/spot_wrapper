@@ -47,7 +47,7 @@ from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.point_cloud import build_pc_request
 from bosdyn.client.power import safe_power_off, PowerClient, power_on
-from bosdyn.client.robot import UnregisteredServiceError
+from bosdyn.client.robot import UnregisteredServiceError, Robot
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
@@ -189,7 +189,7 @@ class ImageEntry:
     image_response: image_pb2.ImageResponse
 
 
-def robotToLocalTime(timestamp, robot):
+def robotToLocalTime(timestamp: Timestamp, robot: Robot) -> Timestamp:
     """Takes a timestamp and an estimated skew and return seconds and nano seconds in local time
 
     Args:
@@ -1117,7 +1117,7 @@ class SpotWrapper:
         """
         self._mobility_params = RobotCommandBuilder.mobility_params()
 
-    def robotToLocalTime(self, timestamp) -> Timestamp:
+    def robotToLocalTime(self, timestamp: Timestamp) -> Timestamp:
         """Takes a timestamp and an estimated skew and return seconds and nano seconds in local time
 
         Args:
