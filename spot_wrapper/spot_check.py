@@ -12,22 +12,27 @@ from google.protobuf.timestamp_pb2 import Timestamp
 
 
 class SpotCheck:
+    """
+    Allow access to spot check functionality through the SDK
+    """
+
     def __init__(
         self,
         robot: Robot,
         logger: logging.Logger,
         robot_params: typing.Dict[str, typing.Any],
-        robot_clients: typing.Dict[str, typing.Any],
-    ):
+        spot_check_client: SpotCheckClient,
+        robot_command_client: robot_command.RobotCommandClient,
+        lease_client: LeaseClient,
+    ) -> None:
         self._robot = robot
         self._logger = logger
-        self._spot_check_client: SpotCheckClient = robot_clients["spot_check_client"]
-        self._robot_command_client: robot_command.RobotCommandClient = robot_clients[
-            "robot_command_client"
-        ]
-        self._lease_client: LeaseClient = robot_clients["lease_client"]
+        self._spot_check_client: SpotCheckClient = spot_check_client
+        self._robot_command_client = robot_command_client
+        self._lease_client = lease_client
         self._robot_params = robot_params
         self._spot_check_resp = None
+        self._lease = None
         self._lease_wallet: LeaseWallet = self._lease_client.lease_wallet
 
     @property
@@ -72,6 +77,12 @@ class SpotCheck:
         return True, "Successfully ran Spot Check"
 
     def _req_feedback(self) -> spot_check_pb2.SpotCheckFeedbackResponse:
+        """
+        Get feedback from the spot check command
+
+        Returns:
+            Feedback from the spot check command
+        """
         start_time_seconds, start_time_ns = int(time.time()), int(time.time_ns() % 1e9)
         req = spot_check_pb2.SpotCheckFeedbackRequest(
             header=header_pb2.RequestHeader(
@@ -140,7 +151,8 @@ class SpotCheck:
             status = "Successfully reverted calibration"
             self._logger.info(status)
         else:
-            self._logger.error("Failed to revert calibration")
+            status = "Failed to revert calibration"
+            self._logger.error(status)
 
         return success, status
 
@@ -173,7 +185,7 @@ class SpotCheck:
             return success, status
 
         except Exception as e:
-            return False, str(e)
+            return False, f"Exception running start_check from spot check: {str(e)}"
 
     def blocking_check(
         self,
@@ -216,7 +228,9 @@ class SpotCheck:
             return success, status
 
         except Exception as e:
-            self._logger.error("Exception thrown: {}".format(e))
+            self._logger.error(
+                "Exception thrown during blocking spot check: {}".format(e)
+            )
             return False, str(e)
 
     def get_feedback(self) -> spot_check_pb2.SpotCheckFeedbackResponse:
