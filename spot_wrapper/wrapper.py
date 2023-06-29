@@ -1783,14 +1783,17 @@ class SpotWrapper:
             resp = self._set_initial_localization_waypoint(waypoint_id)
             return resp[0], resp[1]
         except Exception as e:
-            return False, f"Got an error while localizing the robot to the waypoint {waypoint_id}: {e}"
+            return (
+                False,
+                f"Got an error while localizing the robot to the waypoint {waypoint_id}: {e}",
+            )
 
     def cancel_navigation(self) -> None:
         """Cancel navigation of a robot from start_navigation()"""
         self._cancel_navigate_to()
 
     @try_claim
-    def start_navigation(self, target_waypoint_id: str) -> tuple(bool, str, str):
+    def start_navigation(self, target_waypoint_id: str) -> typing.Tuple[bool, str, str]:
         """Navigate a robot to specified waypoint id with GraphNav
 
         Args:
