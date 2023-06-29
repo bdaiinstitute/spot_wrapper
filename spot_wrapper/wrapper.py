@@ -1556,7 +1556,19 @@ class SpotWrapper:
             )
 
     def upload_graph(self, upload_path: str) -> typing.Tuple[bool, str]:
-        """Upload graph and snapshots to robot.
+        """Upload the specified graph and snapshots from local to a robot. graph and snapshots are placed like
+
+        Directory specified with upload_path arg
+          |
+          +-- graph
+          |
+          +-- waypoint_snapshots/
+          |     |
+          |     +-- waypont snapshot files
+          |
+          +-- edge_snapshots/
+                |
+                +-- edge snapshot files
 
         Args:
             upload_path (str): Path to the directory of the map.
