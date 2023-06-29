@@ -1559,13 +1559,15 @@ class SpotWrapper:
         """Upload graph and snapshots to robot.
 
         Args:
-            upload_path (str): Path to the directory of the map."""
+            upload_path (str): Path to the directory of the map.
+
+        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message    
+        """
         try:
-            self._clear_graph()
             self._upload_graph_and_snapshots(upload_path)
             return True, "Success"
         except Exception as e:
-            return False, f"Error: {e}"
+            return False, f"Got an error while uploading a graph and snapshots to a robot: {e}"
 
     def download_graph(self, download_path: str) -> typing.Tuple[bool, str]:
         """Download graph and snapshots from robot.
