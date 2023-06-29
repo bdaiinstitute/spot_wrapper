@@ -94,14 +94,12 @@ class SpotImages:
         self,
         robot: Robot,
         logger: logging.Logger,
-        robot_params: typing.Dict[str, typing.Any],
         image_client: ImageClient,
         rgb_cameras: bool = True,
     ) -> None:
         self._robot = robot
         self._logger = logger
         self._rgb_cameras = rgb_cameras
-        self._robot_params = robot_params
         self._image_client = image_client
 
         ############################################
