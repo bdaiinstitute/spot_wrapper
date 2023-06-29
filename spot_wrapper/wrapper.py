@@ -1542,17 +1542,18 @@ class SpotWrapper:
         ]
 
     def clear_graph(self) -> typing.Tuple[bool, str]:
-        """Clear a graph in a robot.
+        """Clear the state of the map on the robot, removing all waypoints and edges.
 
-        Returns:
-            success (bool): success flag
-            message (str): message about result
+        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
         """
         try:
             self._clear_graph()
             return True, "Success"
         except Exception as e:
-            return False, f"Error: {e}"
+            return (
+                False,
+                f"Got an error while clearing a graph and snanshots in a robot: {e}",
+            )
 
     def upload_graph(self, upload_path: str) -> typing.Tuple[bool, str]:
         """Upload graph and snapshots to robot.
