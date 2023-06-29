@@ -64,7 +64,10 @@ class SpotArm:
         robot: Robot,
         logger: logging.Logger,
         robot_params: typing.Dict[str, typing.Any],
-        robot_clients: typing.Dict[str, typing.Any],
+        robot_command_client: RobotCommandClient,
+        manipulation_api_client: ManipulationApiClient,
+        robot_state_client: RobotStateClient,
+        image_client: ImageClient,
         max_command_duration: float,
     ):
         """
@@ -74,23 +77,18 @@ class SpotArm:
             logger: Logger object
             robot_params: Dictionary of robot parameters
                           - robot_params['is_standing']: True if robot is standing, False otherwise
-            robot_clients: Dictionary of robot clients
-                           - robot_clients['robot_command_client']: RobotCommandClient object
-                           - robot_clients['robot_command_method']: RobotCommand method
+
             max_command_duration: Maximum duration for commands when using the manipulation command method
         """
         self._robot = robot
         self._logger = logger
         self._robot_params = robot_params
         self._max_command_duration = max_command_duration
-        self._robot_command_client: RobotCommandClient = robot_clients[
-            "robot_command_client"
-        ]
-        self._manipulation_api_client: ManipulationApiClient = robot_clients[
-            "manipulation_api_client"
-        ]
-        self._robot_state_client: RobotStateClient = robot_clients["robot_state_client"]
-        self._image_client: ImageClient = robot_clients["image_client"]
+        self._robot_command_client = robot_command_client
+        self._manipulation_api_client = manipulation_api_client
+        self._robot_state_client = robot_state_client
+        self._image_client = image_client
+        # TODO: Not sure if this is necessary, probably should be removed. I think it was supposed to be used for the blocking_stand call.
         self._robot_command: typing.Callable = robot_clients["robot_command_method"]
         self._rates: typing.Dict[str, float] = robot_params["rates"]
         self._callbacks: typing.Dict[str, typing.Callable] = robot_params["callbacks"]
@@ -181,6 +179,7 @@ class SpotArm:
             )
 
         if not self._robot_params["is_standing"]:
+            # TODO: Need to call stand from here, but this currently will not do that.
             robot_command.blocking_stand(
                 command_client=self._robot_command_client, timeout_sec=10
             )
