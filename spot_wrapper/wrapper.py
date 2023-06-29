@@ -1,4 +1,3 @@
-from distutils.dist import command_re
 import functools
 import logging
 import math
@@ -1760,33 +1759,31 @@ class SpotWrapper:
             )
 
     def set_localization_fiducial(self) -> typing.Tuple[bool, str]:
-        """Localize a robot according to near fiducials.
+        """Localize a robot according to near fiducials based on current graph and snapshots in the robot.
 
         Returns:
-            success (bool): success flag
-            message (str): message about result
+            (bool, str) tuple indicating whether the command was successfully sent, and a message.
         """
         try:
             self._set_initial_localization_fiducial()
             return True, "Success"
         except Exception as e:
-            return False, f"Error: {e}"
+            return False, f"Got an error while localizing the robot with fiducials: {e}"
 
     def set_localization_waypoint(self, waypoint_id: str) -> typing.Tuple[bool, str]:
-        """Localize a robot to specified waypoint.
+        """Localize a robot to specified waypoint based on current graph and snapshots in the robot..
 
         Args:
             waypoint_id (int): ID of waypoint to be localized.
 
         Returns:
-            result (bool): success flag of localization
-            message (str): message about result.
+            (bool, str) tuple indicating whether the command was successfully sent, and a message.
         """
         try:
             resp = self._set_initial_localization_waypoint(waypoint_id)
             return resp[0], resp[1]
         except Exception as e:
-            return False, f"Error: {e}"
+            return False, f"Got an error while localizing the robot to the waypoint {waypoint_id}: {e}"
 
     def cancel_navigation(self) -> None:
         """Cancel navigation of a robot from start_navigation()"""
