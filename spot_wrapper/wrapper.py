@@ -1561,19 +1561,22 @@ class SpotWrapper:
         Args:
             upload_path (str): Path to the directory of the map.
 
-        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message    
+        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
         """
         try:
             self._upload_graph_and_snapshots(upload_path)
             return True, "Success"
         except Exception as e:
-            return False, f"Got an error while uploading a graph and snapshots to a robot: {e}"
+            return (
+                False,
+                f"Got an error while uploading a graph and snapshots to a robot: {e}",
+            )
 
     def download_graph(self, download_path: str) -> typing.Tuple[bool, str]:
         """Download graph and snapshots from robot.
 
         Args:
-            download_path (str): Directory where graph and snapshotw are downloaded from robot.
+            download_path (str): Directory where graph and snapshots are downloaded from robot.
 
         Returns:
             success (bool): success flag
@@ -2277,7 +2280,7 @@ class SpotWrapper:
         """Write data to a file.
 
         Args:
-            filepath (str) : Path of file wher data will be written.
+            filepath (str) : Path of file where data will be written.
             data (bytes) : Bytes of data"""
         directory = os.path.dirname(filepath)
         os.makedirs(directory, exist_ok=True)
@@ -2291,7 +2294,7 @@ class SpotWrapper:
         """Download the graph and snapshots from the robot.
 
         Args:
-            download_path (str): Directory where graph and snapshotw are downloaded from robot.
+            download_path (str): Directory where graph and snapshots are downloaded from robot.
 
         Returns:
             success (bool): success flag
