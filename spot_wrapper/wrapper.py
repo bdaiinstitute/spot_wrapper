@@ -69,6 +69,7 @@ from google.protobuf.duration_pb2 import Duration
 
 MAX_COMMAND_DURATION = 1e5
 VELODYNE_SERVICE_NAME = "velodyne-point-cloud"
+
 ### Release
 from . import graph_nav_util
 
@@ -83,23 +84,6 @@ from .spot_world_objects import SpotWorldObjects
 
 """Service name for getting pointcloud of VLP16 connected to Spot Core"""
 point_cloud_sources = ["velodyne-point-cloud"]
-
-hand_image_sources = [
-    "hand_image",
-    "hand_depth",
-    "hand_color_image",
-    "hand_depth_in_hand_color_frame",
-]
-"""List of image sources for hand image periodic query"""
-
-IMAGE_SOURCES_BY_CAMERA = {
-    "hand": {
-        "visual": "hand_color_image",
-        "depth": "hand_depth",
-        "depth_registered": "hand_depth_in_hand_color_frame",
-    },
-}
-IMAGE_TYPES = {"visual", "depth", "depth_registered"}
 
 
 def robotToLocalTime(timestamp, robot):
@@ -199,32 +183,6 @@ class AsyncLease(AsyncPeriodicQuery):
     def _start_query(self):
         if self._callback:
             callback_future = self._client.list_leases_async()
-            callback_future.add_done_callback(self._callback)
-            return callback_future
-
-
-class AsyncImageService(AsyncPeriodicQuery):
-    """Class to get images at regular intervals.  get_image_from_sources_async query sent to the robot at every tick.  Callback registered to defined callback function.
-
-    Attributes:
-        client: The Client to a service on the robot
-        logger: Logger object
-        rate: Rate (Hz) to trigger the query
-        callback: Callback function to call when the results of the query are available
-    """
-
-    def __init__(self, client, logger, rate, callback, image_requests):
-        super(AsyncImageService, self).__init__(
-            "robot_image_service", client, logger, period_sec=1.0 / max(rate, 1.0)
-        )
-        self._callback = None
-        if rate > 0.0:
-            self._callback = callback
-        self._image_requests = image_requests
-
-    def _start_query(self):
-        if self._callback:
-            callback_future = self._client.get_image_async(self._image_requests)
             callback_future.add_done_callback(self._callback)
             return callback_future
 
@@ -550,16 +508,6 @@ class SpotWrapper:
         for source in point_cloud_sources:
             self._point_cloud_requests.append(build_pc_request(source))
 
-        self._hand_image_requests = []
-        for source in hand_image_sources:
-            self._hand_image_requests.append(
-                build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
-            )
-
-        self._camera_image_requests = []
-        self._depth_image_requests = []
-        self._depth_registered_image_requests = []
-
         try:
             self._sdk = create_standard_sdk(self.SPOT_CLIENT_NAME)
         except Exception as e:
@@ -665,60 +613,6 @@ class SpotWrapper:
                 )
                 time.sleep(sleep_secs)
 
-        # Add hand camera requests
-        if self._robot.has_arm():
-            self._camera_image_requests.append(
-                build_image_request(
-                    "hand_color_image",
-                    image_format=image_pb2.Image.FORMAT_JPEG,
-                    pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                    quality_percent=50,
-                )
-            )
-            self._depth_image_requests.append(
-                build_image_request(
-                    "hand_depth",
-                    pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
-                )
-            )
-            self._depth_registered_image_requests.append(
-                build_image_request(
-                    "hand_depth_in_hand_color_frame",
-                    pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
-                )
-            )
-
-        # Build image requests by camera
-        self._image_requests_by_camera = {}
-        for camera in IMAGE_SOURCES_BY_CAMERA:
-            if camera == "hand" and not self._robot.has_arm():
-                continue
-            self._image_requests_by_camera[camera] = {}
-            image_types = IMAGE_SOURCES_BY_CAMERA[camera]
-            for image_type in image_types:
-                if image_type.startswith("depth"):
-                    image_format = image_pb2.Image.FORMAT_RAW
-                    pixel_format = image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
-                else:
-                    image_format = image_pb2.Image.FORMAT_JPEG
-                    if camera == "hand" or self._rgb_cameras:
-                        pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
-                    elif camera != "hand":
-                        self._logger.info(
-                            f"Switching {camera}:{image_type} to greyscale image format."
-                        )
-                        pixel_format = image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8
-
-                source = IMAGE_SOURCES_BY_CAMERA[camera][image_type]
-                self._image_requests_by_camera[camera][
-                    image_type
-                ] = build_image_request(
-                    source,
-                    image_format=image_format,
-                    pixel_format=pixel_format,
-                    quality_percent=75,
-                )
-
         # Store the most recent knowledge of the state of the robot based on rpc calls.
         self._init_current_graph_nav_state()
 
@@ -742,14 +636,6 @@ class SpotWrapper:
             max(0.0, self._rates.get("lease", 0.0)),
             self._callbacks.get("lease", None),
         )
-        self._hand_image_task = AsyncImageService(
-            self._image_client,
-            self._logger,
-            max(0.0, self._rates.get("hand_image", 0.0)),
-            self._callbacks.get("hand_image", None),
-            self._hand_image_requests,
-        )
-
         self._idle_task = AsyncIdle(
             self._robot_command_client, self._logger, 10.0, self
         )
@@ -792,10 +678,6 @@ class SpotWrapper:
         robot_tasks.append(self._world_objects_task)
 
         self._async_tasks = AsyncTasks(robot_tasks)
-
-        self.camera_task_name_to_task_mapping = {
-            "hand_image": self._hand_image_task,
-        }
 
         if self._is_licensed_for_choreography:
             self._spot_dance = SpotDance(
@@ -895,26 +777,6 @@ class SpotWrapper:
     def world_objects(self) -> world_object_pb2.ListWorldObjectResponse:
         """Return most recent proto from _world_objects_task"""
         return self.spot_world_objects.async_task.proto
-
-    @property
-    def front_images(self):
-        """Return latest proto from the _front_image_task"""
-        return self._front_image_task.proto
-
-    @property
-    def side_images(self):
-        """Return latest proto from the _side_image_task"""
-        return self._side_image_task.proto
-
-    @property
-    def rear_images(self):
-        """Return latest proto from the _rear_image_task"""
-        return self._rear_image_task.proto
-
-    @property
-    def hand_images(self):
-        """Return latest proto from the _hand_image_task"""
-        return self._hand_image_task.proto
 
     @property
     def point_clouds(self):
@@ -2374,38 +2236,3 @@ class SpotWrapper:
         """Get docking state of robot."""
         state = self._docking_client.get_docking_state(**kwargs)
         return state
-
-    def update_image_tasks(self, image_name):
-        """Adds an async tasks to retrieve images from the specified image source"""
-
-        task_to_add = self.camera_task_name_to_task_mapping[image_name]
-
-        if task_to_add == self._hand_image_task and not self._robot.has_arm():
-            self._logger.warning(
-                "Robot has no arm, therefore the arm image task can not be added"
-            )
-            return
-
-        if task_to_add in self._async_tasks._tasks:
-            self._logger.warning(
-                f"Task {image_name} already in async task list, will not be added again"
-            )
-            return
-
-        self._async_tasks.add_task(self.camera_task_name_to_task_mapping[image_name])
-
-    def get_hand_rgb_image(self):
-        if not self.has_arm():
-            return None
-        try:
-            return self._image_client.get_image(
-                [
-                    build_image_request(
-                        "hand_color_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
-                    )
-                ]
-            )[0]
-        except UnsupportedPixelFormatRequestedError as e:
-            return None
