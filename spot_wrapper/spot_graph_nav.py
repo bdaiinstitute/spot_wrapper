@@ -22,7 +22,6 @@ class SpotGraphNav:
         self,
         robot: Robot,
         logger: logging.Logger,
-        robot_params: typing.Dict[str, typing.Any],
         graph_nav_client: GraphNavClient,
         map_processing_client: MapProcessingServiceClient,
         robot_state_client: RobotStateClient,
@@ -35,7 +34,6 @@ class SpotGraphNav:
         self._robot_state_client = robot_state_client
         self._lease_client = lease_client
         self._lease_wallet: LeaseWallet = self._lease_client.lease_wallet
-        self._robot_params = robot_params
 
         self._init_current_graph_nav_state()
 
@@ -46,14 +44,14 @@ class SpotGraphNav:
     def _init_current_graph_nav_state(self):
         # Store the most recent knowledge of the state of the robot based on rpc calls.
         self._current_graph = None
-        self._current_edges = dict()  # maps to_waypoint to list(from_waypoint)
-        self._current_waypoint_snapshots = dict()  # maps id to waypoint snapshot
-        self._current_edge_snapshots = dict()  # maps id to edge snapshot
-        self._current_annotation_name_to_wp_id = dict()
+        self._current_edges = {}  # maps to_waypoint to list(from_waypoint)
+        self._current_waypoint_snapshots = {}  # maps id to waypoint snapshot
+        self._current_edge_snapshots = {}  # maps id to edge snapshot
+        self._current_annotation_name_to_wp_id = {}
         self._current_anchored_world_objects = (
-            dict()
+            {}
         )  # maps object id to a (wo, waypoint, fiducial)
-        self._current_anchors = dict()  # maps anchor id to anchor
+        self._current_anchors = {}  # maps anchor id to anchor
 
     def list_graph(self) -> typing.List[str]:
         """List waypoint ids of graph_nav

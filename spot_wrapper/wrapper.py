@@ -921,7 +921,6 @@ class SpotWrapper:
         self._spot_graph_nav = SpotGraphNav(
             self._robot,
             self._logger,
-            self._robot_params,
             self._graph_nav_client,
             self._map_processing_client,
             self._robot_state_client,
