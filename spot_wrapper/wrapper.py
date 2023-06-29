@@ -655,7 +655,7 @@ class SpotWrapper:
         ]
 
         self._spot_images = SpotImages(
-            self._robot, self._logger, self._robot_params, self._robot_clients
+            self._robot, self._logger, self._robot_params, self._image_client
         )
 
         if self._point_cloud_client:
