@@ -5,14 +5,10 @@ import os
 import time
 import traceback
 import typing
-from enum import Enum
-from collections import namedtuple
-from dataclasses import dataclass, field
 
 import bosdyn.client.auth
 from bosdyn.api import arm_command_pb2
 from bosdyn.api import geometry_pb2
-from bosdyn.api import image_pb2
 from bosdyn.api import lease_pb2
 from bosdyn.api import point_cloud_pb2
 from bosdyn.api import manipulation_api_pb2
@@ -25,7 +21,6 @@ from bosdyn.api import world_object_pb2
 from bosdyn.api.graph_nav import graph_nav_pb2
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.api.graph_nav import nav_pb2
-from bosdyn.client import create_standard_sdk, ResponseError, RpcError
 from bosdyn.client import frame_helpers
 from bosdyn.client import math_helpers
 from bosdyn.client import robot_command
@@ -35,15 +30,10 @@ from bosdyn.client.estop import (
     EstopClient,
     EstopEndpoint,
     EstopKeepAlive,
-    MotorsOnError,
 )
 from bosdyn.client.frame_helpers import get_odom_tform_body
 from bosdyn.client.graph_nav import GraphNavClient
-from bosdyn.client.image import (
-    ImageClient,
-    build_image_request,
-    UnsupportedPixelFormatRequestedError,
-)
+from bosdyn.client.image import ImageClient
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.point_cloud import build_pc_request
@@ -53,7 +43,6 @@ from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
-from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.license import LicenseClient
 from bosdyn.client import ResponseError, RpcError, create_standard_sdk
 
@@ -651,9 +640,7 @@ class SpotWrapper:
             self._estop_monitor,
         ]
 
-        self._spot_images = SpotImages(
-            self._robot, self._logger, self._image_client
-        )
+        self._spot_images = SpotImages(self._robot, self._logger, self._image_client)
 
         if self._point_cloud_client:
             self._point_cloud_task = AsyncPointCloudService(
