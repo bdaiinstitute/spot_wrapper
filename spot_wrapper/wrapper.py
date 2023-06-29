@@ -1542,7 +1542,7 @@ class SpotWrapper:
         ]
 
     def clear_graph(self) -> typing.Tuple[bool, str]:
-        """Clear the state of the map on the robot, removing all waypoints and edges.
+        """Clear the state of the map on the robot, removing all waypoints and edges in the RAM of the robot.
 
         Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
         """
@@ -1556,7 +1556,10 @@ class SpotWrapper:
             )
 
     def upload_graph(self, upload_path: str) -> typing.Tuple[bool, str]:
-        """Upload the specified graph and snapshots from local to a robot. graph and snapshots are placed like
+        """Upload the specified graph and snapshots from local to a robot.
+
+        While this method, if there are snapshots already in the robot, they will be loaded from the robot's disk without uploading.
+        Graph and snapshots to be uploaded should be placed like
 
         Directory specified with upload_path arg
           |
@@ -2506,7 +2509,7 @@ class SpotWrapper:
                 self.toggle_power(should_power_on=False)
 
     def _clear_graph(self, *args):
-        """Clear the state of the map on the robot, removing all waypoints and edges."""
+        """Clear the state of the map on the robot, removing all waypoints and edges in the RAM of the robot."""
         result = self._graph_nav_client.clear_graph(lease=self._lease.lease_proto)
         self._init_current_graph_nav_state()
         return result
