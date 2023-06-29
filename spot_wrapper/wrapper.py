@@ -1585,14 +1585,12 @@ class SpotWrapper:
             )
 
     def download_graph(self, download_path: str) -> typing.Tuple[bool, str]:
-        """Download graph and snapshots from robot.
+        """Download current graph and snapshots in the robot to the specified directory.
 
         Args:
             download_path (str): Directory where graph and snapshots are downloaded from robot.
 
-        Returns:
-            success (bool): success flag
-            message (str): message about result
+        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
         """
         try:
             success, message = self._download_graph_and_snapshots(
@@ -1600,7 +1598,10 @@ class SpotWrapper:
             )
             return success, message
         except Exception as e:
-            return False, f"Error: {e}"
+            return (
+                False,
+                f"Got an error during downloading graph and snapshots from the robot: {e}",
+            )
 
     @try_claim
     def navigate_to(
