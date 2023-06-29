@@ -933,6 +933,7 @@ class SpotWrapper:
                 self._robot_command_client,
                 self._manipulation_api_client,
                 self._robot_state_client,
+                self._image_client,
                 MAX_COMMAND_DURATION,
             )
             self._hand_image_task = self._spot_arm.hand_image_task
