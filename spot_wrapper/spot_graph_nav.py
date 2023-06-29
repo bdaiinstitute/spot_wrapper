@@ -23,16 +23,17 @@ class SpotGraphNav:
         robot: Robot,
         logger: logging.Logger,
         robot_params: typing.Dict[str, typing.Any],
-        robot_clients: typing.Dict[str, typing.Any],
+        graph_nav_client: GraphNavClient,
+        map_processing_client: MapProcessingServiceClient,
+        robot_state_client: RobotStateClient,
+        lease_client: LeaseClient,
     ):
         self._robot = robot
         self._logger = logger
-        self._graph_nav_client: GraphNavClient = robot_clients["graph_nav_client"]
-        self._map_processing_client: MapProcessingServiceClient = robot_clients[
-            "map_processing_client"
-        ]
-        self._robot_state_client: RobotStateClient = robot_clients["robot_state_client"]
-        self._lease_client: LeaseClient = robot_clients["lease_client"]
+        self._graph_nav_client = graph_nav_client
+        self._map_processing_client = map_processing_client
+        self._robot_state_client = robot_state_client
+        self._lease_client = lease_client
         self._lease_wallet: LeaseWallet = self._lease_client.lease_wallet
         self._robot_params = robot_params
 
