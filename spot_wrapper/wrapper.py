@@ -2,6 +2,7 @@ import functools
 import logging
 import math
 import os
+import re
 import time
 import traceback
 import typing
@@ -1621,13 +1622,15 @@ class SpotWrapper:
           upload_path : Path to the root directory of the map.
         """
         ids, eds = self._list_graph_waypoint_and_edge_ids()
+
+        def key_for_id(id):
+            try:
+                return int(re.sub(r"\D", "", id[0]))
+            except:
+                return 0
+
         # skip waypoint_ for v2.2.1, skip waypiont for < v2.2
-        return [
-            v
-            for k, v in sorted(
-                ids.items(), key=lambda id: int(id[0].replace("waypoint_", ""))
-            )
-        ]
+        return [v for k, v in sorted(ids.items(), key=key_for_id)]
 
     def clear_graph(self) -> typing.Tuple[bool, str]:
         """Clear the state of the map on the robot, removing all waypoints and edges in the RAM of the robot.
