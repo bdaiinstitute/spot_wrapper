@@ -13,11 +13,15 @@ import bosdyn.client.auth
 from bosdyn.api import arm_command_pb2
 from bosdyn.api import geometry_pb2
 from bosdyn.api import image_pb2
+from bosdyn.api import lease_pb2
+from bosdyn.api import point_cloud_pb2
 from bosdyn.api import manipulation_api_pb2
 from bosdyn.api import robot_command_pb2
+from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
 from bosdyn.api import robot_state_pb2
 from bosdyn.api import synchronized_command_pb2
 from bosdyn.api import trajectory_pb2
+from bosdyn.api import world_object_pb2
 from bosdyn.api.graph_nav import graph_nav_pb2
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.api.graph_nav import nav_pb2
@@ -45,9 +49,10 @@ from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.payload_registration import PayloadNotAuthorizedError
 from bosdyn.client.point_cloud import build_pc_request
 from bosdyn.client.power import safe_power_off, PowerClient, power_on
-from bosdyn.client.robot import UnregisteredServiceError
+from bosdyn.client.robot import UnregisteredServiceError, Robot
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
 from bosdyn.client.robot_state import RobotStateClient
+from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
 from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.license import LicenseClient
@@ -56,7 +61,6 @@ from bosdyn.client import ResponseError, RpcError, create_standard_sdk
 try:
     from bosdyn.choreography.client.choreography import (
         ChoreographyClient,
-        load_choreography_sequence_from_txt_file,
     )
     from .spot_dance import SpotDance
 
@@ -68,6 +72,7 @@ from bosdyn.geometry import EulerZXY
 from bosdyn.util import seconds_to_duration
 from google.protobuf.duration_pb2 import Duration
 
+SPOT_CLIENT_NAME = "ros_spot"
 MAX_COMMAND_DURATION = 1e5
 
 ### Release
@@ -78,6 +83,9 @@ from . import graph_nav_util
 
 from bosdyn.api import basic_command_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
+
+from .spot_world_objects import SpotWorldObjects
+
 
 front_image_sources = [
     "frontleft_fisheye_image",
@@ -166,7 +174,7 @@ IMAGE_SOURCES_BY_CAMERA = {
     "hand": {
         "visual": "hand_color_image",
         "depth": "hand_depth",
-        "depth_registered": "hand_depth_in_color_frame",
+        "depth_registered": "hand_depth_in_hand_color_frame",
     },
 }
 
@@ -186,7 +194,7 @@ class ImageEntry:
     image_response: image_pb2.ImageResponse
 
 
-def robotToLocalTime(timestamp, robot):
+def robotToLocalTime(timestamp: Timestamp, robot: Robot) -> Timestamp:
     """Takes a timestamp and an estimated skew and return seconds and nano seconds in local time
 
     Args:
@@ -201,7 +209,7 @@ def robotToLocalTime(timestamp, robot):
     rtime.seconds = timestamp.seconds - robot.time_sync.endpoint.clock_skew.seconds
     rtime.nanos = timestamp.nanos - robot.time_sync.endpoint.clock_skew.nanos
     if rtime.nanos < 0:
-        rtime.nanos = rtime.nanos + 1000000000
+        rtime.nanos = rtime.nanos + int(1e9)
         rtime.seconds = rtime.seconds - 1
 
     # Workaround for timestamps being incomplete
@@ -344,21 +352,28 @@ class AsyncPointCloudService(AsyncPeriodicQuery):
 
 
 class AsyncIdle(AsyncPeriodicQuery):
-    """Class to check if the robot is moving, and if not, command a stand with the set mobility parameters
-
-    Attributes:
-        client: The Client to a service on the robot
-        logger: Logger object
-        rate: Rate (Hz) to trigger the query
-        spot_wrapper: A handle to the wrapper library
+    """
+    Class to check if the robot is moving, and if not, command a stand with the set mobility parameters
     """
 
-    def __init__(self, client, logger, rate, spot_wrapper):
+    def __init__(
+        self,
+        client: RobotCommandClient,
+        logger: logging.Logger,
+        rate: float,
+        spot_wrapper,
+    ) -> None:
+        """
+        Attributes:
+            client: The Client to a service on the robot
+            logger: Logger object
+            rate: Rate (Hz) to trigger the query
+            spot_wrapper: A handle to the wrapper library
+        """
         super(AsyncIdle, self).__init__("idle", client, logger, period_sec=1.0 / rate)
+        self._spot_wrapper: SpotWrapper = spot_wrapper
 
-        self._spot_wrapper = spot_wrapper
-
-    def _start_query(self):
+    def _start_query(self) -> None:
         if self._spot_wrapper._last_stand_command != None:
             try:
                 response = self._client.robot_command_feedback(
@@ -367,24 +382,24 @@ class AsyncIdle(AsyncPeriodicQuery):
                 status = (
                     response.feedback.synchronized_feedback.mobility_command_feedback.stand_feedback.status
                 )
-                self._spot_wrapper._is_sitting = False
+                self._spot_wrapper.is_sitting = False
                 if status == basic_command_pb2.StandCommand.Feedback.STATUS_IS_STANDING:
-                    self._spot_wrapper._is_standing = True
+                    self._spot_wrapper.is_standing = True
                     self._spot_wrapper._last_stand_command = None
                 elif (
                     status == basic_command_pb2.StandCommand.Feedback.STATUS_IN_PROGRESS
                 ):
-                    self._spot_wrapper._is_standing = False
+                    self._spot_wrapper.is_standing = False
                 else:
                     self._logger.warning("Stand command in unknown state")
-                    self._spot_wrapper._is_standing = False
+                    self._spot_wrapper.is_standing = False
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper._last_stand_command = None
 
         if self._spot_wrapper._last_sit_command != None:
             try:
-                self._spot_wrapper._is_standing = False
+                self._spot_wrapper.is_standing = False
                 response = self._client.robot_command_feedback(
                     self._spot_wrapper._last_sit_command
                 )
@@ -392,10 +407,10 @@ class AsyncIdle(AsyncPeriodicQuery):
                     response.feedback.synchronized_feedback.mobility_command_feedback.sit_feedback.status
                     == basic_command_pb2.SitCommand.Feedback.STATUS_IS_SITTING
                 ):
-                    self._spot_wrapper._is_sitting = True
+                    self._spot_wrapper.is_sitting = True
                     self._spot_wrapper._last_sit_command = None
                 else:
-                    self._spot_wrapper._is_sitting = False
+                    self._spot_wrapper.is_sitting = False
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper._last_sit_command = None
@@ -427,7 +442,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                         and not self._spot_wrapper._last_trajectory_command_precise
                     )
                 ):
-                    self._spot_wrapper._at_goal = True
+                    self._spot_wrapper.at_goal = True
                     # Clear the command once at the goal
                     self._spot_wrapper._last_trajectory_command = None
                     self._spot_wrapper._trajectory_status_unknown = False
@@ -441,7 +456,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                     == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_NEAR_GOAL
                 ):
                     is_moving = True
-                    self._spot_wrapper._near_goal = True
+                    self._spot_wrapper.near_goal = True
                 elif (
                     status
                     == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_UNKNOWN
@@ -459,7 +474,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper._last_trajectory_command = None
 
-        self._spot_wrapper._is_moving = is_moving
+        self._spot_wrapper.is_moving = is_moving
 
         # We must check if any command currently has a non-None value for its id. If we don't do this, this stand
         # command can cause other commands to be interrupted before they get to start
@@ -516,31 +531,6 @@ class AsyncEStopMonitor(AsyncPeriodicQuery):
             pass
 
 
-class AsyncWorldObjects(AsyncPeriodicQuery):
-    """Class to get world objects.  list_world_objects_async query sent to the robot at every tick.  Callback registered to defined callback function.
-
-    Attributes:
-        client: The Client to a service on the robot
-        logger: Logger object
-        rate: Rate (Hz) to trigger the query
-        callback: Callback function to call when the results of the query are available
-    """
-
-    def __init__(self, client, logger, rate, callback):
-        super(AsyncWorldObjects, self).__init__(
-            "world-objects", client, logger, period_sec=1.0 / max(rate, 1.0)
-        )
-        self._callback = None
-        if rate > 0.0:
-            self._callback = callback
-
-    def _start_query(self):
-        if self._callback:
-            callback_future = self._client.list_world_objects_async()
-            callback_future.add_done_callback(self._callback)
-            return callback_future
-
-
 def try_claim(func=None, *, power_on=False):
     """
     Decorator which tries to acquire the lease before executing the wrapped function
@@ -573,10 +563,21 @@ def try_claim(func=None, *, power_on=False):
     return wrapper_try_claim
 
 
+@dataclass()
+class RobotState:
+    """
+    Dataclass which stores information about the robot's state. The values in it may be changed by methods
+    """
+
+    is_sitting: bool = True
+    is_standing: bool = False
+    is_moving: bool = False
+    at_goal: bool = False
+    near_goal: bool = False
+
+
 class SpotWrapper:
     """Generic wrapper class to encompass release 1.1.4 API features as well as maintaining leases automatically"""
-
-    SPOT_CLIENT_NAME = "ros_spot"
 
     def __init__(
         self,
@@ -587,14 +588,14 @@ class SpotWrapper:
         logger: logging.Logger,
         start_estop: bool = True,
         estop_timeout: float = 9.0,
-        rates: typing.Optional[typing.Dict] = None,
-        callbacks: typing.Optional[typing.Dict] = None,
+        rates: typing.Optional[typing.Dict[str, float]] = None,
+        callbacks: typing.Optional[typing.Dict[str, typing.Callable]] = None,
         use_take_lease: bool = False,
         get_lease_on_action: bool = False,
         continually_try_stand: bool = True,
         rgb_cameras: bool = True,
         payload_credentials_file: str = None,
-    ):
+    ) -> None:
         """
         Args:
             username: Username for authentication with the robot
@@ -620,6 +621,8 @@ class SpotWrapper:
         self._hostname = hostname
         self._payload_credentials_file = payload_credentials_file
         self._robot_name = robot_name
+        self._rates = rates or {}
+        self._callbacks = callbacks or {}
         self._use_take_lease = use_take_lease
         self._get_lease_on_action = get_lease_on_action
         self._continually_try_stand = continually_try_stand
@@ -628,14 +631,6 @@ class SpotWrapper:
         if robot_name is not None:
             self._frame_prefix = robot_name + "/"
         self._logger = logger
-        if rates is None:
-            self._rates = {}
-        else:
-            self._rates = rates
-        if callbacks is None:
-            self._callbacks = {}
-        else:
-            self._callbacks = callbacks
         self._estop_timeout = estop_timeout
         self._start_estop = start_estop
         self._keep_alive = True
@@ -643,11 +638,7 @@ class SpotWrapper:
         self._valid = True
 
         self._mobility_params = RobotCommandBuilder.mobility_params()
-        self._is_standing = False
-        self._is_sitting = True
-        self._is_moving = False
-        self._at_goal = False
-        self._near_goal = False
+        self._state = RobotState()
         self._trajectory_status_unknown = False
         self._last_robot_command_feedback = False
         self._last_stand_command = None
@@ -715,7 +706,7 @@ class SpotWrapper:
             )
 
         try:
-            self._sdk = create_standard_sdk(self.SPOT_CLIENT_NAME)
+            self._sdk = create_standard_sdk(SPOT_CLIENT_NAME)
         except Exception as e:
             self._logger.error("Error creating SDK object: %s", e)
             self._valid = False
@@ -739,255 +730,256 @@ class SpotWrapper:
             self._valid = False
             return
 
-        if self._robot:
-            # Clients
-            self._logger.info("Creating clients...")
-            initialised = False
-            while not initialised:
-                try:
-                    self._robot_state_client = self._robot.ensure_client(
-                        RobotStateClient.default_service_name
-                    )
-                    self._world_objects_client = self._robot.ensure_client(
-                        WorldObjectClient.default_service_name
-                    )
-                    self._robot_command_client = self._robot.ensure_client(
-                        RobotCommandClient.default_service_name
-                    )
-                    self._graph_nav_client = self._robot.ensure_client(
-                        GraphNavClient.default_service_name
-                    )
-                    self._power_client = self._robot.ensure_client(
-                        PowerClient.default_service_name
-                    )
-                    self._lease_client = self._robot.ensure_client(
-                        LeaseClient.default_service_name
-                    )
-                    self._lease_wallet = self._lease_client.lease_wallet
-                    self._image_client = self._robot.ensure_client(
-                        ImageClient.default_service_name
-                    )
-                    self._estop_client = self._robot.ensure_client(
-                        EstopClient.default_service_name
-                    )
-                    self._docking_client = self._robot.ensure_client(
-                        DockingClient.default_service_name
-                    )
-                    self._license_client = self._robot.ensure_client(
-                        LicenseClient.default_service_name
-                    )
+        if not self._robot:
+            self._logger.error("Failed to create robot object")
+            self._valid = False
+            return
 
-                    if HAVE_CHOREOGRAPHY:
-                        if self._license_client.get_feature_enabled(
-                            [ChoreographyClient.license_name]
-                        )[ChoreographyClient.license_name]:
-                            self._is_licensed_for_choreography = True
-                            self._choreography_client = self._robot.ensure_client(
-                                ChoreographyClient.default_service_name
-                            )
-                        else:
-                            self._logger.info(
-                                f"Robot is not licensed for choreography: {e}"
-                            )
-                            self._is_licensed_for_choreography = False
-                            self._choreography_client = None
+        self._logger.info("Creating clients...")
+        initialised = False
+        while not initialised:
+            try:
+                self._robot_state_client = self._robot.ensure_client(
+                    RobotStateClient.default_service_name
+                )
+                self._world_objects_client = self._robot.ensure_client(
+                    WorldObjectClient.default_service_name
+                )
+                self._robot_command_client = self._robot.ensure_client(
+                    RobotCommandClient.default_service_name
+                )
+                self._graph_nav_client = self._robot.ensure_client(
+                    GraphNavClient.default_service_name
+                )
+                self._power_client = self._robot.ensure_client(
+                    PowerClient.default_service_name
+                )
+                self._lease_client = self._robot.ensure_client(
+                    LeaseClient.default_service_name
+                )
+                self._lease_wallet = self._lease_client.lease_wallet
+                self._image_client = self._robot.ensure_client(
+                    ImageClient.default_service_name
+                )
+                self._estop_client = self._robot.ensure_client(
+                    EstopClient.default_service_name
+                )
+                self._docking_client = self._robot.ensure_client(
+                    DockingClient.default_service_name
+                )
+                self._license_client = self._robot.ensure_client(
+                    LicenseClient.default_service_name
+                )
+
+                if HAVE_CHOREOGRAPHY:
+                    if self._license_client.get_feature_enabled(
+                        [ChoreographyClient.license_name]
+                    )[ChoreographyClient.license_name]:
+                        self._is_licensed_for_choreography = True
+                        self._choreography_client = self._robot.ensure_client(
+                            ChoreographyClient.default_service_name
+                        )
                     else:
-                        self._logger.info(f"Choreography is not available.")
-                        self._choreography_client = None
+                        self._logger.info("Robot is not licensed for choreography")
                         self._is_licensed_for_choreography = False
+                        self._choreography_client = None
+                else:
+                    self._logger.info("Choreography is not available.")
+                    self._choreography_client = None
+                    self._is_licensed_for_choreography = False
 
-                    try:
-                        self._point_cloud_client = self._robot.ensure_client(
-                            VELODYNE_SERVICE_NAME
-                        )
-                    except UnregisteredServiceError:
-                        self._point_cloud_client = None
+                try:
+                    self._point_cloud_client = self._robot.ensure_client(
+                        VELODYNE_SERVICE_NAME
+                    )
+                except UnregisteredServiceError:
+                    self._point_cloud_client = None
+                    self._logger.info("No velodyne point cloud service is available.")
+
+                if self._robot.has_arm():
+                    self._manipulation_api_client = self._robot.ensure_client(
+                        ManipulationApiClient.default_service_name
+                    )
+                else:
+                    self._manipulation_api_client = None
+                    self._logger.info("Manipulation API is not available.")
+
+                initialised = True
+            except Exception as e:
+                sleep_secs = 15
+                self._logger.warning(
+                    "Unable to create client service: {}. This usually means the robot hasn't "
+                    "finished booting yet. Will wait {} seconds and try again.".format(
+                        e, sleep_secs
+                    )
+                )
+                time.sleep(sleep_secs)
+
+        # Add hand camera requests
+        if self._robot.has_arm():
+            self._camera_image_requests.append(
+                build_image_request(
+                    "hand_color_image",
+                    image_format=image_pb2.Image.FORMAT_JPEG,
+                    pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                    quality_percent=50,
+                )
+            )
+            self._depth_image_requests.append(
+                build_image_request(
+                    "hand_depth",
+                    pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
+                )
+            )
+            self._depth_registered_image_requests.append(
+                build_image_request(
+                    "hand_depth_in_hand_color_frame",
+                    pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
+                )
+            )
+
+        # Build image requests by camera
+        self._image_requests_by_camera = {}
+        for camera in IMAGE_SOURCES_BY_CAMERA:
+            if camera == "hand" and not self._robot.has_arm():
+                continue
+            self._image_requests_by_camera[camera] = {}
+            image_types = IMAGE_SOURCES_BY_CAMERA[camera]
+            for image_type in image_types:
+                if image_type.startswith("depth"):
+                    image_format = image_pb2.Image.FORMAT_RAW
+                    pixel_format = image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
+                else:
+                    image_format = image_pb2.Image.FORMAT_JPEG
+                    if camera == "hand" or self._rgb_cameras:
+                        pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
+                    elif camera != "hand":
                         self._logger.info(
-                            "No velodyne point cloud service is available."
+                            f"Switching {camera}:{image_type} to greyscale image format."
                         )
+                        pixel_format = image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8
 
-                    if self._robot.has_arm():
-                        self._manipulation_api_client = self._robot.ensure_client(
-                            ManipulationApiClient.default_service_name
-                        )
-                    else:
-                        self._manipulation_api_client = None
-                        self._logger.info("Manipulation API is not available.")
-
-                    initialised = True
-                except Exception as e:
-                    sleep_secs = 15
-                    self._logger.warning(
-                        "Unable to create client service: {}. This usually means the robot hasn't "
-                        "finished booting yet. Will wait {} seconds and try again.".format(
-                            e, sleep_secs
-                        )
-                    )
-                    time.sleep(sleep_secs)
-
-            # Add hand camera requests
-            if self._robot.has_arm():
-                self._camera_image_requests.append(
-                    build_image_request(
-                        "hand_color_image",
-                        image_format=image_pb2.Image.FORMAT_JPEG,
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
-                    )
-                )
-                self._depth_image_requests.append(
-                    build_image_request(
-                        "hand_depth",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
-                    )
-                )
-                self._depth_registered_image_requests.append(
-                    build_image_request(
-                        "hand_depth_in_hand_color_frame",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
-                    )
+                source = IMAGE_SOURCES_BY_CAMERA[camera][image_type]
+                self._image_requests_by_camera[camera][
+                    image_type
+                ] = build_image_request(
+                    source,
+                    image_format=image_format,
+                    pixel_format=pixel_format,
+                    quality_percent=75,
                 )
 
-            # Build image requests by camera
-            self._image_requests_by_camera = {}
-            for camera in IMAGE_SOURCES_BY_CAMERA:
-                if camera == "hand" and not self._robot.has_arm():
-                    continue
-                self._image_requests_by_camera[camera] = {}
-                image_types = IMAGE_SOURCES_BY_CAMERA[camera]
-                for image_type in image_types:
-                    if image_type.startswith("depth"):
-                        image_format = image_pb2.Image.FORMAT_RAW
-                        pixel_format = image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
-                    else:
-                        image_format = image_pb2.Image.FORMAT_JPEG
-                        if camera == "hand" or self._rgb_cameras:
-                            pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
-                        elif camera != "hand":
-                            self._logger.info(
-                                f"Switching {camera}:{image_type} to greyscale image format."
-                            )
-                            pixel_format = image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8
+        # Store the most recent knowledge of the state of the robot based on rpc calls.
+        self._init_current_graph_nav_state()
 
-                    source = IMAGE_SOURCES_BY_CAMERA[camera][image_type]
-                    self._image_requests_by_camera[camera][
-                        image_type
-                    ] = build_image_request(
-                        source,
-                        image_format=image_format,
-                        pixel_format=pixel_format,
-                        quality_percent=75,
-                    )
+        # Async Tasks
+        self._async_task_list = []
+        self._robot_state_task = AsyncRobotState(
+            self._robot_state_client,
+            self._logger,
+            max(0.0, self._rates.get("robot_state", 0.0)),
+            self._callbacks.get("robot_state", None),
+        )
+        self._robot_metrics_task = AsyncMetrics(
+            self._robot_state_client,
+            self._logger,
+            max(0.0, self._rates.get("metrics", 0.0)),
+            self._callbacks.get("metrics", None),
+        )
+        self._lease_task = AsyncLease(
+            self._lease_client,
+            self._logger,
+            max(0.0, self._rates.get("lease", 0.0)),
+            self._callbacks.get("lease", None),
+        )
+        self._front_image_task = AsyncImageService(
+            self._image_client,
+            self._logger,
+            max(0.0, self._rates.get("front_image", 0.0)),
+            self._callbacks.get("front_image", None),
+            self._front_image_requests,
+        )
+        self._side_image_task = AsyncImageService(
+            self._image_client,
+            self._logger,
+            max(0.0, self._rates.get("side_image", 0.0)),
+            self._callbacks.get("side_image", None),
+            self._side_image_requests,
+        )
+        self._rear_image_task = AsyncImageService(
+            self._image_client,
+            self._logger,
+            max(0.0, self._rates.get("rear_image", 0.0)),
+            self._callbacks.get("rear_image", None),
+            self._rear_image_requests,
+        )
+        self._hand_image_task = AsyncImageService(
+            self._image_client,
+            self._logger,
+            max(0.0, self._rates.get("hand_image", 0.0)),
+            self._callbacks.get("hand_image", None),
+            self._hand_image_requests,
+        )
 
-            # Store the most recent knowledge of the state of the robot based on rpc calls.
-            self._init_current_graph_nav_state()
+        self._idle_task = AsyncIdle(
+            self._robot_command_client, self._logger, 10.0, self
+        )
+        self._estop_monitor = AsyncEStopMonitor(
+            self._estop_client, self._logger, 20.0, self
+        )
 
-            # Async Tasks
-            self._async_task_list = []
-            self._robot_state_task = AsyncRobotState(
-                self._robot_state_client,
+        self._estop_endpoint = None
+        self._estop_keepalive = None
+
+        robot_tasks = [
+            self._robot_state_task,
+            self._robot_metrics_task,
+            self._lease_task,
+            self._front_image_task,
+            self._idle_task,
+            self._estop_monitor,
+        ]
+
+        if self._point_cloud_client:
+            self._point_cloud_task = AsyncPointCloudService(
+                self._point_cloud_client,
                 self._logger,
-                max(0.0, self._rates.get("robot_state", 0.0)),
-                self._callbacks.get("robot_state", None),
+                max(0.0, self._rates.get("point_cloud", 0.0)),
+                self._callbacks.get("lidar_points", None),
+                self._point_cloud_requests,
             )
-            self._robot_metrics_task = AsyncMetrics(
-                self._robot_state_client,
-                self._logger,
-                max(0.0, self._rates.get("metrics", 0.0)),
-                self._callbacks.get("metrics", None),
-            )
-            self._lease_task = AsyncLease(
-                self._lease_client,
-                self._logger,
-                max(0.0, self._rates.get("lease", 0.0)),
-                self._callbacks.get("lease", None),
-            )
-            self._front_image_task = AsyncImageService(
-                self._image_client,
-                self._logger,
-                max(0.0, self._rates.get("front_image", 0.0)),
-                self._callbacks.get("front_image", None),
-                self._front_image_requests,
-            )
-            self._side_image_task = AsyncImageService(
-                self._image_client,
-                self._logger,
-                max(0.0, self._rates.get("side_image", 0.0)),
-                self._callbacks.get("side_image", None),
-                self._side_image_requests,
-            )
-            self._rear_image_task = AsyncImageService(
-                self._image_client,
-                self._logger,
-                max(0.0, self._rates.get("rear_image", 0.0)),
-                self._callbacks.get("rear_image", None),
-                self._rear_image_requests,
-            )
-            self._hand_image_task = AsyncImageService(
-                self._image_client,
-                self._logger,
-                max(0.0, self._rates.get("hand_image", 0.0)),
-                self._callbacks.get("hand_image", None),
-                self._hand_image_requests,
+            robot_tasks.append(self._point_cloud_task)
+
+        self._spot_world_objects = SpotWorldObjects(
+            self._logger,
+            self._world_objects_client,
+            self._rates.get("world_objects", 10),
+            self._callbacks.get("world_objects", None),
+        )
+        self._world_objects_task = self._spot_world_objects.async_task
+        robot_tasks.append(self._world_objects_task)
+
+        self._async_tasks = AsyncTasks(robot_tasks)
+
+        self.camera_task_name_to_task_mapping = {
+            "hand_image": self._hand_image_task,
+            "side_image": self._side_image_task,
+            "rear_image": self._rear_image_task,
+            "front_image": self._front_image_task,
+        }
+
+        if self._is_licensed_for_choreography:
+            self._spot_dance = SpotDance(
+                self._robot, self._choreography_client, self._logger
             )
 
-            self._idle_task = AsyncIdle(
-                self._robot_command_client, self._logger, 10.0, self
-            )
-            self._estop_monitor = AsyncEStopMonitor(
-                self._estop_client, self._logger, 20.0, self
-            )
-            self._world_objects_task = AsyncWorldObjects(
-                self._world_objects_client,
-                self._logger,
-                10.0,
-                self._callbacks.get("world_objects", None),
-            )
-
-            self._estop_endpoint = None
-            self._estop_keepalive = None
-
-            robot_tasks = [
-                self._robot_state_task,
-                self._robot_metrics_task,
-                self._lease_task,
-                self._front_image_task,
-                self._idle_task,
-                self._estop_monitor,
-                self._world_objects_task,
-            ]
-
-            if self._point_cloud_client:
-                self._point_cloud_task = AsyncPointCloudService(
-                    self._point_cloud_client,
-                    self._logger,
-                    max(0.0, self._rates.get("point_cloud", 0.0)),
-                    self._callbacks.get("lidar_points", None),
-                    self._point_cloud_requests,
-                )
-                robot_tasks.append(self._point_cloud_task)
-
-            self._async_tasks = AsyncTasks(robot_tasks)
-
-            self.camera_task_name_to_task_mapping = {
-                "hand_image": self._hand_image_task,
-                "side_image": self._side_image_task,
-                "rear_image": self._rear_image_task,
-                "front_image": self._front_image_task,
-            }
-
-            if self._is_licensed_for_choreography:
-                self._spot_dance = SpotDance(
-                    self._robot,
-                    self._choreography_client,
-                    self._is_licensed_for_choreography,
-                )
-
-            self._robot_id = None
-            self._lease = None
+        self._robot_id = None
+        self._lease = None
 
     @staticmethod
-    def authenticate(robot, username, password, logger):
+    def authenticate(
+        robot: Robot, username: str, password: str, logger: logging.Logger
+    ) -> bool:
         """
         Authenticate with a robot through the bosdyn API. A blocking function which will wait until authenticated (if
         the robot is still booting) or login fails
@@ -999,7 +991,7 @@ class SpotWrapper:
             logger: Logger with which to print messages
 
         Returns:
-
+            boolean indicating whether authentication was successful
         """
         authenticated = False
         while not authenticated:
@@ -1068,47 +1060,52 @@ class SpotWrapper:
         return authenticated
 
     @property
-    def robot_name(self):
+    def robot_name(self) -> str:
         return self._robot_name
 
     @property
-    def frame_prefix(self):
+    def frame_prefix(self) -> str:
         return self._frame_prefix
 
     @property
-    def logger(self):
+    def logger(self) -> logging.Logger:
         """Return logger instance of the SpotWrapper"""
         return self._logger
 
     @property
-    def is_valid(self):
+    def is_valid(self) -> bool:
         """Return boolean indicating if the wrapper initialized successfully"""
         return self._valid
 
     @property
-    def id(self):
+    def id(self) -> str:
         """Return robot's ID"""
         return self._robot_id
 
     @property
-    def robot_state(self):
+    def robot_state(self) -> robot_state_pb2.RobotState:
         """Return latest proto from the _robot_state_task"""
         return self._robot_state_task.proto
 
     @property
-    def metrics(self):
+    def metrics(self) -> robot_state_pb2.RobotMetrics:
         """Return latest proto from the _robot_metrics_task"""
         return self._robot_metrics_task.proto
 
     @property
-    def lease(self):
+    def lease(self) -> typing.List[lease_pb2.LeaseResource]:
         """Return latest proto from the _lease_task"""
         return self._lease_task.proto
 
     @property
-    def world_objects(self):
+    def spot_world_objects(self) -> SpotWorldObjects:
+        """Return SpotWorldObjects instance"""
+        return self._spot_world_objects
+
+    @property
+    def world_objects(self) -> world_object_pb2.ListWorldObjectResponse:
         """Return most recent proto from _world_objects_task"""
-        return self._world_objects_task.proto
+        return self.spot_world_objects.async_task.proto
 
     @property
     def front_images(self):
@@ -1131,52 +1128,72 @@ class SpotWrapper:
         return self._hand_image_task.proto
 
     @property
-    def point_clouds(self):
+    def point_clouds(self) -> typing.List[point_cloud_pb2.PointCloudResponse]:
         """Return latest proto from the _point_cloud_task"""
         return self._point_cloud_task.proto
 
     @property
-    def is_standing(self):
+    def is_standing(self) -> bool:
         """Return boolean of standing state"""
-        return self._is_standing
+        return self._state.is_standing
+
+    @is_standing.setter
+    def is_standing(self, state: bool) -> None:
+        self._state.is_standing = state
 
     @property
-    def is_sitting(self):
+    def is_sitting(self) -> bool:
         """Return boolean of standing state"""
-        return self._is_sitting
+        return self._state.is_sitting
+
+    @is_sitting.setter
+    def is_sitting(self, state: bool) -> None:
+        self._state.is_sitting = state
 
     @property
-    def is_moving(self):
+    def is_moving(self) -> bool:
         """Return boolean of walking state"""
-        return self._is_moving
+        return self._state.is_moving
+
+    @is_moving.setter
+    def is_moving(self, state: bool) -> None:
+        self._state.is_moving = state
 
     @property
-    def near_goal(self):
-        return self._near_goal
+    def near_goal(self) -> bool:
+        return self._state.near_goal
+
+    @near_goal.setter
+    def near_goal(self, state: bool) -> None:
+        self._state.near_goal = state
 
     @property
-    def at_goal(self):
-        return self._at_goal
+    def at_goal(self) -> bool:
+        return self._state.at_goal
 
-    def is_estopped(self, timeout=None):
+    @at_goal.setter
+    def at_goal(self, state: bool) -> None:
+        self._state.at_goal = state
+
+    def is_estopped(self, timeout: typing.Optional[float] = None) -> bool:
         return self._robot.is_estopped(timeout=timeout)
 
-    def has_arm(self, timeout=None):
+    def has_arm(self, timeout: typing.Optional[float] = None) -> bool:
         return self._robot.has_arm(timeout=timeout)
 
     @property
-    def time_skew(self):
+    def time_skew(self) -> Timestamp:
         """Return the time skew between local and spot time"""
         return self._robot.time_sync.endpoint.clock_skew
 
-    def resetMobilityParams(self):
+    def resetMobilityParams(self) -> None:
         """
         Resets the mobility parameters used for motion commands to the default values provided by the bosdyn api.
         Returns:
         """
         self._mobility_params = RobotCommandBuilder.mobility_params()
 
-    def robotToLocalTime(self, timestamp):
+    def robotToLocalTime(self, timestamp: Timestamp) -> Timestamp:
         """Takes a timestamp and an estimated skew and return seconds and nano seconds in local time
 
         Args:
@@ -1186,13 +1203,13 @@ class SpotWrapper:
         """
         return robotToLocalTime(timestamp, self._robot)
 
-    def claim(self):
+    def claim(self) -> typing.Tuple[bool, str]:
         """Get a lease for the robot, a handle on the estop endpoint, and the ID of the robot."""
         if self.lease is not None:
             for resource in self.lease:
                 if (
                     resource.resource == "all-leases"
-                    and self.SPOT_CLIENT_NAME in resource.lease_owner.client_name
+                    and SPOT_CLIENT_NAME in resource.lease_owner.client_name
                 ):
                     return True, "We already claimed the lease"
 
@@ -1210,25 +1227,25 @@ class SpotWrapper:
             self._logger.error("Failed to initialize robot communication: %s", err)
             return False, str(err)
         except Exception as err:
-            print(traceback.format_exc(), flush=True)
+            self._logger.error(traceback.format_exc())
             return False, str(err)
 
-    def updateTasks(self):
+    def updateTasks(self) -> None:
         """Loop through all periodic tasks and update their data if needed."""
         try:
             self._async_tasks.update()
         except Exception as e:
-            print(f"Update tasks failed with error: {str(e)}")
+            self._logger.error(f"Update tasks failed with error: {str(e)}")
 
-    def resetEStop(self):
+    def resetEStop(self) -> None:
         """Get keepalive for eStop"""
         self._estop_endpoint = EstopEndpoint(
-            self._estop_client, self.SPOT_CLIENT_NAME, self._estop_timeout
+            self._estop_client, SPOT_CLIENT_NAME, self._estop_timeout
         )
         self._estop_endpoint.force_simple_setup()  # Set this endpoint as the robot's sole estop.
         self._estop_keepalive = EstopKeepAlive(self._estop_endpoint)
 
-    def assertEStop(self, severe=True):
+    def assertEStop(self, severe: bool = True) -> typing.Tuple[bool, str]:
         """Forces the robot into eStop state.
 
         Args:
@@ -1244,7 +1261,7 @@ class SpotWrapper:
         except Exception as e:
             return False, f"Exception while attempting to estop: {e}"
 
-    def disengageEStop(self):
+    def disengageEStop(self) -> typing.Tuple[bool, str]:
         """Disengages the E-Stop"""
         try:
             self._estop_keepalive.allow()
@@ -1252,14 +1269,14 @@ class SpotWrapper:
         except Exception as e:
             return False, f"Exception while attempting to disengage estop {e}"
 
-    def releaseEStop(self):
+    def releaseEStop(self) -> None:
         """Stop eStop keepalive"""
         if self._estop_keepalive:
             self._estop_keepalive.stop()
             self._estop_keepalive = None
             self._estop_endpoint = None
 
-    def getLease(self):
+    def getLease(self) -> None:
         """Get a lease for the robot and keep the lease alive automatically."""
         if self._use_take_lease:
             self._lease = self._lease_client.take()
@@ -1268,13 +1285,13 @@ class SpotWrapper:
 
         self._lease_keepalive = LeaseKeepAlive(self._lease_client)
 
-    def releaseLease(self):
+    def releaseLease(self) -> None:
         """Return the lease on the body."""
         if self._lease:
             self._lease_client.return_lease(self._lease)
             self._lease = None
 
-    def release(self):
+    def release(self) -> typing.Tuple[bool, str]:
         """Return the lease on the body and the eStop handle."""
         try:
             self.releaseLease()
@@ -1283,20 +1300,28 @@ class SpotWrapper:
         except Exception as e:
             return False, f"Exception while attempting to release the lease: {e}"
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Release control of robot as gracefully as posssible."""
         if self._robot.time_sync:
             self._robot.time_sync.stop()
         self.releaseLease()
         self.releaseEStop()
 
-    def _robot_command(self, command_proto, end_time_secs=None, timesync_endpoint=None):
+    def _robot_command(
+        self,
+        command_proto: robot_command_pb2.RobotCommand,
+        end_time_secs: typing.Optional[float] = None,
+        timesync_endpoint: typing.Optional[TimeSyncEndpoint] = None,
+    ) -> typing.Tuple[bool, str, typing.Optional[str]]:
         """Generic blocking function for sending commands to robots.
 
         Args:
             command_proto: robot_command_pb2 object to send to the robot.  Usually made with RobotCommandBuilder
             end_time_secs: (optional) Time-to-live for the command in seconds
             timesync_endpoint: (optional) Time sync endpoint
+
+        Returns:
+            Tuple of bool success, string message, and the command ID
         """
         try:
             command_id = self._robot_command_client.robot_command(
@@ -1329,27 +1354,49 @@ class SpotWrapper:
             return False, str(e), None
 
     @try_claim
-    def stop(self):
-        """Stop the robot's motion."""
+    def stop(self) -> typing.Tuple[bool, str]:
+        """
+        Stop any action the robot is currently doing.
+
+        Returns:
+            Tuple of bool success and a string message
+
+        """
         response = self._robot_command(RobotCommandBuilder.stop_command())
         return response[0], response[1]
 
     @try_claim(power_on=True)
-    def self_right(self):
-        """Have the robot self-right itself."""
+    def self_right(self) -> typing.Tuple[bool, str]:
+        """
+        Have the robot self-right.
+
+        Returns:
+            Tuple of bool success and a string message
+        """
         response = self._robot_command(RobotCommandBuilder.selfright_command())
         return response[0], response[1]
 
     @try_claim(power_on=True)
-    def sit(self):
-        """Stop the robot's motion and sit down if able."""
+    def sit(self) -> typing.Tuple[bool, str]:
+        """
+        Stop the robot's motion and sit down if able.
+
+        Returns:
+            Tuple of bool success and a string message
+
+        """
         response = self._robot_command(RobotCommandBuilder.synchro_sit_command())
         self._last_sit_command = response[2]
         return response[0], response[1]
 
     @try_claim(power_on=True)
-    def simple_stand(self, monitor_command=True):
-        """If the e-stop is enabled, and the motor power is enabled, stand the robot up."""
+    def simple_stand(self, monitor_command: bool = True) -> typing.Tuple[bool, str]:
+        """
+        If the e-stop is enabled, and the motor power is enabled, stand the robot up.
+
+        Returns:
+            Tuple of bool success and a string message
+        """
         response = self._robot_command(
             RobotCommandBuilder.synchro_stand_command(params=self._mobility_params)
         )
@@ -1359,8 +1406,13 @@ class SpotWrapper:
 
     @try_claim(power_on=True)
     def stand(
-        self, monitor_command=True, body_height=0, body_yaw=0, body_pitch=0, body_roll=0
-    ):
+        self,
+        monitor_command: bool = True,
+        body_height: float = 0,
+        body_yaw: float = 0,
+        body_pitch: float = 0,
+        body_roll: float = 0,
+    ) -> typing.Tuple[bool, str]:
         """
         If the e-stop is enabled, and the motor power is enabled, stand the robot up.
         Executes a stand command, but one where the robot will assume the pose specified by the given parameters.
@@ -1373,6 +1425,9 @@ class SpotWrapper:
             body_yaw: Yaw of the body in radians
             body_pitch: Pitch of the body in radians
             body_roll: Roll of the body in radians
+
+        Returns:
+            Tuple of bool success and a string message
 
         """
         if any([body_height, body_yaw, body_pitch, body_roll]):
@@ -1394,14 +1449,17 @@ class SpotWrapper:
         return response[0], response[1]
 
     @try_claim(power_on=True)
-    def battery_change_pose(self, dir_hint: int = 1):
+    def battery_change_pose(self, dir_hint: int = 1) -> typing.Tuple[bool, str]:
         """
         Put the robot into the battery change pose
 
         Args:
             dir_hint: 1 rolls to the right side of the robot, 2 to the left
+
+        Returns:
+            Tuple of bool success and a string message
         """
-        if self._is_sitting:
+        if self.is_sitting:
             response = self._robot_command(
                 RobotCommandBuilder.battery_change_pose_command(dir_hint)
             )
@@ -1409,24 +1467,41 @@ class SpotWrapper:
         return False, "Call sit before trying to roll over"
 
     @try_claim
-    def safe_power_off(self):
-        """Stop the robot's motion and sit if possible.  Once sitting, disable motor power."""
+    def safe_power_off(self) -> typing.Tuple[bool, str]:
+        """
+        Stop the robot's motion and sit if possible.  Once sitting, disable motor power.
+
+        Returns:
+            Tuple of bool success and a string message
+        """
         response = self._robot_command(RobotCommandBuilder.safe_power_off_command())
         return response[0], response[1]
 
-    def clear_behavior_fault(self, id):
-        """Clear the behavior fault defined by id."""
+    def clear_behavior_fault(
+        self, fault_id: int
+    ) -> typing.Tuple[bool, str, typing.Optional[bool]]:
+        """
+        Clear the behavior fault defined by the given id.
+
+        Returns:
+            Tuple of bool success, string message, and bool indicating whether the status was cleared
+        """
         try:
             rid = self._robot_command_client.clear_behavior_fault(
-                behavior_fault_id=id, lease=None
+                behavior_fault_id=fault_id, lease=None
             )
             return True, "Success", rid
         except Exception as e:
             return False, f"Exception while clearing behavior fault: {e}", None
 
     @try_claim
-    def power_on(self):
-        """Enble the motor power if e-stop is enabled."""
+    def power_on(self) -> typing.Tuple[bool, str]:
+        """
+        Enable the motor power if e-stop is enabled.
+
+        Returns:
+            Tuple of bool success and a string message
+        """
         # Don't bother trying to power on if we are already powered on
         if not self.check_is_powered_on():
             # If we are requested to start the estop, we have to acquire it when powering on.
@@ -1442,7 +1517,9 @@ class SpotWrapper:
 
         return True, "Was already powered on"
 
-    def set_mobility_params(self, mobility_params):
+    def set_mobility_params(
+        self, mobility_params: spot_command_pb2.MobilityParams
+    ) -> None:
         """Set Params for mobility and movement
 
         Args:
@@ -1450,24 +1527,26 @@ class SpotWrapper:
         """
         self._mobility_params = mobility_params
 
-    def get_mobility_params(self):
+    def get_mobility_params(self) -> spot_command_pb2.MobilityParams:
         """Get mobility params"""
         return self._mobility_params
 
-    def list_world_objects(self, object_types, time_start_point):
-        return self._world_objects_client.list_world_objects(
-            object_types, time_start_point
-        )
-
     @try_claim
-    def velocity_cmd(self, v_x, v_y, v_rot, cmd_duration=0.125):
-        """Send a velocity motion command to the robot.
+    def velocity_cmd(
+        self, v_x: float, v_y: float, v_rot: float, cmd_duration: float = 0.125
+    ) -> typing.Tuple[bool, str]:
+        """
+
+        Send a velocity motion command to the robot.
 
         Args:
             v_x: Velocity in the X direction in meters
             v_y: Velocity in the Y direction in meters
             v_rot: Angular velocity around the Z axis in radians
             cmd_duration: (optional) Time-to-live for the command in seconds.  Default is 125ms (assuming 10Hz command rate).
+
+        Returns:
+            Tuple of bool success and a string message
         """
         end_time = time.time() + cmd_duration
         response = self._robot_command(
@@ -1483,14 +1562,14 @@ class SpotWrapper:
     @try_claim
     def trajectory_cmd(
         self,
-        goal_x,
-        goal_y,
-        goal_heading,
-        cmd_duration,
-        frame_name="odom",
-        precise_position=False,
-        mobility_params=None,
-    ):
+        goal_x: float,
+        goal_y: float,
+        goal_heading: float,
+        cmd_duration: float,
+        frame_name: str = "odom",
+        precise_position: bool = False,
+        mobility_params: spot_command_pb2.MobilityParams = None,
+    ) -> typing.Tuple[bool, str]:
         """Send a trajectory motion command to the robot.
 
         Args:
@@ -1502,14 +1581,16 @@ class SpotWrapper:
             precise_position: if set to false, the status STATUS_NEAR_GOAL and STATUS_AT_GOAL will be equivalent. If
             true, the robot must complete its final positioning before it will be considered to have successfully
             reached the goal.
+            mobility_params: Mobility parameters to send along with this command
 
-        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
+        Returns:
+            (bool, str) tuple indicating whether the command was successfully sent, and a message
         """
         if mobility_params is None:
             mobility_params = self._mobility_params
         self._trajectory_status_unknown = False
-        self._at_goal = False
-        self._near_goal = False
+        self.at_goal = False
+        self.near_goal = False
         self._last_trajectory_command_precise = precise_position
         self._logger.info("got command duration of {}".format(cmd_duration))
         end_time = time.time() + cmd_duration
@@ -1555,7 +1636,9 @@ class SpotWrapper:
             self._last_trajectory_command = response[2]
         return response[0], response[1]
 
-    def robot_command(self, robot_command):
+    def robot_command(
+        self, robot_command: robot_command_pb2.RobotCommand
+    ) -> typing.Tuple[bool, str]:
         end_time = time.time() + MAX_COMMAND_DURATION
         return self._robot_command(
             robot_command,
@@ -1571,7 +1654,9 @@ class SpotWrapper:
             timesync_endpoint=self._robot.time_sync.endpoint,
         )
 
-    def get_robot_command_feedback(self, cmd_id):
+    def get_robot_command_feedback(
+        self, cmd_id: int
+    ) -> robot_command_pb2.RobotCommandFeedbackResponse:
         return self._robot_command_client.robot_command_feedback(cmd_id)
 
     def get_manipulation_command_feedback(self, cmd_id):
@@ -1583,7 +1668,7 @@ class SpotWrapper:
             manipulation_api_feedback_request=feedback_request
         )
 
-    def list_graph(self, upload_path):
+    def list_graph(self, upload_path=None):
         """List waypoint ids of garph_nav
         Args:
           upload_path : Path to the root directory of the map.
@@ -1596,6 +1681,71 @@ class SpotWrapper:
                 ids.items(), key=lambda id: int(id[0].replace("waypoint_", ""))
             )
         ]
+
+    def clear_graph(self) -> typing.Tuple[bool, str]:
+        """Clear the state of the map on the robot, removing all waypoints and edges in the RAM of the robot.
+
+        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
+        """
+        try:
+            self._clear_graph()
+            return True, "Success"
+        except Exception as e:
+            return (
+                False,
+                f"Got an error while clearing a graph and snanshots in a robot: {e}",
+            )
+
+    def upload_graph(self, upload_path: str) -> typing.Tuple[bool, str]:
+        """Upload the specified graph and snapshots from local to a robot.
+
+        While this method, if there are snapshots already in the robot, they will be loaded from the robot's disk without uploading.
+        Graph and snapshots to be uploaded should be placed like
+
+        Directory specified with upload_path arg
+          |
+          +-- graph
+          |
+          +-- waypoint_snapshots/
+          |     |
+          |     +-- waypont snapshot files
+          |
+          +-- edge_snapshots/
+                |
+                +-- edge snapshot files
+
+        Args:
+            upload_path (str): Path to the directory of the map.
+
+        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
+        """
+        try:
+            self._upload_graph_and_snapshots(upload_path)
+            return True, "Success"
+        except Exception as e:
+            return (
+                False,
+                f"Got an error while uploading a graph and snapshots to a robot: {e}",
+            )
+
+    def download_graph(self, download_path: str) -> typing.Tuple[bool, str]:
+        """Download current graph and snapshots in the robot to the specified directory.
+
+        Args:
+            download_path (str): Directory where graph and snapshots are downloaded from robot.
+
+        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
+        """
+        try:
+            success, message = self._download_graph_and_snapshots(
+                download_path=download_path
+            )
+            return success, message
+        except Exception as e:
+            return (
+                False,
+                f"Got an error during downloading graph and snapshots from the robot: {e}",
+            )
 
     @try_claim
     def navigate_to(
@@ -1659,7 +1809,7 @@ class SpotWrapper:
                 f"Exception occured while Spot or its arm were trying to power on: {e}",
             )
 
-        if not self._is_standing:
+        if not self.is_standing:
             robot_command.blocking_stand(
                 command_client=self._robot_command_client, timeout_sec=10.0
             )
@@ -1822,8 +1972,8 @@ class SpotWrapper:
                     feedback_resp.feedback.synchronized_feedback.arm_command_feedback.arm_joint_move_feedback
                 )
                 time_to_goal: Duration = joint_move_feedback.time_to_goal
-                time_to_goal_in_seconds: float = time_to_goal.seconds + (
-                    float(time_to_goal.nanos) / float(10**9)
+                time_to_goal_in_seconds: float = (
+                    time_to_goal.seconds + time_to_goal.nanos / 1e9
                 )
                 time.sleep(time_to_goal_in_seconds)
                 return True, "Spot Arm moved successfully"
@@ -1894,7 +2044,7 @@ class SpotWrapper:
                 self._robot_command_client.robot_command(robot_command)
                 self._logger.info("Force trajectory command sent")
 
-                time.sleep(float(traj_duration) + 1.0)
+                time.sleep(traj_duration + 1.0)
 
         except Exception as e:
             return False, f"Exception occured during arm movement: {e}"
@@ -2283,6 +2433,67 @@ class SpotWrapper:
                 "please localize the robot"
             )
 
+    def _write_bytes_while_download(self, filepath: str, data: bytes):
+        """Write data to a file.
+
+        Args:
+            filepath (str) : Path of file where data will be written.
+            data (bytes) : Bytes of data"""
+        directory = os.path.dirname(filepath)
+        os.makedirs(directory, exist_ok=True)
+        with open(filepath, "wb+") as f:
+            f.write(data)
+            f.close()
+
+    def _download_graph_and_snapshots(
+        self, download_path: str
+    ) -> typing.Tuple[bool, str]:
+        """Download the graph and snapshots from the robot.
+
+        Args:
+            download_path (str): Directory where graph and snapshots are downloaded from robot.
+
+        Returns:
+            success (bool): success flag
+            message (str): message"""
+        graph = self._graph_nav_client.download_graph()
+        if graph is None:
+            return False, "Failed to download the graph."
+        graph_bytes = graph.SerializeToString()
+        self._write_bytes_while_download(
+            os.path.join(download_path, "graph"), graph_bytes
+        )
+        # Download the waypoint and edge snapshots.
+        for waypoint in graph.waypoints:
+            try:
+                waypoint_snapshot = self._graph_nav_client.download_waypoint_snapshot(
+                    waypoint.snapshot_id
+                )
+            except Exception:
+                self.logger.warn(
+                    "Failed to download waypoint snapshot: %s", waypoint.snapshot_id
+                )
+                continue
+            self._write_bytes_while_download(
+                os.path.join(download_path, "waypoint_snapshots", waypoint.snapshot_id),
+                waypoint_snapshot.SerializeToString(),
+            )
+        for edge in graph.edges:
+            try:
+                edge_snapshot = self._graph_nav_client.download_edge_snapshot(
+                    edge.snapshot_id
+                )
+            except Exception:
+                self.logger.warn(
+                    "Failed to download edge snapshot: %s", edge.snapshot_id
+                )
+                continue
+            self._write_bytes_while_download(
+                os.path.join(download_path, "edge_snapshots", edge.snapshot_id),
+                edge_snapshot.SerializeToString(),
+            )
+        return True, "Success"
+
     @try_claim
     def _navigate_to(self, *args):
         """Navigate to a specific waypoint."""
@@ -2439,7 +2650,7 @@ class SpotWrapper:
                 self.toggle_power(should_power_on=False)
 
     def _clear_graph(self, *args):
-        """Clear the state of the map on the robot, removing all waypoints and edges."""
+        """Clear the state of the map on the robot, removing all waypoints and edges in the RAM of the robot."""
         result = self._graph_nav_client.clear_graph(lease=self._lease.lease_proto)
         self._init_current_graph_nav_state()
         return result
@@ -2476,7 +2687,7 @@ class SpotWrapper:
         self.check_is_powered_on()
         return self._powered_on
 
-    def check_is_powered_on(self):
+    def check_is_powered_on(self) -> bool:
         """Determine if the robot is powered on or off."""
         power_state = self._robot_state_client.get_robot_state().power_state
         self._powered_on = power_state.motor_power_state == power_state.STATE_ON
@@ -2561,8 +2772,33 @@ class SpotWrapper:
             return False, f"Exception while trying to undock: {e}"
 
     @try_claim
-    def execute_dance(self, filepath):
-        return self._spot_dance.execute_dance(filepath)
+    def execute_dance(self, data):
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.execute_dance(data)
+        else:
+            return False, "Spot is not licensed for choreography"
+
+    def upload_animation(
+        self, animation_name: str, animation_file_content: str
+    ) -> typing.Tuple[bool, str]:
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.upload_animation(
+                animation_name, animation_file_content
+            )
+        else:
+            return False, "Spot is not licensed for choreography"
+
+    def list_all_moves(self) -> typing.Tuple[bool, str, typing.List[str]]:
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.list_all_moves()
+        else:
+            return False, "Spot is not licensed for choreography", []
+
+    def list_all_dances(self) -> typing.Tuple[bool, str, typing.List[str]]:
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.list_all_dances()
+        else:
+            return False, "Spot is not licensed for choreography", []
 
     def get_docking_state(self, **kwargs):
         """Get docking state of robot."""
