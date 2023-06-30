@@ -22,6 +22,7 @@ from bosdyn.util import seconds_to_duration
 
 from wrapper import RobotState
 
+
 class SpotArm:
     def __init__(
         self,
