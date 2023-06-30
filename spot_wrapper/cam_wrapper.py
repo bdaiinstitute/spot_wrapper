@@ -236,7 +236,7 @@ class HealthWrapper:
             Tuple of string and float indicating the component and its temperature in celsius
         """
         return [
-            (composite.channel_name, composite.temperature / 1000.0)
+            (composite.channel_name, composite.temperature / 1e3)
             for composite in self.client.get_temperature()
         ]
 
