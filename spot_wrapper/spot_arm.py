@@ -8,13 +8,13 @@ from bosdyn.api import manipulation_api_pb2
 from bosdyn.api import robot_command_pb2
 from bosdyn.api import synchronized_command_pb2
 from bosdyn.api import trajectory_pb2
-from bosdyn.client import robot_command
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.robot import Robot
 from bosdyn.client.robot_command import (
     RobotCommandBuilder,
     RobotCommandClient,
     block_until_arm_arrives,
+    blocking_stand,
 )
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
@@ -48,9 +48,6 @@ class SpotArm:
         self._robot_command_client = robot_command_client
         self._manipulation_api_client = manipulation_api_client
         self._robot_state_client = robot_state_client
-        # TODO: Not sure if this is necessary, probably should be removed. I think it was supposed to be used for the
-        #  blocking_stand call, we have to work out a different way to do that
-        self._robot_command: typing.Callable = robot_clients["robot_command_method"]
 
     def _manipulation_request(
         self,
@@ -107,10 +104,8 @@ class SpotArm:
             )
 
         if not self._robot_state.is_standing:
-            # TODO: Need to call stand from here, but this currently will not do that.
-            robot_command.blocking_stand(
-                command_client=self._robot_command_client, timeout_sec=10
-            )
+            blocking_stand(command_client=self._robot_command_client, timeout_sec=10)
+            self._robot_state.is_standing = True
             self._logger.info("Spot is standing")
         else:
             self._logger.info("Spot is already standing")
@@ -493,7 +488,7 @@ class SpotArm:
                 )
 
                 arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
-                    root_frame_name=frame,
+                    root_frame_name=data.frame,
                     pose_trajectory_in_task=hand_trajectory,
                     force_remain_near_current_joint_configuration=True,
                 )
