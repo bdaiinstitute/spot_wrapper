@@ -84,8 +84,8 @@ from . import graph_nav_util
 from bosdyn.api import basic_command_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
-from .spot_world_objects import SpotWorldObjects
 from .spot_check import SpotCheck
+from .spot_world_objects import SpotWorldObjects
 
 front_image_sources = [
     "frontleft_fisheye_image",
