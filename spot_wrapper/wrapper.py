@@ -937,7 +937,7 @@ class SpotWrapper:
         self._spot_check = SpotCheck(
             self._robot,
             self._logger,
-            self._robot_params,
+            self._state,
             self._spot_check_client,
             self._robot_command_client,
             self._lease_client,

@@ -9,6 +9,7 @@ from bosdyn.client.robot import Robot
 from bosdyn.client.spot_check import SpotCheckClient, run_spot_check
 from bosdyn.client.spot_check import spot_check_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
+from wrapper import RobotState
 
 
 class SpotCheck:
@@ -20,7 +21,7 @@ class SpotCheck:
         self,
         robot: Robot,
         logger: logging.Logger,
-        robot_params: typing.Dict[str, typing.Any],
+        robot_state: RobotState,
         spot_check_client: SpotCheckClient,
         robot_command_client: robot_command.RobotCommandClient,
         lease_client: LeaseClient,
@@ -30,7 +31,7 @@ class SpotCheck:
         self._spot_check_client: SpotCheckClient = spot_check_client
         self._robot_command_client = robot_command_client
         self._lease_client = lease_client
-        self._robot_params = robot_params
+        self._robot_state = robot_state
         self._spot_check_resp = None
         self._lease = None
         self._lease_wallet: LeaseWallet = self._lease_client.lease_wallet
@@ -161,7 +162,7 @@ class SpotCheck:
         # Make sure we're powered on and sitting
         try:
             self._robot.power_on()
-            if not self._robot_params["is_sitting"]:
+            if not self._robot_state.is_sitting:
                 robot_command.blocking_sit(
                     command_client=self._robot_command_client, timeout_sec=10
                 )
@@ -204,7 +205,7 @@ class SpotCheck:
         try:
             # Make sure we're powered on and sitting
             self._robot.power_on()
-            if not self._robot_params["is_sitting"]:
+            if not self._robot_state.is_sitting:
                 robot_command.blocking_sit(
                     command_client=self._robot_command_client, timeout_sec=10
                 )
