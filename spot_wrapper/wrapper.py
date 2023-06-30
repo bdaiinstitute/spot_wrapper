@@ -934,7 +934,7 @@ class SpotWrapper:
         self._spot_docking = SpotDocking(
             self._robot,
             self._logger,
-            self._robot_params,
+            self._state,
             self._docking_client,
             self._robot_command_client,
         )
