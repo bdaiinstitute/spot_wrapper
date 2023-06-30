@@ -1017,7 +1017,7 @@ class SpotWrapper:
         return authenticated
 
     @staticmethod
-    def authenticate_from_payload_credentials(robot, payload_credentials_file, logger):
+    def authenticate_from_payload_credentials(robot: Robot, payload_credentials_file: str, logger: logging.Logger) -> bool:
         """
         Authenticate with a robot through the bosdyn API from payload credentials. A blocking function which will 
         wait until authenticated (if the robot is still booting) or login fails
