@@ -2615,7 +2615,7 @@ class SpotWrapper:
         self._lease = self._lease_wallet.advance()
         self._lease_keepalive = LeaseKeepAlive(self._lease_client)
 
-        if self._state_navigate_to_valid:
+        if not self._state_navigate_to_valid:
             return False, "Navigation is canceled", "preempted"
 
         status = self._graph_nav_client.navigation_feedback(nav_to_cmd_id)
