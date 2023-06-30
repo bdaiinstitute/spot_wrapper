@@ -4,14 +4,11 @@ import typing
 
 from bosdyn.api import arm_command_pb2
 from bosdyn.api import geometry_pb2
-from bosdyn.api import image_pb2
 from bosdyn.api import manipulation_api_pb2
 from bosdyn.api import robot_command_pb2
 from bosdyn.api import synchronized_command_pb2
 from bosdyn.api import trajectory_pb2
 from bosdyn.client import robot_command
-from bosdyn.client.async_tasks import AsyncPeriodicQuery
-from bosdyn.client.image import ImageClient, build_image_request
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.robot import Robot
 from bosdyn.client.robot_command import (
@@ -23,106 +20,36 @@ from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.util import seconds_to_duration
 
-"""List of hand image sources for asynchronous periodic query"""
-HAND_IMAGE_SOURCES = [
-    "hand_image",
-    "hand_depth",
-    "hand_color_image",
-    "hand_depth_in_hand_color_frame",
-]
-
-
-class AsyncImageService(AsyncPeriodicQuery):
-    """Class to get images at regular intervals.  get_image_from_sources_async query sent to the robot at every tick.  Callback registered to defined callback function.
-
-    Attributes:
-        client: The Client to a service on the robot
-        logger: Logger object
-        rate: Rate (Hz) to trigger the query
-        callback: Callback function to call when the results of the query are available
-    """
-
-    def __init__(self, client, logger, rate, callback, image_requests):
-        super(AsyncImageService, self).__init__(
-            "robot_image_service", client, logger, period_sec=1.0 / max(rate, 1.0)
-        )
-        self._callback = None
-        if rate > 0.0:
-            self._callback = callback
-        self._image_requests = image_requests
-
-    def _start_query(self):
-        if self._callback:
-            callback_future = self._client.get_image_async(self._image_requests)
-            callback_future.add_done_callback(self._callback)
-            return callback_future
-
+from wrapper import RobotState
 
 class SpotArm:
     def __init__(
         self,
         robot: Robot,
         logger: logging.Logger,
-        robot_params: typing.Dict[str, typing.Any],
+        robot_state: RobotState,
         robot_command_client: RobotCommandClient,
         manipulation_api_client: ManipulationApiClient,
         robot_state_client: RobotStateClient,
-        image_client: ImageClient,
         max_command_duration: float,
-    ):
+    ) -> None:
         """
         Constructor for SpotArm class.
         Args:
             robot: Robot object
             logger: Logger object
-            robot_params: Dictionary of robot parameters
-                          - robot_params['is_standing']: True if robot is standing, False otherwise
-
             max_command_duration: Maximum duration for commands when using the manipulation command method
         """
         self._robot = robot
         self._logger = logger
-        self._robot_params = robot_params
+        self._robot_state = robot_state
         self._max_command_duration = max_command_duration
         self._robot_command_client = robot_command_client
         self._manipulation_api_client = manipulation_api_client
         self._robot_state_client = robot_state_client
-        self._image_client = image_client
-        # TODO: Not sure if this is necessary, probably should be removed. I think it was supposed to be used for the blocking_stand call.
+        # TODO: Not sure if this is necessary, probably should be removed. I think it was supposed to be used for the
+        #  blocking_stand call, we have to work out a different way to do that
         self._robot_command: typing.Callable = robot_clients["robot_command_method"]
-        self._rates: typing.Dict[str, float] = robot_params["rates"]
-        self._callbacks: typing.Dict[str, typing.Callable] = robot_params["callbacks"]
-
-        self._hand_image_requests = []
-        self._hand_image_task: AsyncImageService = None
-        self.initialize_hand_image_service()
-
-    def initialize_hand_image_service(self):
-        """
-        Initialises the hand image task for retrieving the hand image
-        """
-        for source in HAND_IMAGE_SOURCES:
-            self._hand_image_requests.append(
-                build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
-            )
-
-        self._hand_image_task = AsyncImageService(
-            self._image_client,
-            self._logger,
-            max(0.0, self._rates.get("hand_image", 0.0)),
-            self._callbacks.get("hand_image", None),
-            self._hand_image_requests,
-        )
-
-    @property
-    def hand_image_task(self) -> AsyncImageService:
-        """
-        Get the hand image task
-
-        Returns:
-            Async image service for getting the hand image
-        """
-        return self._hand_image_task
 
     def _manipulation_request(
         self,
@@ -178,7 +105,7 @@ class SpotArm:
                 f"Exception occured while Spot or its arm were trying to power on: {e}",
             )
 
-        if not self._robot_params["is_standing"]:
+        if not self._robot_state.is_standing:
             # TODO: Need to call stand from here, but this currently will not do that.
             robot_command.blocking_stand(
                 command_client=self._robot_command_client, timeout_sec=10

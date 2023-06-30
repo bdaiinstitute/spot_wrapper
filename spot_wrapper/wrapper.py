@@ -943,15 +943,12 @@ class SpotWrapper:
             self._spot_arm = SpotArm(
                 self._robot,
                 self._logger,
-                self._robot_params,
+                self._state,
                 self._robot_command_client,
                 self._manipulation_api_client,
                 self._robot_state_client,
-                self._image_client,
                 MAX_COMMAND_DURATION,
             )
-            self._hand_image_task = self._spot_arm.hand_image_task
-            robot_tasks.append(self._hand_image_task)
         else:
             self._spot_arm = None
 
