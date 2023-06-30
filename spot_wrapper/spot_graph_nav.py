@@ -148,6 +148,122 @@ class SpotGraphNav:
     def optmize_anchoring(self) -> typing.Tuple[bool, str]:
         return self._optimize_anchoring()
 
+    def _write_bytes_while_download(self, filepath: str, data: bytes):
+        """Write data to a file.
+        Args:
+            filepath (str) : Path of file where data will be written.
+            data (bytes) : Bytes of data"""
+        directory = os.path.dirname(filepath)
+        os.makedirs(directory, exist_ok=True)
+        with open(filepath, "wb+") as f:
+            f.write(data)
+            f.close()
+
+    def _download_graph_and_snapshots(
+        self, download_path: str
+    ) -> typing.Tuple[bool, str]:
+        """Download the graph and snapshots from the robot.
+        Args:
+            download_path (str): Directory where graph and snapshots are downloaded from robot.
+        Returns:
+            success (bool): success flag
+            message (str): message"""
+        graph = self._graph_nav_client.download_graph()
+        if graph is None:
+            return False, "Failed to download the graph."
+        graph_bytes = graph.SerializeToString()
+        self._write_bytes_while_download(
+            os.path.join(download_path, "graph"), graph_bytes
+        )
+        # Download the waypoint and edge snapshots.
+        for waypoint in graph.waypoints:
+            try:
+                waypoint_snapshot = self._graph_nav_client.download_waypoint_snapshot(
+                    waypoint.snapshot_id
+                )
+            except Exception:
+                self._logger.warning(
+                    "Failed to download waypoint snapshot: %s", waypoint.snapshot_id
+                )
+                continue
+            self._write_bytes_while_download(
+                os.path.join(download_path, "waypoint_snapshots", waypoint.snapshot_id),
+                waypoint_snapshot.SerializeToString(),
+            )
+        for edge in graph.edges:
+            try:
+                edge_snapshot = self._graph_nav_client.download_edge_snapshot(
+                    edge.snapshot_id
+                )
+            except Exception:
+                self._logger.warning(
+                    "Failed to download edge snapshot: %s", edge.snapshot_id
+                )
+                continue
+            self._write_bytes_while_download(
+                os.path.join(download_path, "edge_snapshots", edge.snapshot_id),
+                edge_snapshot.SerializeToString(),
+            )
+        return True, "Success"
+
+    def clear_graph(self) -> typing.Tuple[bool, str]:
+        """Clear the state of the map on the robot, removing all waypoints and edges in the RAM of the robot.
+        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
+        """
+        try:
+            self._clear_graph()
+            return True, "Success"
+        except Exception as e:
+            return (
+                False,
+                f"Got an error while clearing a graph and snanshots in a robot: {e}",
+            )
+
+    def upload_graph(self, upload_path: str) -> typing.Tuple[bool, str]:
+        """Upload the specified graph and snapshots from local to a robot.
+        While this method, if there are snapshots already in the robot, they will be loaded from the robot's disk without uploading.
+        Graph and snapshots to be uploaded should be placed like
+        Directory specified with upload_path arg
+          |
+          +-- graph
+          |
+          +-- waypoint_snapshots/
+          |     |
+          |     +-- waypont snapshot files
+          |
+          +-- edge_snapshots/
+                |
+                +-- edge snapshot files
+        Args:
+            upload_path (str): Path to the directory of the map.
+        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
+        """
+        try:
+            self._upload_graph_and_snapshots(upload_path)
+            return True, "Success"
+        except Exception as e:
+            return (
+                False,
+                f"Got an error while uploading a graph and snapshots to a robot: {e}",
+            )
+
+    def download_graph(self, download_path: str) -> typing.Tuple[bool, str]:
+        """Download current graph and snapshots in the robot to the specified directory.
+        Args:
+            download_path (str): Directory where graph and snapshots are downloaded from robot.
+        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
+        """
+        try:
+            success, message = self._download_graph_and_snapshots(
+                download_path=download_path
+            )
+            return success, message
+        except Exception as e:
+            return (
+                False,
+                f"Got an error during downloading graph and snapshots from the robot: {e}",
+            )
+
     ## Copied from https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/graph_nav_command_line/recording_command_line.py and https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/graph_nav_command_line/graph_nav_command_line.py with minor modifications
     # Copyright (c) 2020 Boston Dynamics, Inc.  All rights reserved.
     #
@@ -324,7 +440,7 @@ class SpotGraphNav:
         ) = self._update_waypoints_and_edges(graph, localization_id, self._logger)
         return self._current_annotation_name_to_wp_id, self._current_edges
 
-    def upload_graph_and_snapshots(self, upload_filepath: str):
+    def _upload_graph_and_snapshots(self, upload_filepath: str):
         """Upload the graph and snapshots to the robot."""
         self._logger.info("Loading the graph from disk into local storage...")
         with open(os.path.join(upload_filepath, "graph"), "rb") as graph_file:
@@ -538,8 +654,8 @@ class SpotGraphNav:
 
         return True, "Finished navigating route!"
 
-    def clear_graph(self, *args) -> bool:
-        """Clear the state of the map on the robot, removing all waypoints and edges."""
+    def _clear_graph(self, *args) -> bool:
+        """Clear the state of the map on the robot, removing all waypoints and edges in the RAM of the robot"""
         self._lease = self._get_lease()
         result = self._graph_nav_client.clear_graph(lease=self._lease.lease_proto)
         self._init_current_graph_nav_state()
