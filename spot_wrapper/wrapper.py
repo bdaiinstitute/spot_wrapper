@@ -659,7 +659,7 @@ class SpotWrapper:
         self._trajectory_status_unknown = False
         self._command_data = RobotCommandData()
         self._last_navigate_to_command = None
-        self._state_navigation_valid = None
+        self._state_navigate_to_valid = None
 
         self._front_image_requests = []
         for source in front_image_sources:
@@ -1788,12 +1788,14 @@ class SpotWrapper:
                 f"Got an error while localizing the robot to the waypoint {waypoint_id}: {e}",
             )
 
-    def cancel_navigation(self) -> None:
-        """Cancel navigation of a robot from start_navigation()"""
+    def cancel_navigate_to(self) -> None:
+        """Cancel navigation of a robot from start_navigate_to()"""
         self._cancel_navigate_to()
 
     @try_claim
-    def start_navigation(self, target_waypoint_id: str) -> typing.Tuple[bool, str, str]:
+    def start_navigate_to(
+        self, target_waypoint_id: str
+    ) -> typing.Tuple[bool, str, str]:
         """Navigate a robot to specified waypoint id with GraphNav
 
         Args:
@@ -2565,7 +2567,7 @@ class SpotWrapper:
         self._navigate_to_valid = False
 
     @try_claim
-    def _start_navigation(self, target_waypoint_id):
+    def _start_navigate_to(self, target_waypoint_id) -> typing.Tuple[bool, str, str]:
         self._lease = self._lease_wallet.get_lease()
         destination_waypoint = graph_nav_util.find_unique_waypoint_id(
             target_waypoint_id,
@@ -2590,9 +2592,9 @@ class SpotWrapper:
         sublease = self._lease.create_sublease()
         self._lease_keepalive.shutdown()
 
-        self._state_navigation_valid = True
+        self._state_navigate_to_valid = True
         nav_to_cmd_id = None
-        while self._state_navigation_valid:
+        while self._state_navigate_to_valid:
             time.sleep(0.5)
             try:
                 nav_to_cmd_id = self._graph_nav_client.navigate_to(
@@ -2613,7 +2615,7 @@ class SpotWrapper:
         self._lease = self._lease_wallet.advance()
         self._lease_keepalive = LeaseKeepAlive(self._lease_client)
 
-        if self._state_navigation_valid:
+        if self._state_navigate_to_valid:
             return False, "Navigation is canceled", "preempted"
 
         status = self._graph_nav_client.navigation_feedback(nav_to_cmd_id)
