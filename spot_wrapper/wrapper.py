@@ -360,21 +360,28 @@ class AsyncPointCloudService(AsyncPeriodicQuery):
 
 
 class AsyncIdle(AsyncPeriodicQuery):
-    """Class to check if the robot is moving, and if not, command a stand with the set mobility parameters
-
-    Attributes:
-        client: The Client to a service on the robot
-        logger: Logger object
-        rate: Rate (Hz) to trigger the query
-        spot_wrapper: A handle to the wrapper library
+    """
+    Class to check if the robot is moving, and if not, command a stand with the set mobility parameters
     """
 
-    def __init__(self, client, logger, rate, spot_wrapper):
+    def __init__(
+        self,
+        client: RobotCommandClient,
+        logger: logging.Logger,
+        rate: float,
+        spot_wrapper,
+    ) -> None:
+        """
+        Attributes:
+            client: The Client to a service on the robot
+            logger: Logger object
+            rate: Rate (Hz) to trigger the query
+            spot_wrapper: A handle to the wrapper library
+        """
         super(AsyncIdle, self).__init__("idle", client, logger, period_sec=1.0 / rate)
+        self._spot_wrapper: SpotWrapper = spot_wrapper
 
-        self._spot_wrapper = spot_wrapper
-
-    def _start_query(self):
+    def _start_query(self) -> None:
         if self._spot_wrapper._last_stand_command != None:
             try:
                 response = self._client.robot_command_feedback(
@@ -383,24 +390,24 @@ class AsyncIdle(AsyncPeriodicQuery):
                 status = (
                     response.feedback.synchronized_feedback.mobility_command_feedback.stand_feedback.status
                 )
-                self._spot_wrapper._is_sitting = False
+                self._spot_wrapper.is_sitting = False
                 if status == basic_command_pb2.StandCommand.Feedback.STATUS_IS_STANDING:
-                    self._spot_wrapper._is_standing = True
+                    self._spot_wrapper.is_standing = True
                     self._spot_wrapper._last_stand_command = None
                 elif (
                     status == basic_command_pb2.StandCommand.Feedback.STATUS_IN_PROGRESS
                 ):
-                    self._spot_wrapper._is_standing = False
+                    self._spot_wrapper.is_standing = False
                 else:
                     self._logger.warning("Stand command in unknown state")
-                    self._spot_wrapper._is_standing = False
+                    self._spot_wrapper.is_standing = False
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper._last_stand_command = None
 
         if self._spot_wrapper._last_sit_command != None:
             try:
-                self._spot_wrapper._is_standing = False
+                self._spot_wrapper.is_standing = False
                 response = self._client.robot_command_feedback(
                     self._spot_wrapper._last_sit_command
                 )
@@ -408,10 +415,10 @@ class AsyncIdle(AsyncPeriodicQuery):
                     response.feedback.synchronized_feedback.mobility_command_feedback.sit_feedback.status
                     == basic_command_pb2.SitCommand.Feedback.STATUS_IS_SITTING
                 ):
-                    self._spot_wrapper._is_sitting = True
+                    self._spot_wrapper.is_sitting = True
                     self._spot_wrapper._last_sit_command = None
                 else:
-                    self._spot_wrapper._is_sitting = False
+                    self._spot_wrapper.is_sitting = False
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper._last_sit_command = None
@@ -443,7 +450,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                         and not self._spot_wrapper._last_trajectory_command_precise
                     )
                 ):
-                    self._spot_wrapper._at_goal = True
+                    self._spot_wrapper.at_goal = True
                     # Clear the command once at the goal
                     self._spot_wrapper._last_trajectory_command = None
                     self._spot_wrapper._trajectory_status_unknown = False
@@ -457,7 +464,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                     == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_NEAR_GOAL
                 ):
                     is_moving = True
-                    self._spot_wrapper._near_goal = True
+                    self._spot_wrapper.near_goal = True
                 elif (
                     status
                     == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_UNKNOWN
@@ -475,7 +482,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper._last_trajectory_command = None
 
-        self._spot_wrapper._is_moving = is_moving
+        self._spot_wrapper.is_moving = is_moving
 
         # We must check if any command currently has a non-None value for its id. If we don't do this, this stand
         # command can cause other commands to be interrupted before they get to start
@@ -564,6 +571,19 @@ def try_claim(func=None, *, power_on=False):
     return wrapper_try_claim
 
 
+@dataclass()
+class RobotState:
+    """
+    Dataclass which stores information about the robot's state. The values in it may be changed by methods
+    """
+
+    is_sitting: bool = True
+    is_standing: bool = False
+    is_moving: bool = False
+    at_goal: bool = False
+    near_goal: bool = False
+
+
 class SpotWrapper:
     """Generic wrapper class to encompass release 1.1.4 API features as well as maintaining leases automatically"""
 
@@ -624,11 +644,7 @@ class SpotWrapper:
         self._valid = True
 
         self._mobility_params = RobotCommandBuilder.mobility_params()
-        self._is_standing = False
-        self._is_sitting = True
-        self._is_moving = False
-        self._at_goal = False
-        self._near_goal = False
+        self._state = RobotState()
         self._trajectory_status_unknown = False
         self._last_robot_command_feedback = False
         self._last_stand_command = None
@@ -763,13 +779,11 @@ class SpotWrapper:
                             ChoreographyClient.default_service_name
                         )
                     else:
-                        self._logger.info(
-                            f"Robot is not licensed for choreography: {e}"
-                        )
+                        self._logger.info("Robot is not licensed for choreography")
                         self._is_licensed_for_choreography = False
                         self._choreography_client = None
                 else:
-                    self._logger.info(f"Choreography is not available.")
+                    self._logger.info("Choreography is not available.")
                     self._choreography_client = None
                     self._is_licensed_for_choreography = False
 
@@ -1101,25 +1115,45 @@ class SpotWrapper:
     @property
     def is_standing(self) -> bool:
         """Return boolean of standing state"""
-        return self._is_standing
+        return self._state.is_standing
+
+    @is_standing.setter
+    def is_standing(self, state: bool) -> None:
+        self._state.is_standing = state
 
     @property
     def is_sitting(self) -> bool:
         """Return boolean of standing state"""
-        return self._is_sitting
+        return self._state.is_sitting
+
+    @is_sitting.setter
+    def is_sitting(self, state: bool) -> None:
+        self._state.is_sitting = state
 
     @property
     def is_moving(self) -> bool:
         """Return boolean of walking state"""
-        return self._is_moving
+        return self._state.is_moving
+
+    @is_moving.setter
+    def is_moving(self, state: bool) -> None:
+        self._state.is_moving = state
 
     @property
     def near_goal(self) -> bool:
-        return self._near_goal
+        return self._state.near_goal
+
+    @near_goal.setter
+    def near_goal(self, state: bool) -> None:
+        self._state.near_goal = state
 
     @property
     def at_goal(self) -> bool:
-        return self._at_goal
+        return self._state.at_goal
+
+    @at_goal.setter
+    def at_goal(self, state: bool) -> None:
+        self._state.at_goal = state
 
     def is_estopped(self, timeout: typing.Optional[float] = None) -> bool:
         return self._robot.is_estopped(timeout=timeout)
@@ -1405,7 +1439,7 @@ class SpotWrapper:
         Returns:
             Tuple of bool success and a string message
         """
-        if self._is_sitting:
+        if self.is_sitting:
             response = self._robot_command(
                 RobotCommandBuilder.battery_change_pose_command(dir_hint)
             )
@@ -1535,8 +1569,8 @@ class SpotWrapper:
         if mobility_params is None:
             mobility_params = self._mobility_params
         self._trajectory_status_unknown = False
-        self._at_goal = False
-        self._near_goal = False
+        self.at_goal = False
+        self.near_goal = False
         self._last_trajectory_command_precise = precise_position
         self._logger.info("got command duration of {}".format(cmd_duration))
         end_time = time.time() + cmd_duration
@@ -1627,6 +1661,71 @@ class SpotWrapper:
                 ids.items(), key=lambda id: int(id[0].replace("waypoint_", ""))
             )
         ]
+
+    def clear_graph(self) -> typing.Tuple[bool, str]:
+        """Clear the state of the map on the robot, removing all waypoints and edges in the RAM of the robot.
+
+        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
+        """
+        try:
+            self._clear_graph()
+            return True, "Success"
+        except Exception as e:
+            return (
+                False,
+                f"Got an error while clearing a graph and snanshots in a robot: {e}",
+            )
+
+    def upload_graph(self, upload_path: str) -> typing.Tuple[bool, str]:
+        """Upload the specified graph and snapshots from local to a robot.
+
+        While this method, if there are snapshots already in the robot, they will be loaded from the robot's disk without uploading.
+        Graph and snapshots to be uploaded should be placed like
+
+        Directory specified with upload_path arg
+          |
+          +-- graph
+          |
+          +-- waypoint_snapshots/
+          |     |
+          |     +-- waypont snapshot files
+          |
+          +-- edge_snapshots/
+                |
+                +-- edge snapshot files
+
+        Args:
+            upload_path (str): Path to the directory of the map.
+
+        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
+        """
+        try:
+            self._upload_graph_and_snapshots(upload_path)
+            return True, "Success"
+        except Exception as e:
+            return (
+                False,
+                f"Got an error while uploading a graph and snapshots to a robot: {e}",
+            )
+
+    def download_graph(self, download_path: str) -> typing.Tuple[bool, str]:
+        """Download current graph and snapshots in the robot to the specified directory.
+
+        Args:
+            download_path (str): Directory where graph and snapshots are downloaded from robot.
+
+        Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
+        """
+        try:
+            success, message = self._download_graph_and_snapshots(
+                download_path=download_path
+            )
+            return success, message
+        except Exception as e:
+            return (
+                False,
+                f"Got an error during downloading graph and snapshots from the robot: {e}",
+            )
 
     @try_claim
     def navigate_to(
@@ -1854,6 +1953,67 @@ class SpotWrapper:
                 "please localize the robot"
             )
 
+    def _write_bytes_while_download(self, filepath: str, data: bytes):
+        """Write data to a file.
+
+        Args:
+            filepath (str) : Path of file where data will be written.
+            data (bytes) : Bytes of data"""
+        directory = os.path.dirname(filepath)
+        os.makedirs(directory, exist_ok=True)
+        with open(filepath, "wb+") as f:
+            f.write(data)
+            f.close()
+
+    def _download_graph_and_snapshots(
+        self, download_path: str
+    ) -> typing.Tuple[bool, str]:
+        """Download the graph and snapshots from the robot.
+
+        Args:
+            download_path (str): Directory where graph and snapshots are downloaded from robot.
+
+        Returns:
+            success (bool): success flag
+            message (str): message"""
+        graph = self._graph_nav_client.download_graph()
+        if graph is None:
+            return False, "Failed to download the graph."
+        graph_bytes = graph.SerializeToString()
+        self._write_bytes_while_download(
+            os.path.join(download_path, "graph"), graph_bytes
+        )
+        # Download the waypoint and edge snapshots.
+        for waypoint in graph.waypoints:
+            try:
+                waypoint_snapshot = self._graph_nav_client.download_waypoint_snapshot(
+                    waypoint.snapshot_id
+                )
+            except Exception:
+                self.logger.warn(
+                    "Failed to download waypoint snapshot: %s", waypoint.snapshot_id
+                )
+                continue
+            self._write_bytes_while_download(
+                os.path.join(download_path, "waypoint_snapshots", waypoint.snapshot_id),
+                waypoint_snapshot.SerializeToString(),
+            )
+        for edge in graph.edges:
+            try:
+                edge_snapshot = self._graph_nav_client.download_edge_snapshot(
+                    edge.snapshot_id
+                )
+            except Exception:
+                self.logger.warn(
+                    "Failed to download edge snapshot: %s", edge.snapshot_id
+                )
+                continue
+            self._write_bytes_while_download(
+                os.path.join(download_path, "edge_snapshots", edge.snapshot_id),
+                edge_snapshot.SerializeToString(),
+            )
+        return True, "Success"
+
     @try_claim
     def _navigate_to(self, *args):
         """Navigate to a specific waypoint."""
@@ -2010,7 +2170,7 @@ class SpotWrapper:
                 self.toggle_power(should_power_on=False)
 
     def _clear_graph(self, *args):
-        """Clear the state of the map on the robot, removing all waypoints and edges."""
+        """Clear the state of the map on the robot, removing all waypoints and edges in the RAM of the robot."""
         result = self._graph_nav_client.clear_graph(lease=self._lease.lease_proto)
         self._init_current_graph_nav_state()
         return result
