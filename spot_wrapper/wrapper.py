@@ -1021,7 +1021,7 @@ class SpotWrapper:
         robot: Robot, payload_credentials_file: str, logger: logging.Logger
     ) -> bool:
         """
-        Authenticate with a robot through the bosdyn API from payload credentials. A blocking function which will 
+        Authenticate with a robot through the bosdyn API from payload credentials. A blocking function which will
         wait until authenticated (if the robot is still booting) or login fails
 
         Args:
