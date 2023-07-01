@@ -473,7 +473,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper.last_trajectory_command = None
 
-        if self._spot_wrapper._last_navigate_to_command != None:
+        if self._spot_wrapper._last_navigate_to_command is not None:
             is_moving = True
 
         self._spot_wrapper._is_moving = is_moving
