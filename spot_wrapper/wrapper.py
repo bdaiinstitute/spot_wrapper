@@ -2567,7 +2567,7 @@ class SpotWrapper:
         self._navigate_to_valid = False
 
     @try_claim
-    def _start_navigate_to(self, target_waypoint_id) -> typing.Tuple[bool, str, str]:
+    def _start_navigate_to(self, target_waypoint_id: str) -> typing.Tuple[bool, str, str]:
         self._lease = self._lease_wallet.get_lease()
         destination_waypoint = graph_nav_util.find_unique_waypoint_id(
             target_waypoint_id,
