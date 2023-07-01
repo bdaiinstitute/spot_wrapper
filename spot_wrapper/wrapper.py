@@ -473,10 +473,10 @@ class AsyncIdle(AsyncPeriodicQuery):
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper.last_trajectory_command = None
 
-        if self._spot_wrapper._last_navigate_to_command is not None:
+        if self._spot_wrapper.last_navigate_to_command is not None:
             is_moving = True
 
-        self._spot_wrapper._is_moving = is_moving
+        self._spot_wrapper.is_moving = is_moving
 
         # We must check if any command currently has a non-None value for its id. If we don't do this, this stand
         # command can cause other commands to be interrupted before they get to start
@@ -593,6 +593,7 @@ class RobotCommandData:
     # Was the last trajectory command requested to be precise
     last_trajectory_command_precise: typing.Optional[bool] = None
     last_velocity_command_time: typing.Optional[float] = None
+    last_navigate_to_command: typing.Optional[int] = None
 
 
 class SpotWrapper:
@@ -658,7 +659,6 @@ class SpotWrapper:
         self._state = RobotState()
         self._trajectory_status_unknown = False
         self._command_data = RobotCommandData()
-        self._last_navigate_to_command = None
         self._state_navigate_to_valid = None
 
         self._front_image_requests = []
@@ -1185,6 +1185,14 @@ class SpotWrapper:
     @last_velocity_command_time.setter
     def last_velocity_command_time(self, command_time: float) -> None:
         self._command_data.last_velocity_command_time = command_time
+
+    @property
+    def last_navigate_to_command(self) -> typing.Optional[int]:
+        return self._command_data.last_navigate_to_command
+
+    @last_navigate_to_command.setter
+    def last_navigate_to_command(self, command_id: int) -> None:
+        self._command_data.last_navigate_to_command = command_id
 
     def is_estopped(self, timeout: typing.Optional[float] = None) -> bool:
         return self._robot.is_estopped(timeout=timeout)
@@ -2607,7 +2615,7 @@ class SpotWrapper:
                     leases=[sublease.lease_proto],
                     command_id=nav_to_cmd_id,
                 )
-                self._last_navigate_to_command = nav_to_cmd_id
+                self.last_navigate_to_command = nav_to_cmd_id
             except ResponseError as e:
                 self._logger.error("Error while navitation: %s", e)
                 break
@@ -2615,7 +2623,7 @@ class SpotWrapper:
             if self._check_success(nav_to_cmd_id):
                 break
 
-        self._last_navigate_to_command = None
+        self.last_navigate_to_command = None
         self._lease = self._lease_wallet.advance()
         self._lease_keepalive = LeaseKeepAlive(self._lease_client)
 
