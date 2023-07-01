@@ -2563,7 +2563,7 @@ class SpotWrapper:
             )
         return True, "Success"
 
-    def _cancel_navigate_to(self):
+    def _cancel_navigate_to(self) -> None:
         self._navigate_to_valid = False
 
     @try_claim
