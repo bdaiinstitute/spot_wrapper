@@ -2352,7 +2352,7 @@ class SpotWrapper:
             ko_tform_body=current_odom_tform_body,
         )
 
-    def _set_initial_localization_waypoint(self, waypoint_id):
+    def _set_initial_localization_waypoint(self, waypoint_id: str) -> typing.Tuple[bool, str]:
         """Trigger localization to a waypoint.
 
         Args:
