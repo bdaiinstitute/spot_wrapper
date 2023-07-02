@@ -527,9 +527,9 @@ class MediaLogWrapper:
 
     def save_logpoint_image(
         self,
-        name: str,
+        logpoint_name: str,
         path: str,
-        filename: str,
+        base_filename: str,
         raw: bool = False,
         camera: typing.Optional[SpotCamCamera] = None,
         use_rgb24: bool = False,
@@ -540,9 +540,9 @@ class MediaLogWrapper:
         Adapted from https://github.com/boston-dynamics/spot-sdk/blob/aa607fec2e32f880ad55da8bf186ce1b3384c891/python/examples/spot_cam/media_log.py#L166-L206
 
         Args:
-            name: Save the image associated with this logpoint
+            logpoint_name: Save the image associated with this logpoint
             path: Save the data to this directory
-            filename: Use this filename as the base name for the image file
+            base_filename: Use this filename as the base name for the image file
             raw: If true, retrieve raw data rather than processed data. Useful for IR images?
             camera: If set, add the name of the camera to the output filename. The logpoint doesn't store this information
             use_rgb24: If set, save ptz image in .rgb24 format. By default it is saved to jpg
@@ -551,7 +551,7 @@ class MediaLogWrapper:
             Filename the image was saved to, or None if saving failed
         """
 
-        logpoint, image = self.retrieve_logpoint(name, raw=raw)
+        logpoint, image = self.retrieve_logpoint(logpoint_name, raw=raw)
 
         save_path = os.path.abspath(os.path.expanduser(path))
 
@@ -566,7 +566,7 @@ class MediaLogWrapper:
             )
             full_path = os.path.join(
                 save_path,
-                self._build_filename(logpoint, filename, ".pgm", SpotCamCamera.IR),
+                self._build_filename(logpoint, base_filename, ".pgm", SpotCamCamera.IR),
             )
             cv2.imwrite(full_path, np_img)
             return full_path
@@ -582,12 +582,12 @@ class MediaLogWrapper:
         ):
             full_path = os.path.join(
                 save_path,
-                self._build_filename(logpoint, filename, ".jpg", camera),
+                self._build_filename(logpoint, base_filename, ".jpg", camera),
             )
         else:
             full_path = os.path.join(
                 save_path,
-                self._build_filename(logpoint, filename, ".rgb24", camera),
+                self._build_filename(logpoint, base_filename, ".rgb24", camera),
             )
 
         # The original method saves the image to file first, then reads and saves it in a different way if rgb24 is
@@ -612,7 +612,7 @@ class MediaLogWrapper:
             )
             full_path = os.path.join(
                 save_path,
-                self._build_filename(logpoint, filename, ".jpg", camera),
+                self._build_filename(logpoint, base_filename, ".jpg", camera),
             )
             image.save(full_path)
 
@@ -622,7 +622,8 @@ class MediaLogWrapper:
         self, camera: SpotCamCamera, path: str, base_filename: str
     ) -> typing.Optional[str]:
         """
-        Stores a logpoint and saves the data to the given path on the caller's local machine.
+        Stores a logpoint and saves the data to the given path on the caller's local machine. Blocks until the image
+        is ready to be saved.
 
         Args:
             camera: Camera from which data should be saved
