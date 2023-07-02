@@ -507,11 +507,13 @@ class MediaLogWrapper:
 
 
         Args:
-
+            logpoint: Build a filename for this logpoint
+            filename: Base filename to use
+            extension: Extension to use
+            camera: If provided, the camera name will be added to the full filename
 
         Returns:
-
-
+            Filename of the form filename{_cameraname}_YYYY-mm-ddTHH:MM:SS.MS.extension
         """
         if not extension.startswith("."):
             extension = f".{extension}"
@@ -530,9 +532,12 @@ class MediaLogWrapper:
         filename: str,
         raw: bool = False,
         camera: typing.Optional[SpotCamCamera] = None,
+        use_rgb24: bool = False,
     ) -> typing.Optional[str]:
         """
         Save the data in a logpoint to the given file on the caller's local machine.
+
+        Adapted from https://github.com/boston-dynamics/spot-sdk/blob/aa607fec2e32f880ad55da8bf186ce1b3384c891/python/examples/spot_cam/media_log.py#L166-L206
 
         Args:
             name: Save the image associated with this logpoint
@@ -540,6 +545,7 @@ class MediaLogWrapper:
             filename: Use this filename as the base name for the image file
             raw: If true, retrieve raw data rather than processed data. Useful for IR images?
             camera: If set, add the name of the camera to the output filename. The logpoint doesn't store this information
+            use_rgb24: If set, save ptz image in .rgb24 format. By default it is saved to jpg
 
         Returns:
             Filename the image was saved to, or None if saving failed
@@ -584,23 +590,31 @@ class MediaLogWrapper:
                 self._build_filename(logpoint, filename, ".rgb24", camera),
             )
 
-            if not options.save_as_rgb24:
-                with open(target_filename, mode="rb") as fd:
-                    data = fd.read()
+        # The original method saves the image to file first, then reads and saves it in a different way if rgb24 is
+        # not requested, so we do it the same way. There's probably a better way to do it.  Maybe frombytes with the
+        # raw option?
+        with open(full_path, "w") as f:
+            f.write(image)
 
-                mode = "RGB"
-                image = Image.frombuffer(
-                    mode,
-                    (logpoint.image_params.width, logpoint.image_params.height),
-                    data,
-                    "raw",
-                    mode,
-                    0,
-                    1,
-                )
-                image.save(f"{filename}.jpg")
+        if not use_rgb24:
+            with open(full_path, mode="rb") as fd:
+                data = fd.read()
 
-                os.remove(target_filename)
+            mode = "RGB"
+            image = Image.frombuffer(
+                mode,
+                (logpoint.image_params.width, logpoint.image_params.height),
+                data,
+                "raw",
+                mode,
+                0,
+                1,
+            )
+            full_path = os.path.join(
+                save_path,
+                self._build_filename(logpoint, filename, ".jpg", camera),
+            )
+            image.save(full_path)
 
         return logpoint
 
