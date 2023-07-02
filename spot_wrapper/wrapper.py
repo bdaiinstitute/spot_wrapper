@@ -443,7 +443,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                 ):
                     self._spot_wrapper.at_goal = True
                     # Clear the command once at the goal
-                    self._spot_wrapper._last_trajectory_command = None
+                    self._spot_wrapper.last_trajectory_command = None
                     self._spot_wrapper._trajectory_status_unknown = False
                 elif (
                     status
