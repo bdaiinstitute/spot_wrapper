@@ -75,12 +75,6 @@ from google.protobuf.duration_pb2 import Duration
 SPOT_CLIENT_NAME = "ros_spot"
 MAX_COMMAND_DURATION = 1e5
 
-### Release
-from . import graph_nav_util
-
-### Debug
-# import graph_nav_util
-
 from bosdyn.api import basic_command_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
