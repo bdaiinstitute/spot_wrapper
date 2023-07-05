@@ -652,7 +652,11 @@ class SpotWrapper:
         self._last_trajectory_command_precise = None
         self._last_velocity_command_time = None
         self._last_docking_command = None
-
+        self._navigate_to_dynamic_feedback = ""
+        self._x = 1.5
+        self._y = 0.2
+        self._max_yaw = 6.4
+        self._max_distance = 1
         self._front_image_requests = []
         for source in front_image_sources:
             self._front_image_requests.append(
@@ -1568,22 +1572,41 @@ class SpotWrapper:
         power_state = self._robot_state_client.get_robot_state().power_state
         self._started_powered_on = power_state.motor_power_state == power_state.STATE_ON
         self._powered_on = self._started_powered_on
+        self._logger.error(f"mobility params {self._mobility_params}")
 
         # FIX ME somehow,,,, if the robot is stand, need to sit the robot before starting garph nav
-        # TODO: see if the code works with the robot sitting down
-        # if self.is_standing and not self.is_moving:
-        #     self.sit()
+        if self.is_standing and not self.is_moving:
+            self.sit()
 
         # TODO verify estop  / claim / power_on
-        # self._clear_graph()
-        # self._upload_graph_and_snapshots(upload_filepath)
-        # if initial_localization_fiducial:
-        #     self._set_initial_localization_fiducial()
-        # if initial_localization_waypoint:
-        #     self._set_initial_localization_waypoint([initial_localization_waypoint])
-        # self._list_graph_waypoint_and_edge_ids()
+        self._clear_graph()
+        self._upload_graph_and_snapshots(upload_filepath)
+        if initial_localization_fiducial:
+            self._set_initial_localization_fiducial()
+        if initial_localization_waypoint:
+            self._set_initial_localization_waypoint([initial_localization_waypoint])
+        self._list_graph_waypoint_and_edge_ids()
         self._get_localization_state()
         resp = self._navigate_to([navigate_to])
+
+        return resp
+    
+    @try_claim
+    def navigate_to_dynamic(
+        self,
+        navigate_to
+    ):
+        """navigate with graph nav.
+
+        Args:
+           upload_path : Path to the root directory of the map.
+           navigate_to : Waypont id string for where to goal
+           initial_localization_fiducial : Tells the initializer whether to use fiducials
+           initial_localization_waypoint : Waypoint id string of current robot position (optional)
+        """
+        self._logger.error(f"mobility params {self._mobility_params}")
+        self._get_localization_state()
+        resp = self._navigate_to_dynamic([navigate_to])
 
         return resp
 
@@ -2266,6 +2289,7 @@ class SpotWrapper:
             # navigation command (with estop or killing the program).
             nav_to_cmd_id = self._graph_nav_client.navigate_to(
                 destination_waypoint, 1.0, leases=[sublease.lease_proto]
+                , route_blocked_behavior=2
             )
             time.sleep(0.5)  # Sleep for half a second to allow for command execution.
             # Poll the robot for feedback to determine if the navigation command is complete. Then sit
@@ -2278,9 +2302,92 @@ class SpotWrapper:
         # Update the lease and power off the robot if appropriate.
         if self._powered_on and not self._started_powered_on:
             # Sit the robot down + power off after the navigation command is complete.
-            #TODO: make sure this works
-            pass
-            # self.toggle_power(should_power_on=False)
+            self.toggle_power(should_power_on=False)
+
+        status = self._graph_nav_client.navigation_feedback(nav_to_cmd_id)
+        if (
+            status.status
+            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_REACHED_GOAL
+        ):
+            return True, "Successfully completed the navigation commands!"
+        elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_LOST:
+            return (
+                False,
+                "Robot got lost when navigating the route, the robot will now sit down.",
+            )
+        elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_STUCK:
+            return (
+                False,
+                "Robot got stuck when navigating the route, the robot will now sit down.",
+            )
+        elif (
+            status.status
+            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_ROBOT_IMPAIRED
+        ):
+            return False, "Robot is impaired."
+        else:
+            return False, "Navigation command is not complete yet."
+        
+
+    @try_claim
+    def _navigate_to_dynamic(self, *args):
+        """Navigate to a specific waypoint."""
+        # Take the first argument as the destination waypoint.
+        if len(args) < 1:
+            # If no waypoint id is given as input, then return without requesting navigation.
+            self._logger.info("No waypoint provided as a destination for navigate to.")
+            return
+        self._lease = self._lease_wallet.get_lease()
+        #update the feedback variable
+        self._logger.error(f"entered navigate to dynamic with waypoint {args[0][0]}")
+        destination_waypoint = graph_nav_util.find_unique_waypoint_id(
+            args[0][0],
+            self._current_graph,
+            self._current_annotation_name_to_wp_id,
+            self._logger,
+        )
+        self._logger.error(f"got destination waypoint {destination_waypoint}")
+        #TODO - fix this error handling
+        if not destination_waypoint:
+            # Failed to find the appropriate unique waypoint id for the navigation command.
+            return
+        if not self.toggle_power(should_power_on=True):
+            self._logger.info(
+                "Failed to power on the robot, and cannot complete navigate to request."
+            )
+            return
+
+        # Stop the lease keepalive and create a new sublease for graph nav.
+        self._lease = self._lease_wallet.advance()
+        sublease = self._lease.create_sublease()
+        self._lease_keepalive.shutdown()
+
+        velocity_max = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = self._x, y = self._y))
+        velocity_min = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = 0, y = 0))
+        velocity_params = geometry_pb2.SE2VelocityLimit(max_vel = velocity_max, min_vel = velocity_min)
+
+
+        # Navigate to the destination waypoint.
+        is_finished = False
+        nav_to_cmd_id = -1
+        travel_params = self._graph_nav_client.generate_travel_params(self._max_distance, self._max_yaw, velocity_params)
+        while not is_finished:
+            # Issue the navigation command about twice a second such that it is easy to terminate the
+            # navigation command (with estop or killing the program).
+            nav_to_cmd_id = self._graph_nav_client.navigate_to(
+                destination_waypoint, 1.0,  leases=[sublease.lease_proto]
+                ,travel_params = travel_params
+                #, route_blocked_behavior=2
+            )
+            time.sleep(0.5)  # Sleep for half a second to allow for command execution.
+            # Poll the robot for feedback to determine if the navigation command is complete. Then sit
+            # the robot down once it is finished.
+            is_finished = self._check_success(nav_to_cmd_id)
+        self._logger.error("HHHHHHHHHHHHHHHHHH")
+
+        self._lease = self._lease_wallet.advance()
+        self._lease_keepalive = LeaseKeepAlive(self._lease_client)
+
 
         status = self._graph_nav_client.navigation_feedback(nav_to_cmd_id)
         if (
