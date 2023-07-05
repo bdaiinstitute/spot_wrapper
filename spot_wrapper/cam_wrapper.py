@@ -644,7 +644,7 @@ class MediaLogWrapper:
         """
         logpoint = self.store(camera)
         # Wait until the data is stored on disk before attempting a save
-        while self.get_logpoint_status(logpoint.name) != Logpoint.COMPLETE:
+        while self.get_logpoint_status(logpoint.name).status != Logpoint.COMPLETE:
             logpoint = self.get_logpoint_status(logpoint.name)
 
         return self.save_logpoint_image(
