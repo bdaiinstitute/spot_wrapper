@@ -450,9 +450,9 @@ class MediaLogWrapper:
         """
         # TODO: What does this return if the logpoint doesn't exist? Just an empty logpoint?
         if raw:
-            return self.client.retrieve_raw_data(Logpoint(name))
+            return self.client.retrieve_raw_data(logpoint=Logpoint(name))
         else:
-            return self.client.retrieve(Logpoint(name))
+            return self.client.retrieve(logpoint=Logpoint(name))
 
     def get_logpoint_status(self, name: str) -> Logpoint.LogStatus:
         """
@@ -466,7 +466,7 @@ class MediaLogWrapper:
         Returns:
             Status of the logpoint
         """
-        return self.client.get_status(Logpoint(name))
+        return self.client.get_status(logpoint=Logpoint(name))
 
     def delete_logpoint(self, name: str) -> None:
         """
@@ -475,7 +475,7 @@ class MediaLogWrapper:
         Args:
             name: Delete this logpoint
         """
-        self.client.delete(Logpoint(name))
+        self.client.delete(logpoint=Logpoint(name))
 
     def store(
         self, camera: SpotCamCamera, tag: typing.Optional[str] = None
