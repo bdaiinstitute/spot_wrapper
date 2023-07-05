@@ -161,7 +161,7 @@ class CompositorWrapper:
         """
         return self.client.get_visible_cameras()
 
-    def set_screen(self, screen):
+    def set_screen(self, screen: str):
         """
         Set the screen to be streamed over the network
 
@@ -169,6 +169,15 @@ class CompositorWrapper:
             screen: Screen to show
         """
         self.client.set_screen(screen)
+
+    def get_screen(self) -> str:
+        """
+        Get the screen currently being streamed over the network
+
+        Returns:
+            Name of the currently displayed screen
+        """
+        return self.client.get_screen()
 
     def set_ir_colormap(self, colormap, min_temp, max_temp, auto_scale=True):
         """
