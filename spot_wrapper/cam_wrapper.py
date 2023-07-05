@@ -602,7 +602,7 @@ class MediaLogWrapper:
         # The original method saves the image to file first, then reads and saves it in a different way if rgb24 is
         # not requested, so we do it the same way. There's probably a better way to do it.  Maybe frombytes with the
         # raw option?
-        with open(full_path, "w") as f:
+        with open(full_path, "wb") as f:
             f.write(image)
 
         if not use_rgb24:
