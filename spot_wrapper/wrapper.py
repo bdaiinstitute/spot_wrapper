@@ -653,7 +653,10 @@ class SpotWrapper:
         self._last_velocity_command_time = None
         self._last_docking_command = None
         self._navigate_to_dynamic_feedback = ""
-
+        self._x = 1.5
+        self._y = 0.2
+        self._max_yaw = 6.4
+        self._max_distance = 1
         self._front_image_requests = []
         for source in front_image_sources:
             self._front_image_requests.append(
@@ -2359,20 +2362,28 @@ class SpotWrapper:
         sublease = self._lease.create_sublease()
         self._lease_keepalive.shutdown()
 
+        velocity_max = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = self._x, y = self._y))
+        velocity_min = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = 0, y = 0))
+        velocity_params = geometry_pb2.SE2VelocityLimit(max_vel = velocity_max, min_vel = velocity_min)
+
+
         # Navigate to the destination waypoint.
         is_finished = False
         nav_to_cmd_id = -1
+        travel_params = self._graph_nav_client.generate_travel_params(self._max_distance, self._max_yaw, velocity_params)
         while not is_finished:
             # Issue the navigation command about twice a second such that it is easy to terminate the
             # navigation command (with estop or killing the program).
             nav_to_cmd_id = self._graph_nav_client.navigate_to(
-                destination_waypoint, 1.0, leases=[sublease.lease_proto]
+                destination_waypoint, 1.0,  leases=[sublease.lease_proto]
+                ,travel_params = travel_params
                 #, route_blocked_behavior=2
             )
             time.sleep(0.5)  # Sleep for half a second to allow for command execution.
             # Poll the robot for feedback to determine if the navigation command is complete. Then sit
             # the robot down once it is finished.
             is_finished = self._check_success(nav_to_cmd_id)
+        self._logger.error("HHHHHHHHHHHHHHHHHH")
 
         self._lease = self._lease_wallet.advance()
         self._lease_keepalive = LeaseKeepAlive(self._lease_client)
