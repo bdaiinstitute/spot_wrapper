@@ -619,6 +619,7 @@ class MediaLogWrapper:
                 0,
                 1,
             )
+            os.remove(full_path)  # remove the rgb24 image
             full_path = os.path.join(
                 save_path,
                 self._build_filename(logpoint, base_filename, ".jpg", camera),
