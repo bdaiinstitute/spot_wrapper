@@ -20,7 +20,7 @@ class AsyncPointCloudService(AsyncPeriodicQuery):
         logger: logging.Logger,
         rate: float,
         callback: typing.Callable,
-        point_cloud_requests: PointCloudRequest,
+        point_cloud_requests: typing.List[PointCloudRequest],
     ) -> None:
         """
 
@@ -40,7 +40,10 @@ class AsyncPointCloudService(AsyncPeriodicQuery):
         self._point_cloud_requests = point_cloud_requests
 
     def _start_query(self) -> typing.Optional[FutureWrapper]:
-        if self._callback and self._point_cloud_requests:
+        if not isinstance(self._point_cloud_requests, list):
+            raise TypeError("Point cloud requests must be a list.")
+
+        if self._callback is not None and len(self._point_cloud_requests) > 0:
             callback_future = self._client.get_point_cloud_async(
                 self._point_cloud_requests
             )

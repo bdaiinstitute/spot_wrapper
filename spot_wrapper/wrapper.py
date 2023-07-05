@@ -986,7 +986,7 @@ class SpotWrapper:
         return self._frame_prefix
 
     @property
-    def spot_eap_lidar(self) -> SpotEAP:
+    def spot_eap_lidar(self) -> typing.Optional[SpotEAP]:
         """Return SpotEAP instance"""
         return self._spot_eap
 
