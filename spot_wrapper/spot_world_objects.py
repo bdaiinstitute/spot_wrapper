@@ -1,15 +1,11 @@
+from __future__ import annotations
 import logging
 import typing
 
-from bosdyn.api.world_object_pb2 import ListWorldObjectResponse
+from bosdyn.api.world_object_pb2 import ListWorldObjectResponse, WorldObjectType
 from bosdyn.client.async_tasks import AsyncPeriodicQuery
 from bosdyn.client.common import FutureWrapper
 from bosdyn.client.world_object import WorldObjectClient
-
-
-# This represents the WorldObjectType from bosdyn.api.world_object_pb2, which is an enum in the protobuf file.
-# In python, WorldObjectType is an EnumTypeWrapper object and thus cannot be used as a typehint
-WorldObjectType = typing.TypeVar("WorldObjectType")
 
 
 class AsyncWorldObjects(AsyncPeriodicQuery):
