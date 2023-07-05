@@ -554,7 +554,7 @@ class MediaLogWrapper:
             base_filename: Use this filename as the base name for the image file
             raw: If true, retrieve raw data rather than processed data. Useful for IR images?
             camera: If set, add the name of the camera to the output filename. The logpoint doesn't store this information
-            use_rgb24: If set, save ptz image in .rgb24 format. By default it is saved to jpg
+            use_rgb24: If set, save the ptz image in .rgb24 format without compression. By default it is saved to png
 
         Returns:
             Filename the image was saved to, or None if saving failed
@@ -622,7 +622,7 @@ class MediaLogWrapper:
             os.remove(full_path)  # remove the rgb24 image
             full_path = os.path.join(
                 save_path,
-                self._build_filename(logpoint, base_filename, ".jpg", camera),
+                self._build_filename(logpoint, base_filename, ".png", camera),
             )
             image.save(full_path)
 
@@ -652,7 +652,7 @@ class MediaLogWrapper:
             logpoint.name,
             path,
             base_filename,
-            raw=camera == SpotCamCamera.IR,
+            raw=False,
             camera=camera,
         )
 
