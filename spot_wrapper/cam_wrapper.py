@@ -629,7 +629,7 @@ class MediaLogWrapper:
         return logpoint
 
     def store_and_save_image(
-        self, camera: SpotCamCamera, path: str, base_filename: str
+        self, camera: SpotCamCamera, path: str, base_filename: str, delete: bool = True
     ) -> typing.Optional[str]:
         """
         Stores a logpoint and saves the data to the given path on the caller's local machine. Blocks until the image
@@ -639,6 +639,7 @@ class MediaLogWrapper:
             camera: Camera from which data should be saved
             path: Save the data to this directory
             base_filename: Use this as the base name of the saved file
+            delete: If true, delete the logpoint which is created after saving the image
 
         Returns:
             File the image was saved to, or None if saving failed
@@ -648,13 +649,19 @@ class MediaLogWrapper:
         while self.get_logpoint_status(logpoint.name).status != Logpoint.COMPLETE:
             logpoint = self.get_logpoint_status(logpoint.name)
 
-        return self.save_logpoint_image(
+        output_fname = self.save_logpoint_image(
             logpoint.name,
             path,
             base_filename,
             raw=False,
             camera=camera,
         )
+
+        if delete:
+            # Since we have saved the logpoint image, can probably safely delete it
+            self.delete_logpoint(logpoint.name)
+
+        return output_fname
 
 
 class PTZWrapper:
