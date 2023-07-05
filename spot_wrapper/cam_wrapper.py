@@ -491,7 +491,7 @@ class MediaLogWrapper:
             Logpoint containing information about the stored data
         """
         return self.client.store(
-            camera=Camera(type=camera), record_type=Logpoint.STILLIMAGE, tag=tag
+            camera=Camera(name=camera), record_type=Logpoint.STILLIMAGE, tag=tag
         )
 
     def tag(self, name: str, tag: str) -> None:
