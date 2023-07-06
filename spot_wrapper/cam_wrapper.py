@@ -608,7 +608,6 @@ class ImageStreamWrapper:
         while asyncio.get_event_loop().is_running():
             try:
                 frame = await self.client.video_frame_queue.get()
-
                 pil_image = frame.to_image()
                 cv_image = np.array(pil_image)
                 # OpenCV needs BGR
@@ -616,8 +615,8 @@ class ImageStreamWrapper:
                 with self.image_lock:
                     self.last_image_time = datetime.datetime.now()
                     self.last_image = cv_image
-            except Exception as e:
-                self.logger.error(f"Image stream wrapper exception {e}")
+            except exception as e:
+                self.logger.error(f"image stream wrapper exception {e}")
             try:
                 # discard audio frames
                 while not self.client.audio_frame_queue.empty():
@@ -629,6 +628,12 @@ class ImageStreamWrapper:
 
         self.shutdown_flag.set()
 
+    def get_last_image(self):
+        #with self.image_lock:
+        if self.last_image_time is not None:
+            return cv2.pyrDown(self.last_image)
+        else:
+            return None
 
 class SpotCamWrapper:
     def __init__(self, hostname, username, password, logger):
