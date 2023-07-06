@@ -19,6 +19,10 @@ from rclpy.impl.rcutils_logger import RcutilsLogger
 from typing import Tuple, List
 
 
+class CommandTimedOutError(Exception):
+    """Raised when call to command does not return completion state in the stipulated time"""
+    pass
+
 class SpotDance:
     def __init__(
         self,
@@ -83,6 +87,15 @@ class SpotDance:
                 f"request to choreography client for moves failed. Msg: {e}",
                 [],
             )
+        
+    def _check_dance_completed(self, status: choreography_sequence_pb2.ChoreographyStatusResponse.Status) -> bool:
+        """Check the status message to see if dance is onging/completed, return True if dance is completed"""
+        ongoing_states = [
+        choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_PREPPING,
+        choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_DANCING,
+        choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_WAITING_FOR_START_TIME,
+        choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_VALIDATING]
+        return status not in ongoing_states
 
     def execute_dance(self, data: str) -> Tuple[bool, str]:
         """Upload and execute dance"""
@@ -114,19 +127,36 @@ class SpotDance:
             routine_name = choreography.name
             client_start_time = time.time()
             start_slice = 0  # start the choreography at the beginning
-
-            self._choreography_client.execute_choreography(
+            response = self._choreography_client.execute_choreography(
                 choreography_name=routine_name,
                 client_start_time=client_start_time,
                 choreography_starting_slice=start_slice,
             )
+            response.status
+            choreography_sequence_pb2.ExecuteChoreographyResponse.Status.STATUS_OK
+            if response.status != choreography_sequence_pb2.ExecuteChoreographyResponse.Status.STATUS_OK:
+                return False, f"Issue calling execute_choreography, got response.status: {response.status}"
             total_choreography_slices = 0
             for move in choreography.moves:
                 total_choreography_slices += move.requested_slices
                 estimated_time_seconds = (
                     total_choreography_slices / choreography.slices_per_minute * 60.0
                 )
-            time.sleep(estimated_time_seconds)
-            return True, "success"
+
+            start = time.time()
+            while time.time() - start < estimated_time_seconds + 0.2:
+                choreo_status = self._choreography_client.get_choreography_status()[0]
+                status = choreo_status.status
+                self._logger.info(str(status))
+                if self._check_dance_completed(status):
+                    if status == choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_COMPLETED_SEQUENCE:
+                        return True, "success"
+                    else:
+                        return False, f"call to execute_choreography returned unsuccessful status: {status}"
+                time.sleep(0.2)        
+            raise CommandTimedOutError()
+
+        except CommandTimedOutError:
+            raise CommandTimedOutError("Call to execute_choreography did not return completion state in stipulated time")
         except Exception as e:
             return False, f"Error executing dance: {e}"
