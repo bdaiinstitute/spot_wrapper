@@ -21,7 +21,9 @@ from typing import Tuple, List
 
 class CommandTimedOutError(Exception):
     """Raised when call to command does not return completion state in the stipulated time"""
+
     pass
+
 
 class SpotDance:
     def __init__(
@@ -87,14 +89,17 @@ class SpotDance:
                 f"request to choreography client for moves failed. Msg: {e}",
                 [],
             )
-        
-    def _check_dance_completed(self, status: choreography_sequence_pb2.ChoreographyStatusResponse.Status) -> bool:
+
+    def _check_dance_completed(
+        self, status: choreography_sequence_pb2.ChoreographyStatusResponse.Status
+    ) -> bool:
         """Check the status message to see if dance is onging/completed, return True if dance is completed"""
         ongoing_states = [
-        choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_PREPPING,
-        choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_DANCING,
-        choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_WAITING_FOR_START_TIME,
-        choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_VALIDATING]
+            choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_PREPPING,
+            choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_DANCING,
+            choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_WAITING_FOR_START_TIME,
+            choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_VALIDATING,
+        ]
         return status not in ongoing_states
 
     def execute_dance(self, data: str) -> Tuple[bool, str]:
@@ -132,8 +137,14 @@ class SpotDance:
                 client_start_time=client_start_time,
                 choreography_starting_slice=start_slice,
             )
-            if response.status != choreography_sequence_pb2.ExecuteChoreographyResponse.Status.STATUS_OK:
-                return False, f"Issue calling execute_choreography, got response.status: {response.status}"
+            if (
+                response.status
+                != choreography_sequence_pb2.ExecuteChoreographyResponse.Status.STATUS_OK
+            ):
+                return (
+                    False,
+                    f"Issue calling execute_choreography, got response.status: {response.status}",
+                )
             total_choreography_slices = 0
             for move in choreography.moves:
                 total_choreography_slices += move.requested_slices
@@ -146,14 +157,22 @@ class SpotDance:
                 choreo_status = self._choreography_client.get_choreography_status()[0]
                 status = choreo_status.status
                 if self._check_dance_completed(status):
-                    if status == choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_COMPLETED_SEQUENCE:
+                    if (
+                        status
+                        == choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_COMPLETED_SEQUENCE
+                    ):
                         return True, "success"
                     else:
-                        return False, f"call to execute_choreography returned unsuccessful status: {status}"
-                time.sleep(0.2)        
+                        return (
+                            False,
+                            f"call to execute_choreography returned unsuccessful status: {status}",
+                        )
+                time.sleep(0.2)
             raise CommandTimedOutError()
 
         except CommandTimedOutError:
-            raise CommandTimedOutError("Call to execute_choreography did not return completion state in stipulated time")
+            raise CommandTimedOutError(
+                "Call to execute_choreography did not return completion state in stipulated time"
+            )
         except Exception as e:
             return False, f"Error executing dance: {e}"
