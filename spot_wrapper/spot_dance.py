@@ -168,11 +168,11 @@ class SpotDance:
                             f"call to execute_choreography returned unsuccessful status: {status}",
                         )
                 time.sleep(0.2)
-            raise CommandTimedOutError()
-
-        except CommandTimedOutError:
             raise CommandTimedOutError(
                 "Call to execute_choreography did not return completion state in stipulated time"
             )
+
+        except CommandTimedOutError:
+            raise
         except Exception as e:
             return False, f"Error executing dance: {e}"
