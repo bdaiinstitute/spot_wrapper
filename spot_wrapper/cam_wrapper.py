@@ -631,7 +631,7 @@ class ImageStreamWrapper:
     def get_last_image(self):
         #with self.image_lock:
         if self.last_image_time is not None:
-            return cv2.pyrDown(self.last_image)
+            return self.last_image
         else:
             return None
 
