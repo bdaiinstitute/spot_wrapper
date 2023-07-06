@@ -132,8 +132,6 @@ class SpotDance:
                 client_start_time=client_start_time,
                 choreography_starting_slice=start_slice,
             )
-            response.status
-            choreography_sequence_pb2.ExecuteChoreographyResponse.Status.STATUS_OK
             if response.status != choreography_sequence_pb2.ExecuteChoreographyResponse.Status.STATUS_OK:
                 return False, f"Issue calling execute_choreography, got response.status: {response.status}"
             total_choreography_slices = 0
@@ -147,7 +145,6 @@ class SpotDance:
             while time.time() - start < estimated_time_seconds + 0.2:
                 choreo_status = self._choreography_client.get_choreography_status()[0]
                 status = choreo_status.status
-                self._logger.info(str(status))
                 if self._check_dance_completed(status):
                     if status == choreography_sequence_pb2.ChoreographyStatusResponse.Status.STATUS_COMPLETED_SEQUENCE:
                         return True, "success"
