@@ -22,6 +22,7 @@ from bosdyn.api import robot_state_pb2
 from bosdyn.api import synchronized_command_pb2
 from bosdyn.api import trajectory_pb2
 from bosdyn.api import world_object_pb2
+from bosdyn.api import point_cloud_pb2
 from bosdyn.api.graph_nav import graph_nav_pb2
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.api.graph_nav import nav_pb2
@@ -46,7 +47,6 @@ from bosdyn.client.image import (
 )
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
-from bosdyn.client.point_cloud import build_pc_request
 from bosdyn.client.power import safe_power_off, PowerClient, power_on
 from bosdyn.client.robot import UnregisteredServiceError, Robot
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
@@ -83,6 +83,7 @@ from . import graph_nav_util
 from bosdyn.api import basic_command_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
+from .spot_eap import SpotEAP
 from .spot_world_objects import SpotWorldObjects
 
 
@@ -320,36 +321,6 @@ class AsyncImageService(AsyncPeriodicQuery):
             return callback_future
 
 
-class AsyncPointCloudService(AsyncPeriodicQuery):
-    """
-    Class to get point cloud at regular intervals.  get_point_cloud_from_sources_async query sent to the robot at
-    every tick.  Callback registered to defined callback function.
-
-    Attributes:
-        client: The Client to a service on the robot
-        logger: Logger object
-        rate: Rate (Hz) to trigger the query
-        callback: Callback function to call when the results of the query are available
-    """
-
-    def __init__(self, client, logger, rate, callback, point_cloud_requests):
-        super(AsyncPointCloudService, self).__init__(
-            "robot_point_cloud_service", client, logger, period_sec=1.0 / max(rate, 1.0)
-        )
-        self._callback = None
-        if rate > 0.0:
-            self._callback = callback
-        self._point_cloud_requests = point_cloud_requests
-
-    def _start_query(self):
-        if self._callback and self._point_cloud_requests:
-            callback_future = self._client.get_point_cloud_async(
-                self._point_cloud_requests
-            )
-            callback_future.add_done_callback(self._callback)
-            return callback_future
-
-
 class AsyncIdle(AsyncPeriodicQuery):
     """
     Class to check if the robot is moving, and if not, command a stand with the set mobility parameters
@@ -373,10 +344,10 @@ class AsyncIdle(AsyncPeriodicQuery):
         self._spot_wrapper: SpotWrapper = spot_wrapper
 
     def _start_query(self) -> None:
-        if self._spot_wrapper._last_stand_command != None:
+        if self._spot_wrapper.last_stand_command is not None:
             try:
                 response = self._client.robot_command_feedback(
-                    self._spot_wrapper._last_stand_command
+                    self._spot_wrapper.last_stand_command
                 )
                 status = (
                     response.feedback.synchronized_feedback.mobility_command_feedback.stand_feedback.status
@@ -384,7 +355,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                 self._spot_wrapper.is_sitting = False
                 if status == basic_command_pb2.StandCommand.Feedback.STATUS_IS_STANDING:
                     self._spot_wrapper.is_standing = True
-                    self._spot_wrapper._last_stand_command = None
+                    self._spot_wrapper.last_stand_command = None
                 elif (
                     status == basic_command_pb2.StandCommand.Feedback.STATUS_IN_PROGRESS
                 ):
@@ -394,38 +365,38 @@ class AsyncIdle(AsyncPeriodicQuery):
                     self._spot_wrapper.is_standing = False
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
-                self._spot_wrapper._last_stand_command = None
+                self._spot_wrapper.last_stand_command = None
 
-        if self._spot_wrapper._last_sit_command != None:
+        if self._spot_wrapper.last_sit_command is not None:
             try:
                 self._spot_wrapper.is_standing = False
                 response = self._client.robot_command_feedback(
-                    self._spot_wrapper._last_sit_command
+                    self._spot_wrapper.last_sit_command
                 )
                 if (
                     response.feedback.synchronized_feedback.mobility_command_feedback.sit_feedback.status
                     == basic_command_pb2.SitCommand.Feedback.STATUS_IS_SITTING
                 ):
                     self._spot_wrapper.is_sitting = True
-                    self._spot_wrapper._last_sit_command = None
+                    self._spot_wrapper.last_sit_command = None
                 else:
                     self._spot_wrapper.is_sitting = False
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
-                self._spot_wrapper._last_sit_command = None
+                self._spot_wrapper.last_sit_command = None
 
         is_moving = False
 
-        if self._spot_wrapper._last_velocity_command_time != None:
-            if time.time() < self._spot_wrapper._last_velocity_command_time:
+        if self._spot_wrapper.last_velocity_command_time is not None:
+            if time.time() < self._spot_wrapper.last_velocity_command_time:
                 is_moving = True
             else:
-                self._spot_wrapper._last_velocity_command_time = None
+                self._spot_wrapper.last_velocity_command_time = None
 
-        if self._spot_wrapper._last_trajectory_command != None:
+        if self._spot_wrapper.last_trajectory_command is not None:
             try:
                 response = self._client.robot_command_feedback(
-                    self._spot_wrapper._last_trajectory_command
+                    self._spot_wrapper.last_trajectory_command
                 )
                 status = (
                     response.feedback.synchronized_feedback.mobility_command_feedback.se2_trajectory_feedback.status
@@ -438,12 +409,12 @@ class AsyncIdle(AsyncPeriodicQuery):
                     or (
                         status
                         == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_NEAR_GOAL
-                        and not self._spot_wrapper._last_trajectory_command_precise
+                        and not self._spot_wrapper.last_trajectory_command_precise
                     )
                 ):
                     self._spot_wrapper.at_goal = True
                     # Clear the command once at the goal
-                    self._spot_wrapper._last_trajectory_command = None
+                    self._spot_wrapper.last_trajectory_command = None
                     self._spot_wrapper._trajectory_status_unknown = False
                 elif (
                     status
@@ -460,18 +431,18 @@ class AsyncIdle(AsyncPeriodicQuery):
                     status
                     == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_UNKNOWN
                 ):
-                    self._spot_wrapper._trajectory_status_unknown = True
-                    self._spot_wrapper._last_trajectory_command = None
+                    self._spot_wrapper.trajectory_status_unknown = True
+                    self._spot_wrapper.last_trajectory_command = None
                 else:
                     self._logger.error(
                         "Received trajectory command status outside of expected range, value is {}".format(
                             status
                         )
                     )
-                    self._spot_wrapper._last_trajectory_command = None
+                    self._spot_wrapper.last_trajectory_command = None
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
-                self._spot_wrapper._last_trajectory_command = None
+                self._spot_wrapper.last_trajectory_command = None
 
         self._spot_wrapper.is_moving = is_moving
 
@@ -481,10 +452,10 @@ class AsyncIdle(AsyncPeriodicQuery):
             self._spot_wrapper.is_standing
             and self._spot_wrapper._continually_try_stand
             and not self._spot_wrapper.is_moving
-            and self._spot_wrapper._last_trajectory_command is not None
-            and self._spot_wrapper._last_stand_command is not None
-            and self._spot_wrapper._last_velocity_command_time is not None
-            and self._spot_wrapper._last_docking_command is not None
+            and self._spot_wrapper.last_trajectory_command is not None
+            and self._spot_wrapper.last_stand_command is not None
+            and self._spot_wrapper.last_velocity_command_time is not None
+            and self._spot_wrapper.last_docking_command is not None
         ):
             self._spot_wrapper.stand(False)
 
@@ -575,6 +546,23 @@ class RobotState:
     near_goal: bool = False
 
 
+@dataclass()
+class RobotCommandData:
+    """
+    Store data about the commands the wrapper sends to the SDK. Running a command returns an integer value
+    representing that command's ID. These values are used to monitor the progress of the command and modify attributes
+    of RobotState accordingly. The values should be reset to none when the command completes.
+    """
+
+    last_stand_command: typing.Optional[int] = None
+    last_sit_command: typing.Optional[int] = None
+    last_docking_command: typing.Optional[int] = None
+    last_trajectory_command: typing.Optional[int] = None
+    # Was the last trajectory command requested to be precise
+    last_trajectory_command_precise: typing.Optional[bool] = None
+    last_velocity_command_time: typing.Optional[float] = None
+
+
 class SpotWrapper:
     """Generic wrapper class to encompass release 1.1.4 API features as well as maintaining leases automatically"""
 
@@ -637,13 +625,7 @@ class SpotWrapper:
         self._mobility_params = RobotCommandBuilder.mobility_params()
         self._state = RobotState()
         self._trajectory_status_unknown = False
-        self._last_robot_command_feedback = False
-        self._last_stand_command = None
-        self._last_sit_command = None
-        self._last_trajectory_command = None
-        self._last_trajectory_command_precise = None
-        self._last_velocity_command_time = None
-        self._last_docking_command = None
+        self._command_data = RobotCommandData()
 
         self._front_image_requests = []
         for source in front_image_sources:
@@ -662,10 +644,6 @@ class SpotWrapper:
             self._rear_image_requests.append(
                 build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
             )
-
-        self._point_cloud_requests = []
-        for source in point_cloud_sources:
-            self._point_cloud_requests.append(build_pc_request(source))
 
         self._hand_image_requests = []
         for source in hand_image_sources:
@@ -931,14 +909,18 @@ class SpotWrapper:
         ]
 
         if self._point_cloud_client:
-            self._point_cloud_task = AsyncPointCloudService(
-                self._point_cloud_client,
+            self._spot_eap = SpotEAP(
                 self._logger,
-                max(0.0, self._rates.get("point_cloud", 0.0)),
+                self._point_cloud_client,
+                point_cloud_sources,
+                # If the parameter isn't given assume we don't want any clouds
+                self._rates.get("point_cloud", 0.0),
                 self._callbacks.get("lidar_points", None),
-                self._point_cloud_requests,
             )
+            self._point_cloud_task = self._spot_eap.async_task
             robot_tasks.append(self._point_cloud_task)
+        else:
+            self._spot_eap = None
 
         self._spot_world_objects = SpotWorldObjects(
             self._logger,
@@ -1015,6 +997,11 @@ class SpotWrapper:
         return self._frame_prefix
 
     @property
+    def spot_eap_lidar(self) -> typing.Optional[SpotEAP]:
+        """Return SpotEAP instance"""
+        return self._spot_eap
+
+    @property
     def logger(self) -> logging.Logger:
         """Return logger instance of the SpotWrapper"""
         return self._logger
@@ -1077,7 +1064,7 @@ class SpotWrapper:
     @property
     def point_clouds(self) -> typing.List[point_cloud_pb2.PointCloudResponse]:
         """Return latest proto from the _point_cloud_task"""
-        return self._point_cloud_task.proto
+        return self.spot_eap_lidar.async_task.proto
 
     @property
     def is_standing(self) -> bool:
@@ -1121,6 +1108,54 @@ class SpotWrapper:
     @at_goal.setter
     def at_goal(self, state: bool) -> None:
         self._state.at_goal = state
+
+    @property
+    def last_stand_command(self) -> typing.Optional[int]:
+        return self._command_data.last_stand_command
+
+    @last_stand_command.setter
+    def last_stand_command(self, command_id: int) -> None:
+        self._command_data.last_stand_command = command_id
+
+    @property
+    def last_sit_command(self) -> typing.Optional[int]:
+        return self._command_data.last_sit_command
+
+    @last_sit_command.setter
+    def last_sit_command(self, command_id: int) -> None:
+        self._command_data.last_sit_command = command_id
+
+    @property
+    def last_docking_command(self) -> typing.Optional[int]:
+        return self._command_data.last_docking_command
+
+    @last_docking_command.setter
+    def last_docking_command(self, command_id: int) -> None:
+        self._command_data.last_docking_command = command_id
+
+    @property
+    def last_trajectory_command(self) -> typing.Optional[int]:
+        return self._command_data.last_trajectory_command
+
+    @last_trajectory_command.setter
+    def last_trajectory_command(self, command_id: int) -> None:
+        self._command_data.last_trajectory_command = command_id
+
+    @property
+    def last_trajectory_command_precise(self) -> typing.Optional[bool]:
+        return self._command_data.last_trajectory_command_precise
+
+    @last_trajectory_command_precise.setter
+    def last_trajectory_command_precise(self, was_precise: bool) -> None:
+        self._command_data.last_trajectory_command_precise = was_precise
+
+    @property
+    def last_velocity_command_time(self) -> typing.Optional[float]:
+        return self._command_data.last_velocity_command_time
+
+    @last_velocity_command_time.setter
+    def last_velocity_command_time(self, command_time: float) -> None:
+        self._command_data.last_velocity_command_time = command_time
 
     def is_estopped(self, timeout: typing.Optional[float] = None) -> bool:
         return self._robot.is_estopped(timeout=timeout)
@@ -1333,7 +1368,7 @@ class SpotWrapper:
 
         """
         response = self._robot_command(RobotCommandBuilder.synchro_sit_command())
-        self._last_sit_command = response[2]
+        self.last_sit_command = response[2]
         return response[0], response[1]
 
     @try_claim(power_on=True)
@@ -1348,7 +1383,7 @@ class SpotWrapper:
             RobotCommandBuilder.synchro_stand_command(params=self._mobility_params)
         )
         if monitor_command:
-            self._last_stand_command = response[2]
+            self.last_stand_command = response[2]
         return response[0], response[1]
 
     @try_claim(power_on=True)
@@ -1392,7 +1427,7 @@ class SpotWrapper:
             )
 
         if monitor_command:
-            self._last_stand_command = response[2]
+            self.last_stand_command = response[2]
         return response[0], response[1]
 
     @try_claim(power_on=True)
@@ -1503,7 +1538,7 @@ class SpotWrapper:
             end_time_secs=end_time,
             timesync_endpoint=self._robot.time_sync.endpoint,
         )
-        self._last_velocity_command_time = end_time
+        self.last_velocity_command_time = end_time
         return response[0], response[1]
 
     @try_claim
@@ -1538,7 +1573,7 @@ class SpotWrapper:
         self._trajectory_status_unknown = False
         self.at_goal = False
         self.near_goal = False
-        self._last_trajectory_command_precise = precise_position
+        self.last_trajectory_command_precise = precise_position
         self._logger.info("got command duration of {}".format(cmd_duration))
         end_time = time.time() + cmd_duration
         if frame_name == "vision":
@@ -1580,7 +1615,7 @@ class SpotWrapper:
         else:
             raise ValueError("frame_name must be 'vision' or 'odom'")
         if response[0]:
-            self._last_trajectory_command = response[2]
+            self.last_trajectory_command = response[2]
         return response[0], response[1]
 
     def robot_command(
@@ -2697,11 +2732,11 @@ class SpotWrapper:
             self._robot.power_on()
             self.stand()
             # Dock the robot
-            self._last_docking_command = dock_id
+            self.last_docking_command = dock_id
             blocking_dock_robot(self._robot, dock_id)
-            self._last_docking_command = None
+            self.last_docking_command = None
             # Necessary to reset this as docking often causes the last stand command to go into an unknown state
-            self._last_stand_command = None
+            self.last_stand_command = None
             return True, "Success"
         except Exception as e:
             return False, f"Exception while trying to dock: {e}"
