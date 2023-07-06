@@ -8,6 +8,7 @@ import typing
 from enum import Enum
 from collections import namedtuple
 from dataclasses import dataclass, field
+import threading
 
 import bosdyn.client.auth
 from bosdyn.api import arm_command_pb2
@@ -612,6 +613,7 @@ class SpotWrapper:
                                    in strange behavior if you use the wrapper and tablet together.
             rgb_cameras: If the robot has only body-cameras with greyscale images, this must be set to false.
         """
+        self._lock = threading.Lock()
         self._username = username
         self._password = password
         self._hostname = hostname
@@ -2277,6 +2279,7 @@ class SpotWrapper:
             return
 
         # Stop the lease keepalive and create a new sublease for graph nav.
+        #TODO: figure out what the subleases are for
         self._lease = self._lease_wallet.advance()
         sublease = self._lease.create_sublease()
         self._lease_keepalive.shutdown()
@@ -2289,7 +2292,6 @@ class SpotWrapper:
             # navigation command (with estop or killing the program).
             nav_to_cmd_id = self._graph_nav_client.navigate_to(
                 destination_waypoint, 1.0, leases=[sublease.lease_proto]
-                , route_blocked_behavior=2
             )
             time.sleep(0.5)  # Sleep for half a second to allow for command execution.
             # Poll the robot for feedback to determine if the navigation command is complete. Then sit
@@ -2370,19 +2372,42 @@ class SpotWrapper:
         # Navigate to the destination waypoint.
         is_finished = False
         nav_to_cmd_id = -1
+        #blocked_behaviour = graph_nav_pb2.RouteFollowingParams(route_blocked_behavior = graph_nav_pb2.RouteFollowingParams.RouteBlockedBehavior.ROUTE_BLOCKED_FAIL)
+        self._blocked_behaviour = 2 #complain if blocked
         travel_params = self._graph_nav_client.generate_travel_params(self._max_distance, self._max_yaw, velocity_params)
+        self._last_waypoint_where_stuck = None
+        #TODO: make sure calls to getloclaizationstate dont add too much latency
         while not is_finished:
+            self._logger.error(f"blocked behaviour is {self._blocked_behaviour}")
+            if self._blocked_behaviour == 1 and self._graph_nav_client.get_localization_state().localization.waypoint_id != self._last_waypoint_where_stuck:
+                self._blocked_behaviour = 2
             # Issue the navigation command about twice a second such that it is easy to terminate the
             # navigation command (with estop or killing the program).
+            self._logger.info("calling graphnav for a second")
             nav_to_cmd_id = self._graph_nav_client.navigate_to(
                 destination_waypoint, 1.0,  leases=[sublease.lease_proto]
                 ,travel_params = travel_params
-                #, route_blocked_behavior=2
+                , route_blocked_behavior= self._blocked_behaviour
             )
+            self._logger.info("function returned")
             time.sleep(0.5)  # Sleep for half a second to allow for command execution.
             # Poll the robot for feedback to determine if the navigation command is complete. Then sit
             # the robot down once it is finished.
             is_finished = self._check_success(nav_to_cmd_id)
+            if is_finished and self._graph_nav_client.navigation_feedback(nav_to_cmd_id).status \
+            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_STUCK:
+                self._lock.acquire()
+                self._navigate_to_dynamic_feedback = "STATUS_STUCK"
+                self._lock.release()
+                self._blocked_behaviour = 1 #try to reroute
+                self._last_waypoint_where_stuck = self._graph_nav_client.get_localization_state().localization.waypoint_id
+                is_finished = False
+                time.sleep(4)
+        #TODO: add code so that if it is stuck at the same waypoint two times we should return
+        #TODO: add code so that if velocity is set to zero the request should get cancelled and return
+
+
+
         self._logger.error("HHHHHHHHHHHHHHHHHH")
 
         self._lease = self._lease_wallet.advance()
