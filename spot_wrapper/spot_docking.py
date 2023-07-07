@@ -6,7 +6,7 @@ from bosdyn.client import robot_command
 from bosdyn.client.docking import DockingClient, blocking_dock_robot, blocking_undock
 from bosdyn.client.robot import Robot
 
-from wrapper import RobotState
+from wrapper import RobotState, RobotCommandData
 
 
 class SpotDocking:
@@ -19,15 +19,16 @@ class SpotDocking:
         robot: Robot,
         logger: logging.Logger,
         robot_state: RobotState,
+        command_data: RobotCommandData,
         docking_client: DockingClient,
         robot_command_client: robot_command.RobotCommandClient,
     ) -> None:
         self._robot = robot
         self._logger = logger
+        self._command_data = command_data
         self._docking_client: DockingClient = docking_client
         self._robot_command_client = robot_command_client
         self._robot_state = robot_state
-        self.last_docking_command = None
 
     def dock(self, dock_id: int) -> typing.Tuple[bool, str]:
         """Dock the robot to the docking station with fiducial ID [dock_id]."""
@@ -42,9 +43,9 @@ class SpotDocking:
             else:
                 self._logger.info("Spot is already standing")
             # Dock the robot
-            self.last_docking_command = dock_id
+            self._command_data.last_docking_command = dock_id
             blocking_dock_robot(self._robot, dock_id)
-            self.last_docking_command = None
+            self._command_data.last_docking_command = None
             return True, "Success"
         except Exception as e:
             return False, f"Exception while trying to dock: {e}"
