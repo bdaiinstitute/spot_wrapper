@@ -51,6 +51,7 @@ from bosdyn.client.power import safe_power_off, PowerClient, power_on
 from bosdyn.client.robot import UnregisteredServiceError, Robot
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
 from bosdyn.client.robot_state import RobotStateClient
+from bosdyn.client.spot_check import SpotCheckClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
 from bosdyn.client.exceptions import UnauthenticatedError
@@ -83,9 +84,9 @@ from . import graph_nav_util
 from bosdyn.api import basic_command_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
+from .spot_check import SpotCheck
 from .spot_eap import SpotEAP
 from .spot_world_objects import SpotWorldObjects
-
 
 front_image_sources = [
     "frontleft_fisheye_image",
@@ -735,6 +736,9 @@ class SpotWrapper:
                 self._docking_client = self._robot.ensure_client(
                     DockingClient.default_service_name
                 )
+                self._spot_check_client = self._robot.ensure_client(
+                    SpotCheckClient.default_service_name
+                )
                 self._license_client = self._robot.ensure_client(
                     LicenseClient.default_service_name
                 )
@@ -908,6 +912,15 @@ class SpotWrapper:
             self._estop_monitor,
         ]
 
+        self._spot_check = SpotCheck(
+            self._robot,
+            self._logger,
+            self._state,
+            self._spot_check_client,
+            self._robot_command_client,
+            self._lease_client,
+        )
+
         if self._point_cloud_client:
             self._spot_eap = SpotEAP(
                 self._logger,
@@ -995,6 +1008,11 @@ class SpotWrapper:
     @property
     def frame_prefix(self) -> str:
         return self._frame_prefix
+
+    @property
+    def spot_check(self) -> SpotCheck:
+        """Return SpotCheck instance"""
+        return self._spot_check
 
     @property
     def spot_eap_lidar(self) -> typing.Optional[SpotEAP]:
