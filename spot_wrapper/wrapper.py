@@ -501,38 +501,6 @@ class AsyncEStopMonitor(AsyncPeriodicQuery):
             pass
 
 
-def try_claim(func=None, *, power_on=False):
-    """
-    Decorator which tries to acquire the lease before executing the wrapped function
-
-    the _func=None and * args are required to allow this decorator to be used with or without arguments
-
-    Args:
-        func: Function that is being wrapped
-        power_on: If true, power on after claiming the lease
-
-    Returns:
-        Decorator which will wrap the decorated function
-    """
-    # If this decorator is being used without the power_on arg, return it as if it was called with that arg specified
-    if func is None:
-        return functools.partial(try_claim, power_on=power_on)
-
-    @functools.wraps(func)
-    def wrapper_try_claim(self, *args, **kwargs):
-        if self._get_lease_on_action:
-            if power_on:
-                # Power on is also wrapped by this decorator so if we request power on the lease will also be claimed
-                response = self.power_on()
-            else:
-                response = self.claim()
-            if not response[0]:
-                return response
-        return func(self, *args, **kwargs)
-
-    return wrapper_try_claim
-
-
 @dataclass()
 class RobotState:
     """
@@ -609,7 +577,8 @@ class SpotWrapper:
         self._rates = rates or {}
         self._callbacks = callbacks or {}
         self._use_take_lease = use_take_lease
-        self._get_lease_on_action = get_lease_on_action
+        self._claim_decorator = TryClaimDecorator(self, get_lease_on_action)
+        self.decorate_functions()
         self._continually_try_stand = continually_try_stand
         self._rgb_cameras = rgb_cameras
         self._frame_prefix = ""
@@ -947,6 +916,56 @@ class SpotWrapper:
 
         self._robot_id = None
         self._lease = None
+
+    def decorate_functions(self):
+        """
+        Many of the functions in the wrapper need to have the lease claimed and the robot powered on before they will
+        function. The TryClaimDecorator object includes a decorator which is the mechanism we use to make sure that
+        is the case, assuming the get_lease_on_action variable is true. Otherwise, it is up to the user to ensure
+        that the lease is claimed and the power is on before running commands, otherwise the commands will fail.
+        """
+        decorated_funcs = [
+            self.stop,
+            self.self_right,
+            self.sit,
+            self.simple_stand,
+            self.stand,
+            self.battery_change_pose,
+            self.velocity_cmd,
+            self.trajectory_cmd,
+            self.ensure_arm_power_and_stand,
+            self.arm_stow,
+            self.arm_unstow,
+            self.arm_joint_move,
+            self.force_trajectory,
+            self.gripper_open,
+            self.gripper_close,
+            self.gripper_angle_open,
+            self.hand_pose,
+            self.grasp_3d,
+            self.navigate_to,
+            self._navigate_to,
+            self._navigate_route,
+            self.dock,
+            self.undock,
+            self.execute_dance,
+        ]
+        decorated_funcs_no_power = [
+            self.stop,
+            self.power_on,
+            self.safe_power_off,
+            self.toggle_power,
+        ]
+
+        for func in decorated_funcs:
+            setattr(self, func.__name__, self._claim_decorator.decorate(func))
+
+        for func in decorated_funcs_no_power:
+            setattr(
+                self,
+                func.__name__,
+                self._claim_decorator.decorate(func, power_on=False),
+            )
 
     @staticmethod
     def authenticate(
@@ -1335,7 +1354,6 @@ class SpotWrapper:
             self._logger.error(f"Unable to execute manipulation command: {e}")
             return False, str(e), None
 
-    @try_claim
     def stop(self) -> typing.Tuple[bool, str]:
         """
         Stop any action the robot is currently doing.
@@ -1347,7 +1365,6 @@ class SpotWrapper:
         response = self._robot_command(RobotCommandBuilder.stop_command())
         return response[0], response[1]
 
-    @try_claim(power_on=True)
     def self_right(self) -> typing.Tuple[bool, str]:
         """
         Have the robot self-right.
@@ -1358,7 +1375,6 @@ class SpotWrapper:
         response = self._robot_command(RobotCommandBuilder.selfright_command())
         return response[0], response[1]
 
-    @try_claim(power_on=True)
     def sit(self) -> typing.Tuple[bool, str]:
         """
         Stop the robot's motion and sit down if able.
@@ -1371,7 +1387,6 @@ class SpotWrapper:
         self.last_sit_command = response[2]
         return response[0], response[1]
 
-    @try_claim(power_on=True)
     def simple_stand(self, monitor_command: bool = True) -> typing.Tuple[bool, str]:
         """
         If the e-stop is enabled, and the motor power is enabled, stand the robot up.
@@ -1386,7 +1401,6 @@ class SpotWrapper:
             self.last_stand_command = response[2]
         return response[0], response[1]
 
-    @try_claim(power_on=True)
     def stand(
         self,
         monitor_command: bool = True,
@@ -1430,7 +1444,6 @@ class SpotWrapper:
             self.last_stand_command = response[2]
         return response[0], response[1]
 
-    @try_claim(power_on=True)
     def battery_change_pose(self, dir_hint: int = 1) -> typing.Tuple[bool, str]:
         """
         Put the robot into the battery change pose
@@ -1448,7 +1461,6 @@ class SpotWrapper:
             return response[0], response[1]
         return False, "Call sit before trying to roll over"
 
-    @try_claim
     def safe_power_off(self) -> typing.Tuple[bool, str]:
         """
         Stop the robot's motion and sit if possible.  Once sitting, disable motor power.
@@ -1476,7 +1488,6 @@ class SpotWrapper:
         except Exception as e:
             return False, f"Exception while clearing behavior fault: {e}", None
 
-    @try_claim
     def power_on(self) -> typing.Tuple[bool, str]:
         """
         Enable the motor power if e-stop is enabled.
@@ -1513,7 +1524,6 @@ class SpotWrapper:
         """Get mobility params"""
         return self._mobility_params
 
-    @try_claim
     def velocity_cmd(
         self, v_x: float, v_y: float, v_rot: float, cmd_duration: float = 0.125
     ) -> typing.Tuple[bool, str]:
@@ -1541,7 +1551,6 @@ class SpotWrapper:
         self.last_velocity_command_time = end_time
         return response[0], response[1]
 
-    @try_claim
     def trajectory_cmd(
         self,
         goal_x: float,
@@ -1729,7 +1738,6 @@ class SpotWrapper:
                 f"Got an error during downloading graph and snapshots from the robot: {e}",
             )
 
-    @try_claim
     def navigate_to(
         self,
         upload_path,
@@ -1774,7 +1782,6 @@ class SpotWrapper:
         return resp
 
     # Arm ############################################
-    @try_claim
     def ensure_arm_power_and_stand(self):
         if not self._robot.has_arm():
             return False, "Spot with an arm is required for this service"
@@ -1801,7 +1808,6 @@ class SpotWrapper:
 
         return True, "Spot has an arm, is powered on, and standing"
 
-    @try_claim
     def arm_stow(self):
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -1822,7 +1828,6 @@ class SpotWrapper:
 
         return True, "Stow arm success"
 
-    @try_claim
     def arm_unstow(self):
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -1843,7 +1848,6 @@ class SpotWrapper:
 
         return True, "Unstow arm success"
 
-    @try_claim
     def arm_carry(self):
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -1882,7 +1886,6 @@ class SpotWrapper:
         )
         return RobotCommandBuilder.build_synchro_command(arm_sync_robot_cmd)
 
-    @try_claim
     def arm_joint_move(self, joint_targets):
         # All perspectives are given when looking at the robot from behind after the unstow service is called
         # Joint1: 0.0 arm points to the front. positive: turn left, negative: turn right)
@@ -1963,7 +1966,6 @@ class SpotWrapper:
         except Exception as e:
             return False, f"Exception occured during arm movement: {e}"
 
-    @try_claim
     def force_trajectory(self, data):
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -2033,7 +2035,6 @@ class SpotWrapper:
 
         return True, "Moved arm successfully"
 
-    @try_claim
     def gripper_open(self):
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -2054,7 +2055,6 @@ class SpotWrapper:
 
         return True, "Open gripper success"
 
-    @try_claim
     def gripper_close(self):
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -2075,7 +2075,6 @@ class SpotWrapper:
 
         return True, "Closed gripper successfully"
 
-    @try_claim
     def gripper_angle_open(self, gripper_ang):
         # takes an angle between 0 (closed) and 90 (fully opened) and opens the
         # gripper at this angle
@@ -2104,7 +2103,6 @@ class SpotWrapper:
 
         return True, "Opened gripper successfully"
 
-    @try_claim
     def hand_pose(self, data):
         try:
             success, msg = self.ensure_arm_power_and_stand()
@@ -2175,7 +2173,6 @@ class SpotWrapper:
 
         return True, "Moved arm successfully"
 
-    @try_claim
     def grasp_3d(self, frame, object_rt_frame):
         try:
             frm = str(frame)
@@ -2476,7 +2473,6 @@ class SpotWrapper:
             )
         return True, "Success"
 
-    @try_claim
     def _navigate_to(self, *args):
         """Navigate to a specific waypoint."""
         # Take the first argument as the destination waypoint.
@@ -2552,7 +2548,6 @@ class SpotWrapper:
         else:
             return False, "Navigation command is not complete yet."
 
-    @try_claim
     def _navigate_route(self, *args):
         """Navigate through a specific route of waypoints."""
         if len(args) < 1:
@@ -2637,7 +2632,6 @@ class SpotWrapper:
         self._init_current_graph_nav_state()
         return result
 
-    @try_claim
     def toggle_power(self, should_power_on):
         """Power the robot on/off dependent on the current power state."""
         is_powered_on = self.check_is_powered_on()
@@ -2724,7 +2718,6 @@ class SpotWrapper:
                     )
         return None
 
-    @try_claim
     def dock(self, dock_id):
         """Dock the robot to the docking station with fiducial ID [dock_id]."""
         try:
@@ -2741,7 +2734,6 @@ class SpotWrapper:
         except Exception as e:
             return False, f"Exception while trying to dock: {e}"
 
-    @try_claim
     def undock(self, timeout=20):
         """Power motors on and undock the robot from the station."""
         try:
@@ -2753,7 +2745,6 @@ class SpotWrapper:
         except Exception as e:
             return False, f"Exception while trying to undock: {e}"
 
-    @try_claim
     def execute_dance(self, data):
         if self._is_licensed_for_choreography:
             return self._spot_dance.execute_dance(data)
@@ -3003,3 +2994,48 @@ class SpotWrapper:
                 )
             )
         return result
+
+
+class TryClaimDecorator:
+    """
+    This class provides a portable way of accessing the functionality of the try_claim decorator. It can be passed
+    around to modules which can then decorate their functions with it, allowing them to claim and power on as needed.
+
+    Note that this decorator is not intended to be applied using the @ syntax. It should be applied during or after
+    object instantiation.
+    """
+
+    def __init__(self, spot_wrapper: SpotWrapper, get_lease_on_action: bool = False):
+        self._spot_wrapper = spot_wrapper
+        self._get_lease_on_action = get_lease_on_action
+
+    def decorate(self, func: typing.Callable, power_on: bool = True):
+        """
+        Decorator which tries to acquire the lease before executing the wrapped function
+
+        Args:
+            func: Function that is being wrapped
+            power_on: If true, power on after claiming the lease. For the vast majority of cases this is needed
+
+        Returns:
+            Decorator which will wrap the decorated function
+        """
+
+        @functools.wraps(func)
+        def wrapper_try_claim(*args, **kwargs):
+            # Note that because we are assuming that this decorator is used only on instantiated classes,
+            # this function does not take a self arg. The self arg is necessary when using the @ syntax because at
+            # that point the class has not yet been instantiated. In this case, the func we receive is already a bound
+            # method, as opposed to an unbound one. A bound function has the "self" instance built in.
+            if self._get_lease_on_action:
+                if power_on:
+                    # Power on is also wrapped by this decorator so if we request power on the lease will also be
+                    # claimed
+                    response = self._spot_wrapper.power_on()
+                else:
+                    response = self._spot_wrapper.claim()
+                if not response[0]:
+                    return response
+            return func(*args, **kwargs)
+
+        return wrapper_try_claim
