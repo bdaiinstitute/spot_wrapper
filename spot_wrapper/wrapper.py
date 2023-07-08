@@ -577,7 +577,7 @@ class SpotWrapper:
         self._rates = rates or {}
         self._callbacks = callbacks or {}
         self._use_take_lease = use_take_lease
-        self._claim_decorator = TryClaimDecorator(self, get_lease_on_action)
+        self._claim_decorator = TryClaimDecorator(self.power_on, self.claim, get_lease_on_action)
         self.decorate_functions()
         self._continually_try_stand = continually_try_stand
         self._rgb_cameras = rgb_cameras
@@ -3005,8 +3005,14 @@ class TryClaimDecorator:
     object instantiation.
     """
 
-    def __init__(self, spot_wrapper: SpotWrapper, get_lease_on_action: bool = False):
-        self._spot_wrapper = spot_wrapper
+    def __init__(
+        self,
+        power_on_function: typing.Callable[[], typing.Tuple[bool, str]],
+        claim_function: typing.Callable[[], typing.Tuple[bool, str]],
+        get_lease_on_action: bool = False,
+    ):
+        self.power_on = power_on_function
+        self.claim = claim_function
         self._get_lease_on_action = get_lease_on_action
 
     def decorate(self, func: typing.Callable, power_on: bool = True):
@@ -3028,14 +3034,11 @@ class TryClaimDecorator:
             # that point the class has not yet been instantiated. In this case, the func we receive is already a bound
             # method, as opposed to an unbound one. A bound function has the "self" instance built in.
             if self._get_lease_on_action:
+                # Ignore success or failure of these functions. If they fail, then the function that is being wrapped
+                # will fail and the caller will be able to handle from there.
+                self.claim()
                 if power_on:
-                    # Power on is also wrapped by this decorator so if we request power on the lease will also be
-                    # claimed
-                    response = self._spot_wrapper.power_on()
-                else:
-                    response = self._spot_wrapper.claim()
-                if not response[0]:
-                    return response
+                    self.power_on()
             return func(*args, **kwargs)
 
         return wrapper_try_claim
