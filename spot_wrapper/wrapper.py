@@ -577,7 +577,9 @@ class SpotWrapper:
         self._rates = rates or {}
         self._callbacks = callbacks or {}
         self._use_take_lease = use_take_lease
-        self._claim_decorator = TryClaimDecorator(self.power_on, self.claim, get_lease_on_action)
+        self._claim_decorator = TryClaimDecorator(
+            self.power_on, self.claim, get_lease_on_action
+        )
         self.decorate_functions()
         self._continually_try_stand = continually_try_stand
         self._rgb_cameras = rgb_cameras
