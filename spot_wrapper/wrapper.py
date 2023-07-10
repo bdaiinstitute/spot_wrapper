@@ -2279,7 +2279,6 @@ class SpotWrapper:
             return
 
         # Stop the lease keepalive and create a new sublease for graph nav.
-        #TODO: figure out what the subleases are for
         self._lease = self._lease_wallet.advance()
         sublease = self._lease.create_sublease()
         self._lease_keepalive.shutdown()
@@ -2349,15 +2348,13 @@ class SpotWrapper:
             self._logger,
         )
         self._logger.error(f"got destination waypoint {destination_waypoint}")
-        #TODO - fix this error handling
         if not destination_waypoint:
-            # Failed to find the appropriate unique waypoint id for the navigation command.
-            return
+            return False, "could not find destination waypoint"
         if not self.toggle_power(should_power_on=True):
             self._logger.info(
                 "Failed to power on the robot, and cannot complete navigate to request."
             )
-            return
+            return False, "failed to power on robot"
 
         # Stop the lease keepalive and create a new sublease for graph nav.
         self._lease = self._lease_wallet.advance()
@@ -2366,49 +2363,31 @@ class SpotWrapper:
 
         velocity_max = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = self._x, y = self._y))
         velocity_min = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = 0, y = 0))
-        velocity_params = geometry_pb2.SE2VelocityLimit(max_vel = velocity_max, min_vel = velocity_min)
+        velocity_params = geometry_pb2.SE2VelocityLimit(max_vel = velocity_max)
 
 
         # Navigate to the destination waypoint.
         is_finished = False
         nav_to_cmd_id = -1
-        #blocked_behaviour = graph_nav_pb2.RouteFollowingParams(route_blocked_behavior = graph_nav_pb2.RouteFollowingParams.RouteBlockedBehavior.ROUTE_BLOCKED_FAIL)
-        self._blocked_behaviour = 2 #complain if blocked
         travel_params = self._graph_nav_client.generate_travel_params(self._max_distance, self._max_yaw, velocity_params)
-        self._last_waypoint_where_stuck = None
-        #TODO: make sure calls to getloclaizationstate dont add too much latency
+        
         while not is_finished:
-            self._logger.error(f"blocked behaviour is {self._blocked_behaviour}")
-            if self._blocked_behaviour == 1 and self._graph_nav_client.get_localization_state().localization.waypoint_id != self._last_waypoint_where_stuck:
-                self._blocked_behaviour = 2
+            if self._x == 0 or self._y == 0:
+                return False, "goal was cancelled"
             # Issue the navigation command about twice a second such that it is easy to terminate the
             # navigation command (with estop or killing the program).
-            self._logger.info("calling graphnav for a second")
             nav_to_cmd_id = self._graph_nav_client.navigate_to(
                 destination_waypoint, 1.0,  leases=[sublease.lease_proto]
-                ,travel_params = travel_params
-                , route_blocked_behavior= self._blocked_behaviour
+                # uncomment below line to modify max. velocity
+                # currently not using this feature cause it causes robot to walk sideways for unknown reason
+                #,travel_params = travel_params 
+                # uncomment below line to have robot stop when blocked rather than rerouting
+                #, route_blocked_behavior= 2
             )
-            self._logger.info("function returned")
             time.sleep(0.5)  # Sleep for half a second to allow for command execution.
             # Poll the robot for feedback to determine if the navigation command is complete. Then sit
             # the robot down once it is finished.
             is_finished = self._check_success(nav_to_cmd_id)
-            if is_finished and self._graph_nav_client.navigation_feedback(nav_to_cmd_id).status \
-            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_STUCK:
-                self._lock.acquire()
-                self._navigate_to_dynamic_feedback = "STATUS_STUCK"
-                self._lock.release()
-                self._blocked_behaviour = 1 #try to reroute
-                self._last_waypoint_where_stuck = self._graph_nav_client.get_localization_state().localization.waypoint_id
-                is_finished = False
-                time.sleep(4)
-        #TODO: add code so that if it is stuck at the same waypoint two times we should return
-        #TODO: add code so that if velocity is set to zero the request should get cancelled and return
-
-
-
-        self._logger.error("HHHHHHHHHHHHHHHHHH")
 
         self._lease = self._lease_wallet.advance()
         self._lease_keepalive = LeaseKeepAlive(self._lease_client)

@@ -615,7 +615,7 @@ class ImageStreamWrapper:
                 with self.image_lock:
                     self.last_image_time = datetime.datetime.now()
                     self.last_image = cv_image
-            except exception as e:
+            except Exception as e:
                 self.logger.error(f"image stream wrapper exception {e}")
             try:
                 # discard audio frames
