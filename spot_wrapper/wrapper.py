@@ -8,7 +8,6 @@ import typing
 from enum import Enum
 from collections import namedtuple
 from dataclasses import dataclass, field
-import threading
 
 import bosdyn.client.auth
 from bosdyn.api import arm_command_pb2
@@ -613,7 +612,6 @@ class SpotWrapper:
                                    in strange behavior if you use the wrapper and tablet together.
             rgb_cameras: If the robot has only body-cameras with greyscale images, this must be set to false.
         """
-        self._lock = threading.Lock()
         self._username = username
         self._password = password
         self._hostname = hostname
@@ -1574,7 +1572,6 @@ class SpotWrapper:
         power_state = self._robot_state_client.get_robot_state().power_state
         self._started_powered_on = power_state.motor_power_state == power_state.STATE_ON
         self._powered_on = self._started_powered_on
-        self._logger.error(f"mobility params {self._mobility_params}")
 
         # FIX ME somehow,,,, if the robot is stand, need to sit the robot before starting garph nav
         if self.is_standing and not self.is_moving:
@@ -1606,7 +1603,6 @@ class SpotWrapper:
            initial_localization_fiducial : Tells the initializer whether to use fiducials
            initial_localization_waypoint : Waypoint id string of current robot position (optional)
         """
-        self._logger.error(f"mobility params {self._mobility_params}")
         self._get_localization_state()
         resp = self._navigate_to_dynamic([navigate_to])
 
@@ -2337,7 +2333,7 @@ class SpotWrapper:
         if len(args) < 1:
             # If no waypoint id is given as input, then return without requesting navigation.
             self._logger.info("No waypoint provided as a destination for navigate to.")
-            return
+            return False, "no goal waypoint provided"
         self._lease = self._lease_wallet.get_lease()
         #update the feedback variable
         self._logger.error(f"entered navigate to dynamic with waypoint {args[0][0]}")
@@ -2363,7 +2359,7 @@ class SpotWrapper:
 
         velocity_max = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = self._x, y = self._y))
         velocity_min = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = 0, y = 0))
-        velocity_params = geometry_pb2.SE2VelocityLimit(max_vel = velocity_max)
+        velocity_params = geometry_pb2.SE2VelocityLimit(max_vel = velocity_max, min_vel = velocity_min)
 
 
         # Navigate to the destination waypoint.
@@ -2373,6 +2369,7 @@ class SpotWrapper:
         
         while not is_finished:
             if self._x == 0 or self._y == 0:
+                self._navigate_to_dynamic_feedback = "goal cancelled"
                 return False, "goal was cancelled"
             # Issue the navigation command about twice a second such that it is easy to terminate the
             # navigation command (with estop or killing the program).
