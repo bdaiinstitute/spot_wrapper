@@ -2358,7 +2358,7 @@ class SpotWrapper:
         self._lease_keepalive.shutdown()
 
         velocity_max = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = self._x, y = self._y))
-        velocity_min = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = 0, y = 0))
+        velocity_min = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = - self._x, y = - self._y))
         velocity_params = geometry_pb2.SE2VelocityLimit(max_vel = velocity_max, min_vel = velocity_min)
 
 
@@ -2366,10 +2366,12 @@ class SpotWrapper:
         is_finished = False
         nav_to_cmd_id = -1
         travel_params = self._graph_nav_client.generate_travel_params(self._max_distance, self._max_yaw, velocity_params)
+        self._logger.info(f"received params {self._x, self._y, self._max_distance, self._max_yaw}")
+        self.logger.info(f"travel params are {travel_params}")
         
         while not is_finished:
             if self._x == 0 or self._y == 0:
-                self._navigate_to_dynamic_feedback = "goal cancelled"
+                self._navigate_to_dynamic_feedback = "goal paused"
                 return False, "goal was cancelled"
             # Issue the navigation command about twice a second such that it is easy to terminate the
             # navigation command (with estop or killing the program).
@@ -2377,7 +2379,7 @@ class SpotWrapper:
                 destination_waypoint, 1.0,  leases=[sublease.lease_proto]
                 # uncomment below line to modify max. velocity
                 # currently not using this feature cause it causes robot to walk sideways for unknown reason
-                #,travel_params = travel_params 
+                ,travel_params = travel_params 
                 # uncomment below line to have robot stop when blocked rather than rerouting
                 #, route_blocked_behavior= 2
             )
