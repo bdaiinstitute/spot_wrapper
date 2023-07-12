@@ -112,6 +112,7 @@ hand_image_sources = [
     "hand_depth",
     "hand_color_image",
     "hand_depth_in_hand_color_frame",
+    "hand_"
 ]
 """List of image sources for hand image periodic query"""
 
@@ -124,6 +125,15 @@ CAMERA_IMAGE_SOURCES = [
     "right_fisheye_image",
     "back_fisheye_image",
 ]
+# MOD
+CAMERA_REGISTERED_IMAGE_SOURCES = [
+    "frontleft_visual_in_depth_frame",
+    "frontright_visual_in_depth_frame",
+    "left_visual_in_depth_frame",
+    "right_visual_in_depth_frame",
+    "back_visual_in_depth_frame",
+]
+# ENDMOD
 DEPTH_IMAGE_SOURCES = [
     "frontleft_depth",
     "frontright_depth",
@@ -144,41 +154,47 @@ ImageBundle = namedtuple(
 ImageWithHandBundle = namedtuple(
     "ImageBundle", ["frontleft", "frontright", "left", "right", "back", "hand"]
 )
-
+# MOD
 IMAGE_SOURCES_BY_CAMERA = {
     "frontleft": {
         "visual": "frontleft_fisheye_image",
+        "visual_registered": "frontleft_visual_in_depth_frame",
         "depth": "frontleft_depth",
         "depth_registered": "frontleft_depth_in_visual_frame",
     },
     "frontright": {
         "visual": "frontright_fisheye_image",
+        "visual_registered": "frontright_visual_in_depth_frame",
         "depth": "frontright_depth",
         "depth_registered": "frontright_depth_in_visual_frame",
     },
     "left": {
         "visual": "left_fisheye_image",
+        "visual_registered": "left_visual_in_depth_frame",
         "depth": "left_depth",
         "depth_registered": "left_depth_in_visual_frame",
     },
     "right": {
         "visual": "right_fisheye_image",
+        "visual_registered": "right_visual_in_depth_frame",
         "depth": "right_depth",
         "depth_registered": "right_depth_in_visual_frame",
     },
     "back": {
         "visual": "back_fisheye_image",
+        "visual_registered": "back_visual_in_depth_frame",
         "depth": "back_depth",
         "depth_registered": "back_depth_in_visual_frame",
     },
     "hand": {
         "visual": "hand_color_image",
+        "visual_registered": "hand_color_in_depth_frame"
         "depth": "hand_depth",
         "depth_registered": "hand_depth_in_hand_color_frame",
     },
 }
-
-IMAGE_TYPES = {"visual", "depth", "depth_registered"}
+# ENDMOD
+IMAGE_TYPES = {"visual", "visual_registered", "depth", "depth_registered"}
 
 
 @dataclass(frozen=True, eq=True)
