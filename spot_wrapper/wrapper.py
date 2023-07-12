@@ -112,7 +112,7 @@ hand_image_sources = [
     "hand_depth",
     "hand_color_image",
     "hand_depth_in_hand_color_frame",
-    "hand_"
+    "hand_color_in_hand_depth_frame",
 ]
 """List of image sources for hand image periodic query"""
 
@@ -188,13 +188,13 @@ IMAGE_SOURCES_BY_CAMERA = {
     },
     "hand": {
         "visual": "hand_color_image",
-        "visual_registered": "hand_color_in_depth_frame"
+        "visual_registered": "hand_color_in_hand_depth_frame"
         "depth": "hand_depth",
         "depth_registered": "hand_depth_in_hand_color_frame",
     },
 }
-# ENDMOD
 IMAGE_TYPES = {"visual", "visual_registered", "depth", "depth_registered"}
+# ENDMOD
 
 
 @dataclass(frozen=True, eq=True)
@@ -680,6 +680,19 @@ class SpotWrapper:
                 )
             )
 
+        self._camera_registered_image_requests = []
+        for camera_source in CAMERA_REGISTERED_IMAGE_SOURCES:
+            self._camera_registered_image_requests.append(
+                build_image_request(
+                    camera_source,
+                    image_format=image_pb2.Image.FORMAT_JPEG,
+                    pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8
+                    if self._rgb_cameras
+                    else image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8,
+                    quality_percent=50,
+                )
+            )
+
         self._depth_image_requests = []
         for camera_source in DEPTH_IMAGE_SOURCES:
             self._depth_image_requests.append(
@@ -809,6 +822,16 @@ class SpotWrapper:
                     quality_percent=50,
                 )
             )
+
+            self._camera_registered_image_requests.append(
+                build_image_request(
+                    "hand_color_in_hand_depth_frame",
+                    image_format=image_pb2.Image.FORMAT_JPEG,
+                    pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
+                    quality_percent=50,
+                )
+            )
+
             self._depth_image_requests.append(
                 build_image_request(
                     "hand_depth",
@@ -2937,6 +2960,11 @@ class SpotWrapper:
         self,
     ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
         return self.get_images(self._camera_image_requests)
+
+    def get_camera_registered_images(
+        self,
+    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
+        return self.get_images(self._camera_registered_image_requests)
 
     def get_depth_images(
         self,
