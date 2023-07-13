@@ -885,6 +885,7 @@ class SpotWrapper:
             self._robot,
             self._logger,
             self._state,
+            self._command_data,
             self._docking_client,
             self._robot_command_client,
         )

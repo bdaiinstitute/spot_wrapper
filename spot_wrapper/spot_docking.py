@@ -6,7 +6,7 @@ from bosdyn.client import robot_command
 from bosdyn.client.docking import DockingClient, blocking_dock_robot, blocking_undock
 from bosdyn.client.robot import Robot
 
-from wrapper import RobotState, RobotCommandData
+from spot_wrapper.wrapper_helpers import RobotState, RobotCommandData
 
 
 class SpotDocking:
