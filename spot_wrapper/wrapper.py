@@ -875,6 +875,9 @@ class SpotWrapper:
                     pixel_format=pixel_format,
                     quality_percent=75,
                 )
+                # MOD
+                self._logger.info(f"Source {source}")
+                # ENDMOD
 
         # Store the most recent knowledge of the state of the robot based on rpc calls.
         self._init_current_graph_nav_state()
