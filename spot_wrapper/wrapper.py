@@ -188,7 +188,7 @@ IMAGE_SOURCES_BY_CAMERA = {
     },
     "hand": {
         "visual": "hand_color_image",
-        "visual_registered": "hand_color_in_hand_depth_frame"
+        "visual_registered": "hand_color_in_hand_depth_frame",
         "depth": "hand_depth",
         "depth_registered": "hand_depth_in_hand_color_frame",
     },
