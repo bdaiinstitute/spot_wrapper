@@ -20,7 +20,7 @@ from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.util import seconds_to_duration
 
-from wrapper import RobotState
+from spot_wrapper.wrapper_helpers import RobotState
 
 
 class SpotArm:
