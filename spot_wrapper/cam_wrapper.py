@@ -610,15 +610,21 @@ class MediaLogWrapper:
                 data = fd.read()
 
             mode = "RGB"
-            image = Image.frombuffer(
-                mode,
-                (logpoint.image_params.width, logpoint.image_params.height),
-                data,
-                "raw",
-                mode,
-                0,
-                1,
-            )
+            try:
+                image = Image.frombuffer(
+                    mode,
+                    (logpoint.image_params.width, logpoint.image_params.height),
+                    data,
+                    "raw",
+                    mode,
+                    0,
+                    1,
+                )
+            except ValueError as e:
+                self.logger.error(
+                    f"Error while trying to save image as png: {e}. You may need to restart the camera to fix this."
+                )
+
             os.remove(full_path)  # remove the rgb24 image
             full_path = os.path.join(
                 save_path,
