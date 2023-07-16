@@ -22,6 +22,7 @@ from bosdyn.api import robot_state_pb2
 from bosdyn.api import synchronized_command_pb2
 from bosdyn.api import trajectory_pb2
 from bosdyn.api import world_object_pb2
+from bosdyn.api import point_cloud_pb2
 from bosdyn.api.graph_nav import graph_nav_pb2
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.api.graph_nav import nav_pb2
@@ -46,7 +47,6 @@ from bosdyn.client.image import (
 )
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
-from bosdyn.client.point_cloud import build_pc_request
 from bosdyn.client.power import safe_power_off, PowerClient, power_on
 from bosdyn.client.robot import UnregisteredServiceError, Robot
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
@@ -84,7 +84,10 @@ from bosdyn.api import basic_command_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from .spot_arm import SpotArm
+from .spot_eap import SpotEAP
 from .spot_world_objects import SpotWorldObjects
+
+from .wrapper_helpers import RobotCommandData, RobotState
 
 
 front_image_sources = [
@@ -329,36 +332,6 @@ class AsyncImageService(AsyncPeriodicQuery):
             return callback_future
 
 
-class AsyncPointCloudService(AsyncPeriodicQuery):
-    """
-    Class to get point cloud at regular intervals.  get_point_cloud_from_sources_async query sent to the robot at
-    every tick.  Callback registered to defined callback function.
-
-    Attributes:
-        client: The Client to a service on the robot
-        logger: Logger object
-        rate: Rate (Hz) to trigger the query
-        callback: Callback function to call when the results of the query are available
-    """
-
-    def __init__(self, client, logger, rate, callback, point_cloud_requests):
-        super(AsyncPointCloudService, self).__init__(
-            "robot_point_cloud_service", client, logger, period_sec=1.0 / max(rate, 1.0)
-        )
-        self._callback = None
-        if rate > 0.0:
-            self._callback = callback
-        self._point_cloud_requests = point_cloud_requests
-
-    def _start_query(self):
-        if self._callback and self._point_cloud_requests:
-            callback_future = self._client.get_point_cloud_async(
-                self._point_cloud_requests
-            )
-            callback_future.add_done_callback(self._callback)
-            return callback_future
-
-
 class AsyncIdle(AsyncPeriodicQuery):
     """
     Class to check if the robot is moving, and if not, command a stand with the set mobility parameters
@@ -571,36 +544,6 @@ def try_claim(func=None, *, power_on=False):
     return wrapper_try_claim
 
 
-@dataclass()
-class RobotState:
-    """
-    Dataclass which stores information about the robot's state. The values in it may be changed by methods
-    """
-
-    is_sitting: bool = True
-    is_standing: bool = False
-    is_moving: bool = False
-    at_goal: bool = False
-    near_goal: bool = False
-
-
-@dataclass()
-class RobotCommandData:
-    """
-    Store data about the commands the wrapper sends to the SDK. Running a command returns an integer value
-    representing that command's ID. These values are used to monitor the progress of the command and modify attributes
-    of RobotState accordingly. The values should be reset to none when the command completes.
-    """
-
-    last_stand_command: typing.Optional[int] = None
-    last_sit_command: typing.Optional[int] = None
-    last_docking_command: typing.Optional[int] = None
-    last_trajectory_command: typing.Optional[int] = None
-    # Was the last trajectory command requested to be precise
-    last_trajectory_command_precise: typing.Optional[bool] = None
-    last_velocity_command_time: typing.Optional[float] = None
-
-
 class SpotWrapper:
     """Generic wrapper class to encompass release 1.1.4 API features as well as maintaining leases automatically"""
 
@@ -682,10 +625,6 @@ class SpotWrapper:
             self._rear_image_requests.append(
                 build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
             )
-
-        self._point_cloud_requests = []
-        for source in point_cloud_sources:
-            self._point_cloud_requests.append(build_pc_request(source))
 
         self._hand_image_requests = []
         for source in hand_image_sources:
@@ -964,14 +903,18 @@ class SpotWrapper:
             self._spot_arm = None
 
         if self._point_cloud_client:
-            self._point_cloud_task = AsyncPointCloudService(
-                self._point_cloud_client,
+            self._spot_eap = SpotEAP(
                 self._logger,
-                max(0.0, self._rates.get("point_cloud", 0.0)),
+                self._point_cloud_client,
+                point_cloud_sources,
+                # If the parameter isn't given assume we don't want any clouds
+                self._rates.get("point_cloud", 0.0),
                 self._callbacks.get("lidar_points", None),
-                self._point_cloud_requests,
             )
+            self._point_cloud_task = self._spot_eap.async_task
             robot_tasks.append(self._point_cloud_task)
+        else:
+            self._spot_eap = None
 
         self._spot_world_objects = SpotWorldObjects(
             self._logger,
@@ -1056,6 +999,11 @@ class SpotWrapper:
             return self._spot_arm
 
     @property
+    def spot_eap_lidar(self) -> typing.Optional[SpotEAP]:
+        """Return SpotEAP instance"""
+        return self._spot_eap
+
+    @property
     def logger(self) -> logging.Logger:
         """Return logger instance of the SpotWrapper"""
         return self._logger
@@ -1118,7 +1066,7 @@ class SpotWrapper:
     @property
     def point_clouds(self) -> typing.List[point_cloud_pb2.PointCloudResponse]:
         """Return latest proto from the _point_cloud_task"""
-        return self._point_cloud_task.proto
+        return self.spot_eap_lidar.async_task.proto
 
     @property
     def is_standing(self) -> bool:
