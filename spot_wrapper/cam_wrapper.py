@@ -593,11 +593,14 @@ class MediaLogWrapper:
                 save_path,
                 self._build_filename(logpoint, base_filename, ".jpg", camera),
             )
+            # If we're saving as jpg we don't want to rewrite the image file with use_rgb24
+            jpg = True
         else:
             full_path = os.path.join(
                 save_path,
                 self._build_filename(logpoint, base_filename, ".rgb24", camera),
             )
+            jpg = False
 
         # The original method saves the image to file first, then reads and saves it in a different way if rgb24 is
         # not requested, so we do it the same way. There's probably a better way to do it.  Maybe frombytes with the
@@ -605,7 +608,7 @@ class MediaLogWrapper:
         with open(full_path, "wb") as f:
             f.write(image)
 
-        if not use_rgb24:
+        if not jpg and not use_rgb24:
             with open(full_path, mode="rb") as fd:
                 data = fd.read()
 
@@ -624,6 +627,7 @@ class MediaLogWrapper:
                 self.logger.error(
                     f"Error while trying to save image as png: {e}. You may need to restart the camera to fix this."
                 )
+                return None
 
             os.remove(full_path)  # remove the rgb24 image
             full_path = os.path.join(
