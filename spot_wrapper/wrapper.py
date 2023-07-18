@@ -47,6 +47,7 @@ from bosdyn.client.image import (
 )
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
+from bosdyn.client.payload_registration import PayloadNotAuthorizedError
 from bosdyn.client.power import safe_power_off, PowerClient, power_on
 from bosdyn.client.robot import UnregisteredServiceError, Robot
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
@@ -554,6 +555,7 @@ class SpotWrapper:
         get_lease_on_action: bool = False,
         continually_try_stand: bool = True,
         rgb_cameras: bool = True,
+        payload_credentials_file: str = None,
     ) -> None:
         """
         Args:
@@ -578,6 +580,7 @@ class SpotWrapper:
         self._username = username
         self._password = password
         self._hostname = hostname
+        self._payload_credentials_file = payload_credentials_file
         self._robot_name = robot_name
         self._rates = rates or {}
         self._callbacks = callbacks or {}
@@ -664,9 +667,16 @@ class SpotWrapper:
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
 
-        authenticated = self.authenticate(
-            self._robot, self._username, self._password, self._logger
-        )
+        authenticated = False
+        if self._payload_credentials_file:
+            authenticated = self.authenticate_from_payload_credentials(
+                self._robot, self._payload_credentials_file, self._logger
+            )
+        else:
+            authenticated = self.authenticate(
+                self._robot, self._username, self._password, self._logger
+            )
+
         if not authenticated:
             self._valid = False
             return
@@ -966,6 +976,51 @@ class SpotWrapper:
                 time.sleep(sleep_secs)
             except bosdyn.client.auth.InvalidLoginError as err:
                 logger.error("Failed to log in to robot: {}".format(err))
+                raise err
+
+        return authenticated
+
+    @staticmethod
+    def authenticate_from_payload_credentials(
+        robot: Robot, payload_credentials_file: str, logger: logging.Logger
+    ) -> bool:
+        """
+        Authenticate with a robot through the bosdyn API from payload credentials. A blocking function which will
+        wait until authenticated (if the robot is still booting) or login fails
+
+        Args:
+            robot: Robot object which we are authenticating with
+            payload_credentials_file: Path to the file to read payload credentials from
+            logger: Logger with which to print messages
+
+        Returns:
+
+        """
+        authenticated = False
+        while not authenticated:
+            try:
+                logger.info(
+                    "Trying to authenticate with robot from payload credentials..."
+                )
+                robot.authenticate_from_payload_credentials(
+                    *bosdyn.client.util.read_payload_credentials(
+                        payload_credentials_file
+                    )
+                )
+                robot.time_sync.wait_for_sync(10)
+                logger.info("Successfully authenticated.")
+                authenticated = True
+            except RpcError as err:
+                sleep_secs = 15
+                logger.warn(
+                    "Failed to communicate with robot: {}\nEnsure the robot is powered on and you can "
+                    "ping {}. Robot may still be booting. Will retry in {} seconds".format(
+                        err, robot.address, sleep_secs
+                    )
+                )
+                time.sleep(sleep_secs)
+            except PayloadNotAuthorizedError as err:
+                logger.error("Failed to authorize payload: {}".format(err))
                 raise err
 
         return authenticated
