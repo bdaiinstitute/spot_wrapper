@@ -4,6 +4,7 @@ import math
 import os
 import time
 import traceback
+import threading
 import typing
 from enum import Enum
 from collections import namedtuple
@@ -627,10 +628,9 @@ class SpotWrapper:
         self._trajectory_status_unknown = False
         self._command_data = RobotCommandData()
 
-        self._x = 1.5
-        self._y = 0.2
-        self._max_yaw = 6.4
-        self._max_distance = 1
+        self._navigate_to_dynamic_feedback = ""
+        self._graphnav_lock = threading.Lock()
+        self._navigating = False
 
         self._front_image_requests = []
         for source in front_image_sources:
@@ -844,6 +844,13 @@ class SpotWrapper:
 
         # Store the most recent knowledge of the state of the robot based on rpc calls.
         self._init_current_graph_nav_state()
+
+        velocity_max = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = 1, y = 1), angular = 1)
+        velocity_min = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = - 1, y = - 1), angular = -1)
+        velocity_params = geometry_pb2.SE2VelocityLimit(max_vel = velocity_max, min_vel = velocity_min)
+        self.graphnav_travel_params = self._graph_nav_client.generate_travel_params(1, 6.4, velocity_params)
+        self._graphnav_vel_zero = False
+        
 
         # Async Tasks
         self._async_task_list = []
@@ -2585,15 +2592,12 @@ class SpotWrapper:
             self._logger.info("No waypoint provided as a destination for navigate to.")
             return False, "no goal waypoint provided"
         self._lease = self._lease_wallet.get_lease()
-        #update the feedback variable
-        self._logger.error(f"entered navigate to dynamic with waypoint {args[0][0]}")
         destination_waypoint = graph_nav_util.find_unique_waypoint_id(
             args[0][0],
             self._current_graph,
             self._current_annotation_name_to_wp_id,
             self._logger,
         )
-        self._logger.error(f"got destination waypoint {destination_waypoint}")
         if not destination_waypoint:
             return False, "could not find destination waypoint"
         if not self.toggle_power(should_power_on=True):
@@ -2604,39 +2608,35 @@ class SpotWrapper:
 
         # Stop the lease keepalive and create a new sublease for graph nav.
         self._lease = self._lease_wallet.advance()
-        sublease = self._lease.create_sublease()
+        self.navigate_to_dynamic_sublease = self._lease.create_sublease()
         self._lease_keepalive.shutdown()
-
-        velocity_max = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = self._x, y = self._y))
-        velocity_min = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = - self._x, y = - self._y))
-        velocity_params = geometry_pb2.SE2VelocityLimit(max_vel = velocity_max, min_vel = velocity_min)
 
 
         # Navigate to the destination waypoint.
         is_finished = False
         nav_to_cmd_id = -1
-        travel_params = self._graph_nav_client.generate_travel_params(self._max_distance, self._max_yaw, velocity_params)
-        self._logger.info(f"received params {self._x, self._y, self._max_distance, self._max_yaw}")
-        self.logger.info(f"travel params are {travel_params}")
         
         while not is_finished:
-            if self._x == 0 or self._y == 0:
+            self._navigating = True
+            self._graphnav_lock.acquire()
+            # Navigate to the destination waypoint.
+            if self._graphnav_vel_zero:
                 self._navigate_to_dynamic_feedback = "goal paused"
+                self._graphnav_lock.release()
                 return False, "goal was cancelled"
             # Issue the navigation command about twice a second such that it is easy to terminate the
             # navigation command (with estop or killing the program).
+            # self._logger.error(f"{self.graphnav_travel_params}")
             nav_to_cmd_id = self._graph_nav_client.navigate_to(
-                destination_waypoint, 1.0,  leases=[sublease.lease_proto]
-                # uncomment below line to modify max. velocity
-                # currently not using this feature cause it causes robot to walk sideways for unknown reason
-                ,travel_params = travel_params 
-                # uncomment below line to have robot stop when blocked rather than rerouting
-                #, route_blocked_behavior= 2
-            )
+                    destination_waypoint, 1.0,  leases=[self.navigate_to_dynamic_sublease.lease_proto]
+                    , travel_params = self.graphnav_travel_params
+                )
+            self._graphnav_lock.release()
             time.sleep(0.5)  # Sleep for half a second to allow for command execution.
             # Poll the robot for feedback to determine if the navigation command is complete. Then sit
             # the robot down once it is finished.
             is_finished = self._check_success(nav_to_cmd_id)
+        self._navigating = False
 
         self._lease = self._lease_wallet.advance()
         self._lease_keepalive = LeaseKeepAlive(self._lease_client)
