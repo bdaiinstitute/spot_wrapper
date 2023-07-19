@@ -850,6 +850,7 @@ class SpotWrapper:
         velocity_params = geometry_pb2.SE2VelocityLimit(max_vel = velocity_max, min_vel = velocity_min)
         self.graphnav_travel_params = self._graph_nav_client.generate_travel_params(1, 6.4, velocity_params)
         self._graphnav_vel_zero = False
+        self._graphnav_vel_negative = False
         
 
         # Async Tasks
@@ -2620,10 +2621,15 @@ class SpotWrapper:
             self._navigating = True
             self._graphnav_lock.acquire()
             # Navigate to the destination waypoint.
+            if self._graphnav_vel_negative:
+                self._navigate_to_dynamic_feedback = "goal cancelled"
+                self._graphnav_lock.release()
+                return False, "goal was cancelled"
             if self._graphnav_vel_zero:
                 self._navigate_to_dynamic_feedback = "goal paused"
                 self._graphnav_lock.release()
-                return False, "goal was cancelled"
+                time.sleep(0.5)
+                continue
             # Issue the navigation command about twice a second such that it is easy to terminate the
             # navigation command (with estop or killing the program).
             # self._logger.error(f"{self.graphnav_travel_params}")
