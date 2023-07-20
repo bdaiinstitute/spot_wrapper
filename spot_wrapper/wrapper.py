@@ -31,7 +31,7 @@ from bosdyn.client import frame_helpers
 from bosdyn.client import math_helpers
 from bosdyn.client import robot_command
 from bosdyn.client.async_tasks import AsyncPeriodicQuery, AsyncTasks
-from bosdyn.client.docking import DockingClient, blocking_dock_robot, blocking_undock
+from bosdyn.client.docking import DockingClient
 from bosdyn.client.estop import (
     EstopClient,
     EstopEndpoint,
@@ -47,6 +47,7 @@ from bosdyn.client.image import (
 )
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
+from bosdyn.client.payload_registration import PayloadNotAuthorizedError
 from bosdyn.client.power import safe_power_off, PowerClient, power_on
 from bosdyn.client.robot import UnregisteredServiceError, Robot
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
@@ -83,8 +84,11 @@ from . import graph_nav_util
 from bosdyn.api import basic_command_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
+from .spot_docking import SpotDocking
 from .spot_eap import SpotEAP
 from .spot_world_objects import SpotWorldObjects
+
+from .wrapper_helpers import RobotCommandData, RobotState
 
 
 front_image_sources = [
@@ -549,6 +553,7 @@ class SpotWrapper:
         get_lease_on_action: bool = False,
         continually_try_stand: bool = True,
         rgb_cameras: bool = True,
+        payload_credentials_file: str = None,
     ) -> None:
         """
         Args:
@@ -573,6 +578,7 @@ class SpotWrapper:
         self._username = username
         self._password = password
         self._hostname = hostname
+        self._payload_credentials_file = payload_credentials_file
         self._robot_name = robot_name
         self._rates = rates or {}
         self._callbacks = callbacks or {}
@@ -662,9 +668,16 @@ class SpotWrapper:
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
 
-        authenticated = self.authenticate(
-            self._robot, self._username, self._password, self._logger
-        )
+        authenticated = False
+        if self._payload_credentials_file:
+            authenticated = self.authenticate_from_payload_credentials(
+                self._robot, self._payload_credentials_file, self._logger
+            )
+        else:
+            authenticated = self.authenticate(
+                self._robot, self._username, self._password, self._logger
+            )
+
         if not authenticated:
             self._valid = False
             return
@@ -879,6 +892,15 @@ class SpotWrapper:
             self._estop_monitor,
         ]
 
+        self._spot_docking = SpotDocking(
+            self._robot,
+            self._logger,
+            self._state,
+            self._command_data,
+            self._docking_client,
+            self._robot_command_client,
+        )
+
         if self._point_cloud_client:
             self._spot_eap = SpotEAP(
                 self._logger,
@@ -1009,6 +1031,51 @@ class SpotWrapper:
 
         return authenticated
 
+    @staticmethod
+    def authenticate_from_payload_credentials(
+        robot: Robot, payload_credentials_file: str, logger: logging.Logger
+    ) -> bool:
+        """
+        Authenticate with a robot through the bosdyn API from payload credentials. A blocking function which will
+        wait until authenticated (if the robot is still booting) or login fails
+
+        Args:
+            robot: Robot object which we are authenticating with
+            payload_credentials_file: Path to the file to read payload credentials from
+            logger: Logger with which to print messages
+
+        Returns:
+
+        """
+        authenticated = False
+        while not authenticated:
+            try:
+                logger.info(
+                    "Trying to authenticate with robot from payload credentials..."
+                )
+                robot.authenticate_from_payload_credentials(
+                    *bosdyn.client.util.read_payload_credentials(
+                        payload_credentials_file
+                    )
+                )
+                robot.time_sync.wait_for_sync(10)
+                logger.info("Successfully authenticated.")
+                authenticated = True
+            except RpcError as err:
+                sleep_secs = 15
+                logger.warn(
+                    "Failed to communicate with robot: {}\nEnsure the robot is powered on and you can "
+                    "ping {}. Robot may still be booting. Will retry in {} seconds".format(
+                        err, robot.address, sleep_secs
+                    )
+                )
+                time.sleep(sleep_secs)
+            except PayloadNotAuthorizedError as err:
+                logger.error("Failed to authorize payload: {}".format(err))
+                raise err
+
+        return authenticated
+
     @property
     def robot_name(self) -> str:
         return self._robot_name
@@ -1056,6 +1123,11 @@ class SpotWrapper:
     def spot_world_objects(self) -> SpotWorldObjects:
         """Return SpotWorldObjects instance"""
         return self._spot_world_objects
+
+    @property
+    def spot_docking(self) -> SpotDocking:
+        """Return SpotDocking instance"""
+        return self._spot_docking
 
     @property
     def world_objects(self) -> world_object_pb2.ListWorldObjectResponse:
@@ -2720,33 +2792,6 @@ class SpotWrapper:
                     )
         return None
 
-    def dock(self, dock_id):
-        """Dock the robot to the docking station with fiducial ID [dock_id]."""
-        try:
-            # Make sure we're powered on and standing
-            self._robot.power_on()
-            self.stand()
-            # Dock the robot
-            self.last_docking_command = dock_id
-            blocking_dock_robot(self._robot, dock_id)
-            self.last_docking_command = None
-            # Necessary to reset this as docking often causes the last stand command to go into an unknown state
-            self.last_stand_command = None
-            return True, "Success"
-        except Exception as e:
-            return False, f"Exception while trying to dock: {e}"
-
-    def undock(self, timeout=20):
-        """Power motors on and undock the robot from the station."""
-        try:
-            # Maker sure we're powered on
-            self._robot.power_on()
-            # Undock the robot
-            blocking_undock(self._robot, timeout)
-            return True, "Success"
-        except Exception as e:
-            return False, f"Exception while trying to undock: {e}"
-
     def execute_dance(self, data):
         if self._is_licensed_for_choreography:
             return self._spot_dance.execute_dance(data)
@@ -2774,11 +2819,6 @@ class SpotWrapper:
             return self._spot_dance.list_all_dances()
         else:
             return False, "Spot is not licensed for choreography", []
-
-    def get_docking_state(self, **kwargs):
-        """Get docking state of robot."""
-        state = self._docking_client.get_docking_state(**kwargs)
-        return state
 
     def update_image_tasks(self, image_name):
         """Adds an async tasks to retrieve images from the specified image source"""
