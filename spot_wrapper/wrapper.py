@@ -980,7 +980,9 @@ class SpotWrapper:
             self.toggle_power,
         ]
 
-        self._claim_decorator.decorate_functions(self, decorated_funcs, decorated_funcs_no_power)
+        self._claim_decorator.decorate_functions(
+            self, decorated_funcs, decorated_funcs_no_power
+        )
 
     @staticmethod
     def authenticate(
