@@ -88,7 +88,7 @@ from .spot_docking import SpotDocking
 from .spot_eap import SpotEAP
 from .spot_world_objects import SpotWorldObjects
 
-from .wrapper_helpers import RobotCommandData, RobotState
+from .wrapper_helpers import RobotCommandData, RobotState, ClaimAndPowerDecorator
 
 
 front_image_sources = [
@@ -583,7 +583,7 @@ class SpotWrapper:
         self._rates = rates or {}
         self._callbacks = callbacks or {}
         self._use_take_lease = use_take_lease
-        self._claim_decorator = TryClaimDecorator(
+        self._claim_decorator = ClaimAndPowerDecorator(
             self.power_on, self.claim, get_lease_on_action
         )
         self.decorate_functions()
@@ -899,6 +899,7 @@ class SpotWrapper:
             self._command_data,
             self._docking_client,
             self._robot_command_client,
+            self._claim_decorator,
         )
 
         if self._point_cloud_client:
@@ -970,8 +971,6 @@ class SpotWrapper:
             self.navigate_to,
             self._navigate_to,
             self._navigate_route,
-            self.dock,
-            self.undock,
             self.execute_dance,
         ]
         decorated_funcs_no_power = [
@@ -981,15 +980,7 @@ class SpotWrapper:
             self.toggle_power,
         ]
 
-        for func in decorated_funcs:
-            setattr(self, func.__name__, self._claim_decorator.decorate(func))
-
-        for func in decorated_funcs_no_power:
-            setattr(
-                self,
-                func.__name__,
-                self._claim_decorator.decorate(func, power_on=False),
-            )
+        self._claim_decorator.decorate_functions(self, decorated_funcs, decorated_funcs_no_power)
 
     @staticmethod
     def authenticate(
@@ -3036,51 +3027,3 @@ class SpotWrapper:
                 )
             )
         return result
-
-
-class TryClaimDecorator:
-    """
-    This class provides a portable way of accessing the functionality of the try_claim decorator. It can be passed
-    around to modules which can then decorate their functions with it, allowing them to claim and power on as needed.
-
-    Note that this decorator is not intended to be applied using the @ syntax. It should be applied during or after
-    object instantiation.
-    """
-
-    def __init__(
-        self,
-        power_on_function: typing.Callable[[], typing.Tuple[bool, str]],
-        claim_function: typing.Callable[[], typing.Tuple[bool, str]],
-        get_lease_on_action: bool = False,
-    ):
-        self.power_on = power_on_function
-        self.claim = claim_function
-        self._get_lease_on_action = get_lease_on_action
-
-    def decorate(self, func: typing.Callable, power_on: bool = True):
-        """
-        Decorator which tries to acquire the lease before executing the wrapped function
-
-        Args:
-            func: Function that is being wrapped
-            power_on: If true, power on after claiming the lease. For the vast majority of cases this is needed
-
-        Returns:
-            Decorator which will wrap the decorated function
-        """
-
-        @functools.wraps(func)
-        def wrapper_try_claim(*args, **kwargs):
-            # Note that because we are assuming that this decorator is used only on instantiated classes,
-            # this function does not take a self arg. The self arg is necessary when using the @ syntax because at
-            # that point the class has not yet been instantiated. In this case, the func we receive is already a bound
-            # method, as opposed to an unbound one. A bound function has the "self" instance built in.
-            if self._get_lease_on_action:
-                # Ignore success or failure of these functions. If they fail, then the function that is being wrapped
-                # will fail and the caller will be able to handle from there.
-                self.claim()
-                if power_on:
-                    self.power_on()
-            return func(*args, **kwargs)
-
-        return wrapper_try_claim
