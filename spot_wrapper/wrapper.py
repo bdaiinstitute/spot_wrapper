@@ -2618,11 +2618,12 @@ class SpotWrapper:
         nav_to_cmd_id = -1
         
         while not is_finished:
-            self._navigating = True
             self._graphnav_lock.acquire()
+            self._navigating = True
             # Navigate to the destination waypoint.
             if self._graphnav_vel_negative:
                 self._navigate_to_dynamic_feedback = "goal cancelled"
+                self._navigating = False
                 self._graphnav_lock.release()
                 return False, "goal was cancelled"
             if self._graphnav_vel_zero:
