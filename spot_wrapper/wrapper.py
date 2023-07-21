@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import functools
 import logging
 import math
