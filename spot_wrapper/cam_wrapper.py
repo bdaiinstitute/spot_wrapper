@@ -5,6 +5,8 @@ import os.path
 import threading
 import typing
 import wave
+import time
+import math
 
 import bosdyn.client
 import cv2
@@ -154,7 +156,7 @@ class CompositorWrapper:
         """
         return self.client.get_visible_cameras()
 
-    def set_screen(self, screen):
+    def set_screen(self, screen: str):
         """
         Set the screen to be streamed over the network
 
@@ -162,6 +164,15 @@ class CompositorWrapper:
             screen: Screen to show
         """
         self.client.set_screen(screen)
+
+    def get_screen(self) -> str:
+        """
+        Get the screen currently being streamed over the network
+
+        Returns:
+            Name of the currently displayed screen
+        """
+        return self.client.get_screen()
 
     def set_ir_colormap(self, colormap, min_temp, max_temp, auto_scale=True):
         """
@@ -491,7 +502,7 @@ class PTZWrapper:
         """
         return self.client.get_ptz_position(PtzDescription(name=ptz_name))
 
-    def set_ptz_position(self, ptz_name, pan, tilt, zoom):
+    def set_ptz_position(self, ptz_name, pan, tilt, zoom, blocking=False):
         """
         Set the position of the specified ptz
 
@@ -500,11 +511,28 @@ class PTZWrapper:
             pan: Set the pan to this value in degrees
             tilt: Set the tilt to this value in degrees
             zoom: Set the zoom to this zoom level
+            blocking: If true, block for 3 seconds or until the ptz is within 1 degree of the requested pan and tilt values, and
+                      0.5 zoom levels of the requested zoom level
         """
         pan, tilt, zoom = self._clamp_request_to_limits(ptz_name, pan, tilt, zoom)
         self.client.set_ptz_position(
             self._get_ptz_description(ptz_name), pan, tilt, zoom
         )
+        if blocking:
+            start_time = datetime.datetime.now()
+            current_position = self.client.get_ptz_position(
+                self._get_ptz_description(ptz_name)
+            )
+            while (
+                datetime.datetime.now() - start_time < datetime.timedelta(seconds=3)
+                or not math.isclose(current_position.pan, pan, abs_tol=1)
+                or not math.isclose(current_position.tilt, tilt, abs_tol=1)
+                or not math.isclose(current_position.zoom, zoom, abs_tol=0.5)
+            ):
+                current_position = self.client.get_ptz_position(
+                    self._get_ptz_description(ptz_name)
+                )
+                time.sleep(0.2)
 
     def get_ptz_velocity(self, ptz_name) -> PtzVelocity:
         """
