@@ -9,6 +9,7 @@ from bosdyn.api import robot_command_pb2
 from bosdyn.api import synchronized_command_pb2
 from bosdyn.api import trajectory_pb2
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
+from bosdyn.api import gripper_command_pb2
 from bosdyn.client.robot import Robot
 from bosdyn.client.robot_command import (
     RobotCommandBuilder,
@@ -374,7 +375,9 @@ class SpotArm:
                 # Command issue with RobotCommandClient
                 cmd_id = self._robot_command_client.robot_command(command)
                 self._logger.info("Command gripper open sent")
-                self.wait_for_arm_command_to_complete(cmd_id)
+                self.block_until_gripper_command_completes(
+                    self._robot_command_client, cmd_id
+                )
 
         except Exception as e:
             return False, f"Exception occured while gripper was moving: {e}"
@@ -400,7 +403,9 @@ class SpotArm:
                 # Command issue with RobotCommandClient
                 cmd_id = self._robot_command_client.robot_command(command)
                 self._logger.info("Command gripper close sent")
-                self.wait_for_arm_command_to_complete(cmd_id)
+                self.block_until_gripper_command_completes(
+                    self._robot_command_client, cmd_id
+                )
 
         except Exception as e:
             return False, f"Exception occured while gripper was moving: {e}"
@@ -435,7 +440,9 @@ class SpotArm:
                 # Command issue with RobotCommandClient
                 cmd_id = self._robot_command_client.robot_command(command)
                 self._logger.info("Command gripper open angle sent")
-                self.wait_for_arm_command_to_complete(cmd_id)
+                self.block_until_gripper_command_completes(
+                    self._robot_command_client, cmd_id
+                )
 
         except Exception as e:
             return False, f"Exception occured while gripper was moving: {e}"
@@ -521,6 +528,51 @@ class SpotArm:
         return True, "Moved arm successfully"
 
     @staticmethod
+    def block_until_gripper_command_completes(
+        robot_command_client: RobotCommandClient,
+        cmd_id: int,
+        timeout_sec: float = None,
+    ) -> bool:
+        """
+        Helper that blocks until a gripper command achieves a finishing state
+
+        Args:
+         robot_command_client: Robot client, used to request feedback
+         cmd_id: command ID returned by the robot when the grasp command was sent.
+         timeout_sec: optional number of seconds after which we'll return no matter what the robot's state is.
+
+        Returns:
+            True if successfully completed the gripper command, False if it failed
+        """
+        if timeout_sec is not None:
+            start_time = time.time()
+            end_time = start_time + timeout_sec
+            now = time.time()
+
+        while timeout_sec is None or now < end_time:
+            feedback_resp = robot_command_client.robot_command_feedback(cmd_id)
+            gripper_state = (
+                feedback_resp.feedback.gripper_command_feedback.claw_gripper_feedback.status
+            )
+
+            if gripper_state in [
+                gripper_command_pb2.ClawGripperCommand.Feedback.STATUS_AT_GOAL,
+                gripper_command_pb2.ClawGripperCommand.Feedback.STATUS_APPLYING_FORCE,
+            ]:
+                # If the gripper is commanded to close, it is successful either if it reaches the goal, or if it is
+                # applying a force. Applying a force stops the command and puts it into force control mode.
+                return True
+            if (
+                gripper_state
+                == gripper_command_pb2.ClawGripperCommand.Feedback.STATUS_UNKNOWN
+            ):
+                return False
+
+            time.sleep(0.1)
+            now = time.time()
+        return False
+
+    @staticmethod
     def block_until_manipulation_completes(
         manipulation_client: ManipulationApiClient,
         cmd_id: int,
@@ -536,7 +588,7 @@ class SpotArm:
                       the robot's state is.
 
         Returns:
-            True if successfully completed the grasp, False if the grasp failed
+            True if successfully completed the manipulation, False if the manipulation failed
         """
         if timeout_sec is not None:
             start_time = time.time()
