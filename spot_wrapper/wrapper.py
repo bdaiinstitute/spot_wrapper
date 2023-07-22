@@ -537,63 +537,61 @@ def try_claim(func=None, *, power_on=False):
     return wrapper_try_claim
 
 
+@dataclass()
+class SpotWrapperConfiguration:
+    """
+    Convenience class to specify the configuration of the spot wrapper
+
+    Attributes:
+        username: Username for authentication with the robot
+        password: Password for authentication with the robot
+        hostname: ip address or hostname of the robot
+        robot_name: Optional name of the robot
+        start_estop: If true, the wrapper will be an estop endpoint
+        estop_timeout: Timeout for the estop in seconds. The SDK will check in with the wrapper at a rate of
+                       estop_timeout/3 and if there is no communication the robot will execute a gentle stop.
+        rates: Dictionary of rates to apply when retrieving various data from the robot # TODO this should be an object to be unambiguous
+        callbacks: Dictionary of callbacks which should be called when certain data is retrieved # TODO this should be an object to be unambiguous
+        use_take_lease: Use take instead of acquire to get leases. This will forcefully take the lease from any
+                        other lease owner.
+        get_lease_on_action: If true, attempt to acquire a lease when performing an action which requires a
+                             lease. Otherwise, the user must manually take the lease. This will also attempt to
+                             power on the robot for commands which require it - stand, rollover, self-right.
+        continually_try_stand: If the robot expects to be standing and is not, command a stand.  This can result
+                               in strange behavior if you use the wrapper and tablet together.
+        rgb_cameras: If the robot has only body-cameras with greyscale images, this must be set to false.
+    """
+
+    username: str
+    password: str
+    hostname: str
+    robot_name: str
+    start_estop: bool = True
+    estop_timeout: float = 9.0
+    rates: typing.Optional[typing.Dict[str, float]] = None
+    callbacks: typing.Optional[typing.Dict[str, typing.Callable]] = None
+    use_take_lease: bool = False
+    get_lease_on_action: bool = False
+    continually_try_stand: bool = True
+    rgb_cameras: bool = True
+    payload_credentials_file: str = None
+    frame_prefix: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        if self.robot_name is not None:
+            self.frame_prefix = self.robot_name + "/"
+
+
 class SpotWrapper:
-    """Generic wrapper class to encompass release 1.1.4 API features as well as maintaining leases automatically"""
+    """
+    Wraps interaction with the Boston Dynamics SDK.
+    """
 
     def __init__(
-        self,
-        username: str,
-        password: str,
-        hostname: str,
-        robot_name: str,
-        logger: logging.Logger,
-        start_estop: bool = True,
-        estop_timeout: float = 9.0,
-        rates: typing.Optional[typing.Dict[str, float]] = None,
-        callbacks: typing.Optional[typing.Dict[str, typing.Callable]] = None,
-        use_take_lease: bool = False,
-        get_lease_on_action: bool = False,
-        continually_try_stand: bool = True,
-        rgb_cameras: bool = True,
-        payload_credentials_file: str = None,
+        self, wrapper_config: SpotWrapperConfiguration, logger: logging.Logger
     ) -> None:
-        """
-        Args:
-            username: Username for authentication with the robot
-            password: Password for authentication with the robot
-            hostname: ip address or hostname of the robot
-            robot_name: Optional name of the robot
-            start_estop: If true, the wrapper will be an estop endpoint
-            estop_timeout: Timeout for the estop in seconds. The SDK will check in with the wrapper at a rate of
-                           estop_timeout/3 and if there is no communication the robot will execute a gentle stop.
-            rates: Dictionary of rates to apply when retrieving various data from the robot # TODO this should be an object to be unambiguous
-            callbacks: Dictionary of callbacks which should be called when certain data is retrieved # TODO this should be an object to be unambiguous
-            use_take_lease: Use take instead of acquire to get leases. This will forcefully take the lease from any
-                            other lease owner.
-            get_lease_on_action: If true, attempt to acquire a lease when performing an action which requires a
-                                 lease. Otherwise, the user must manually take the lease. This will also attempt to
-                                 power on the robot for commands which require it - stand, rollover, self-right.
-            continually_try_stand: If the robot expects to be standing and is not, command a stand.  This can result
-                                   in strange behavior if you use the wrapper and tablet together.
-            rgb_cameras: If the robot has only body-cameras with greyscale images, this must be set to false.
-        """
-        self._username = username
-        self._password = password
-        self._hostname = hostname
-        self._payload_credentials_file = payload_credentials_file
-        self._robot_name = robot_name
-        self._rates = rates or {}
-        self._callbacks = callbacks or {}
-        self._use_take_lease = use_take_lease
-        self._get_lease_on_action = get_lease_on_action
-        self._continually_try_stand = continually_try_stand
-        self._rgb_cameras = rgb_cameras
-        self._frame_prefix = ""
-        if robot_name is not None:
-            self._frame_prefix = robot_name + "/"
         self._logger = logger
-        self._estop_timeout = estop_timeout
-        self._start_estop = start_estop
+        self._config = wrapper_config
         self._keep_alive = True
         self._lease_keepalive = None
         self._valid = True
@@ -634,7 +632,7 @@ class SpotWrapper:
                     camera_source,
                     image_format=image_pb2.Image.FORMAT_JPEG,
                     pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8
-                    if self._rgb_cameras
+                    if self._config.rgb_cameras
                     else image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8,
                     quality_percent=50,
                 )
@@ -664,17 +662,17 @@ class SpotWrapper:
             return
         if HAVE_CHOREOGRAPHY:
             self._sdk.register_service_client(ChoreographyClient)
-        self._logger.info("Initialising robot at {}".format(self._hostname))
-        self._robot = self._sdk.create_robot(self._hostname)
+        self._logger.info("Initialising robot at {}".format(self._config.hostname))
+        self._robot = self._sdk.create_robot(self._config.hostname)
 
         authenticated = False
-        if self._payload_credentials_file:
+        if self._config.payload_credentials_file:
             authenticated = self.authenticate_from_payload_credentials(
-                self._robot, self._payload_credentials_file, self._logger
+                self._robot, self._config.payload_credentials_file, self._logger
             )
         else:
             authenticated = self.authenticate(
-                self._robot, self._username, self._password, self._logger
+                self._robot, self._config.username, self._config.password, self._logger
             )
 
         if not authenticated:
@@ -802,7 +800,7 @@ class SpotWrapper:
                     pixel_format = image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
                 else:
                     image_format = image_pb2.Image.FORMAT_JPEG
-                    if camera == "hand" or self._rgb_cameras:
+                    if camera == "hand" or self._config.rgb_cameras:
                         pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
                     elif camera != "hand":
                         self._logger.info(
@@ -828,47 +826,47 @@ class SpotWrapper:
         self._robot_state_task = AsyncRobotState(
             self._robot_state_client,
             self._logger,
-            max(0.0, self._rates.get("robot_state", 0.0)),
-            self._callbacks.get("robot_state", None),
+            max(0.0, self._config.rates.get("robot_state", 0.0)),
+            self._config.callbacks.get("robot_state", None),
         )
         self._robot_metrics_task = AsyncMetrics(
             self._robot_state_client,
             self._logger,
-            max(0.0, self._rates.get("metrics", 0.0)),
-            self._callbacks.get("metrics", None),
+            max(0.0, self._config.rates.get("metrics", 0.0)),
+            self._config.callbacks.get("metrics", None),
         )
         self._lease_task = AsyncLease(
             self._lease_client,
             self._logger,
-            max(0.0, self._rates.get("lease", 0.0)),
-            self._callbacks.get("lease", None),
+            max(0.0, self._config.rates.get("lease", 0.0)),
+            self._config.callbacks.get("lease", None),
         )
         self._front_image_task = AsyncImageService(
             self._image_client,
             self._logger,
-            max(0.0, self._rates.get("front_image", 0.0)),
-            self._callbacks.get("front_image", None),
+            max(0.0, self._config.rates.get("front_image", 0.0)),
+            self._config.callbacks.get("front_image", None),
             self._front_image_requests,
         )
         self._side_image_task = AsyncImageService(
             self._image_client,
             self._logger,
-            max(0.0, self._rates.get("side_image", 0.0)),
-            self._callbacks.get("side_image", None),
+            max(0.0, self._config.rates.get("side_image", 0.0)),
+            self._config.callbacks.get("side_image", None),
             self._side_image_requests,
         )
         self._rear_image_task = AsyncImageService(
             self._image_client,
             self._logger,
-            max(0.0, self._rates.get("rear_image", 0.0)),
-            self._callbacks.get("rear_image", None),
+            max(0.0, self._config.rates.get("rear_image", 0.0)),
+            self._config.callbacks.get("rear_image", None),
             self._rear_image_requests,
         )
         self._hand_image_task = AsyncImageService(
             self._image_client,
             self._logger,
-            max(0.0, self._rates.get("hand_image", 0.0)),
-            self._callbacks.get("hand_image", None),
+            max(0.0, self._config.rates.get("hand_image", 0.0)),
+            self._config.callbacks.get("hand_image", None),
             self._hand_image_requests,
         )
 
@@ -906,8 +904,8 @@ class SpotWrapper:
                 self._point_cloud_client,
                 point_cloud_sources,
                 # If the parameter isn't given assume we don't want any clouds
-                self._rates.get("point_cloud", 0.0),
-                self._callbacks.get("lidar_points", None),
+                self._config.rates.get("point_cloud", 0.0),
+                self._config.callbacks.get("lidar_points", None),
             )
             self._point_cloud_task = self._spot_eap.async_task
             robot_tasks.append(self._point_cloud_task)
@@ -917,8 +915,8 @@ class SpotWrapper:
         self._spot_world_objects = SpotWorldObjects(
             self._logger,
             self._world_objects_client,
-            self._rates.get("world_objects", 10),
-            self._callbacks.get("world_objects", None),
+            self._config.rates.get("world_objects", 10),
+            self._config.callbacks.get("world_objects", None),
         )
         self._world_objects_task = self._spot_world_objects.async_task
         robot_tasks.append(self._world_objects_task)
@@ -1027,11 +1025,11 @@ class SpotWrapper:
 
     @property
     def robot_name(self) -> str:
-        return self._robot_name
+        return self._config.robot_name
 
     @property
     def frame_prefix(self) -> str:
-        return self._frame_prefix
+        return self._config.frame_prefix
 
     @property
     def spot_eap_lidar(self) -> typing.Optional[SpotEAP]:
@@ -1240,7 +1238,7 @@ class SpotWrapper:
         try:
             self._robot_id = self._robot.get_id()
             self.getLease()
-            if self._start_estop and not self.check_is_powered_on():
+            if self._config.start_estop and not self.check_is_powered_on():
                 # If we are requested to start the estop, and the robot is not already powered on, then we reset the
                 # estop. The robot already being powered on is relevant when the lease is being taken from someone
                 # else who may already have the motor cut power authority - in this case we cannot take that
@@ -1264,7 +1262,7 @@ class SpotWrapper:
     def resetEStop(self) -> None:
         """Get keepalive for eStop"""
         self._estop_endpoint = EstopEndpoint(
-            self._estop_client, SPOT_CLIENT_NAME, self._estop_timeout
+            self._estop_client, SPOT_CLIENT_NAME, self._config.estop_timeout
         )
         self._estop_endpoint.force_simple_setup()  # Set this endpoint as the robot's sole estop.
         self._estop_keepalive = EstopKeepAlive(self._estop_endpoint)
@@ -1302,7 +1300,7 @@ class SpotWrapper:
 
     def getLease(self) -> None:
         """Get a lease for the robot and keep the lease alive automatically."""
-        if self._use_take_lease:
+        if self._config.use_take_lease:
             self._lease = self._lease_client.take()
         else:
             self._lease = self._lease_client.acquire()
@@ -1529,7 +1527,7 @@ class SpotWrapper:
         # Don't bother trying to power on if we are already powered on
         if not self.check_is_powered_on():
             # If we are requested to start the estop, we have to acquire it when powering on.
-            if self._start_estop:
+            if self._config.start_estop:
                 self.resetEStop()
             try:
                 self._logger.info("Powering on")
