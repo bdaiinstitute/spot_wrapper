@@ -659,7 +659,6 @@ class SpotWrapper:
 
         self._spot_images = SpotImages(self._robot, self._logger, self._image_client)
 
-
         self._spot_docking = SpotDocking(
             self._robot,
             self._logger,
