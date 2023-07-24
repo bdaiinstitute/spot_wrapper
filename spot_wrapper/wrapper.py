@@ -806,7 +806,7 @@ class SpotWrapper:
     def spot_check(self) -> SpotCheck:
         """Return SpotCheck instance"""
         return self._spot_check
-          
+
     @property
     def spot_eap_lidar(self) -> typing.Optional[SpotEAP]:
         """Return SpotEAP instance"""
