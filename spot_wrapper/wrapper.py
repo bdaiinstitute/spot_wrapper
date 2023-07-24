@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import functools
 import logging
 import math
@@ -5,14 +6,10 @@ import os
 import time
 import traceback
 import typing
-from enum import Enum
-from collections import namedtuple
-from dataclasses import dataclass, field
 
 import bosdyn.client.auth
 from bosdyn.api import arm_command_pb2
 from bosdyn.api import geometry_pb2
-from bosdyn.api import image_pb2
 from bosdyn.api import lease_pb2
 from bosdyn.api import point_cloud_pb2
 from bosdyn.api import manipulation_api_pb2
@@ -26,7 +23,6 @@ from bosdyn.api import point_cloud_pb2
 from bosdyn.api.graph_nav import graph_nav_pb2
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.api.graph_nav import nav_pb2
-from bosdyn.client import create_standard_sdk, ResponseError, RpcError
 from bosdyn.client import frame_helpers
 from bosdyn.client import math_helpers
 from bosdyn.client import robot_command
@@ -36,25 +32,20 @@ from bosdyn.client.estop import (
     EstopClient,
     EstopEndpoint,
     EstopKeepAlive,
-    MotorsOnError,
 )
 from bosdyn.client.frame_helpers import get_odom_tform_body
 from bosdyn.client.graph_nav import GraphNavClient
-from bosdyn.client.image import (
-    ImageClient,
-    build_image_request,
-    UnsupportedPixelFormatRequestedError,
-)
+from bosdyn.client.image import ImageClient
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.payload_registration import PayloadNotAuthorizedError
+from bosdyn.client.point_cloud import PointCloudClient, build_pc_request
 from bosdyn.client.power import safe_power_off, PowerClient, power_on
 from bosdyn.client.robot import UnregisteredServiceError, Robot
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
-from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.license import LicenseClient
 from bosdyn.client import ResponseError, RpcError, create_standard_sdk
 
@@ -74,6 +65,7 @@ from google.protobuf.duration_pb2 import Duration
 
 SPOT_CLIENT_NAME = "ros_spot"
 MAX_COMMAND_DURATION = 1e5
+VELODYNE_SERVICE_NAME = "velodyne-point-cloud"
 
 ### Release
 from . import graph_nav_util
@@ -86,116 +78,13 @@ from google.protobuf.timestamp_pb2 import Timestamp
 
 from .spot_docking import SpotDocking
 from .spot_eap import SpotEAP
+from .spot_images import SpotImages
 from .spot_world_objects import SpotWorldObjects
 
 from .wrapper_helpers import RobotCommandData, RobotState
 
-
-front_image_sources = [
-    "frontleft_fisheye_image",
-    "frontright_fisheye_image",
-    "frontleft_depth",
-    "frontright_depth",
-]
-"""List of image sources for front image periodic query"""
-side_image_sources = [
-    "left_fisheye_image",
-    "right_fisheye_image",
-    "left_depth",
-    "right_depth",
-]
-"""List of image sources for side image periodic query"""
-rear_image_sources = ["back_fisheye_image", "back_depth"]
-"""List of image sources for rear image periodic query"""
-VELODYNE_SERVICE_NAME = "velodyne-point-cloud"
 """Service name for getting pointcloud of VLP16 connected to Spot Core"""
 point_cloud_sources = ["velodyne-point-cloud"]
-"""List of point cloud sources"""
-hand_image_sources = [
-    "hand_image",
-    "hand_depth",
-    "hand_color_image",
-    "hand_depth_in_hand_color_frame",
-]
-"""List of image sources for hand image periodic query"""
-
-
-# TODO: Missing Hand images
-CAMERA_IMAGE_SOURCES = [
-    "frontleft_fisheye_image",
-    "frontright_fisheye_image",
-    "left_fisheye_image",
-    "right_fisheye_image",
-    "back_fisheye_image",
-]
-DEPTH_IMAGE_SOURCES = [
-    "frontleft_depth",
-    "frontright_depth",
-    "left_depth",
-    "right_depth",
-    "back_depth",
-]
-DEPTH_REGISTERED_IMAGE_SOURCES = [
-    "frontleft_depth_in_visual_frame",
-    "frontright_depth_in_visual_frame",
-    "right_depth_in_visual_frame",
-    "left_depth_in_visual_frame",
-    "back_depth_in_visual_frame",
-]
-ImageBundle = namedtuple(
-    "ImageBundle", ["frontleft", "frontright", "left", "right", "back"]
-)
-ImageWithHandBundle = namedtuple(
-    "ImageBundle", ["frontleft", "frontright", "left", "right", "back", "hand"]
-)
-
-IMAGE_SOURCES_BY_CAMERA = {
-    "frontleft": {
-        "visual": "frontleft_fisheye_image",
-        "depth": "frontleft_depth",
-        "depth_registered": "frontleft_depth_in_visual_frame",
-    },
-    "frontright": {
-        "visual": "frontright_fisheye_image",
-        "depth": "frontright_depth",
-        "depth_registered": "frontright_depth_in_visual_frame",
-    },
-    "left": {
-        "visual": "left_fisheye_image",
-        "depth": "left_depth",
-        "depth_registered": "left_depth_in_visual_frame",
-    },
-    "right": {
-        "visual": "right_fisheye_image",
-        "depth": "right_depth",
-        "depth_registered": "right_depth_in_visual_frame",
-    },
-    "back": {
-        "visual": "back_fisheye_image",
-        "depth": "back_depth",
-        "depth_registered": "back_depth_in_visual_frame",
-    },
-    "hand": {
-        "visual": "hand_color_image",
-        "depth": "hand_depth",
-        "depth_registered": "hand_depth_in_hand_color_frame",
-    },
-}
-
-IMAGE_TYPES = {"visual", "depth", "depth_registered"}
-
-
-@dataclass(frozen=True, eq=True)
-class CameraSource:
-    camera_name: str
-    image_types: typing.List[str]
-
-
-@dataclass(frozen=True)
-class ImageEntry:
-    camera_name: str
-    image_type: str
-    image_response: image_pb2.ImageResponse
 
 
 def robotToLocalTime(timestamp: Timestamp, robot: Robot) -> Timestamp:
@@ -295,32 +184,6 @@ class AsyncLease(AsyncPeriodicQuery):
     def _start_query(self):
         if self._callback:
             callback_future = self._client.list_leases_async()
-            callback_future.add_done_callback(self._callback)
-            return callback_future
-
-
-class AsyncImageService(AsyncPeriodicQuery):
-    """Class to get images at regular intervals.  get_image_from_sources_async query sent to the robot at every tick.  Callback registered to defined callback function.
-
-    Attributes:
-        client: The Client to a service on the robot
-        logger: Logger object
-        rate: Rate (Hz) to trigger the query
-        callback: Callback function to call when the results of the query are available
-    """
-
-    def __init__(self, client, logger, rate, callback, image_requests):
-        super(AsyncImageService, self).__init__(
-            "robot_image_service", client, logger, period_sec=1.0 / max(rate, 1.0)
-        )
-        self._callback = None
-        if rate > 0.0:
-            self._callback = callback
-        self._image_requests = image_requests
-
-    def _start_query(self):
-        if self._callback:
-            callback_future = self._client.get_image_async(self._image_requests)
             callback_future.add_done_callback(self._callback)
             return callback_future
 
@@ -603,58 +466,9 @@ class SpotWrapper:
         self._trajectory_status_unknown = False
         self._command_data = RobotCommandData()
 
-        self._front_image_requests = []
-        for source in front_image_sources:
-            self._front_image_requests.append(
-                build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
-            )
-
-        self._side_image_requests = []
-        for source in side_image_sources:
-            self._side_image_requests.append(
-                build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
-            )
-
-        self._rear_image_requests = []
-        for source in rear_image_sources:
-            self._rear_image_requests.append(
-                build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
-            )
-
-        self._hand_image_requests = []
-        for source in hand_image_sources:
-            self._hand_image_requests.append(
-                build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
-            )
-
-        self._camera_image_requests = []
-        for camera_source in CAMERA_IMAGE_SOURCES:
-            self._camera_image_requests.append(
-                build_image_request(
-                    camera_source,
-                    image_format=image_pb2.Image.FORMAT_JPEG,
-                    pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8
-                    if self._rgb_cameras
-                    else image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8,
-                    quality_percent=50,
-                )
-            )
-
-        self._depth_image_requests = []
-        for camera_source in DEPTH_IMAGE_SOURCES:
-            self._depth_image_requests.append(
-                build_image_request(
-                    camera_source, pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
-                )
-            )
-
-        self._depth_registered_image_requests = []
-        for camera_source in DEPTH_REGISTERED_IMAGE_SOURCES:
-            self._depth_registered_image_requests.append(
-                build_image_request(
-                    camera_source, pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
-                )
-            )
+        self._point_cloud_requests = []
+        for source in point_cloud_sources:
+            self._point_cloud_requests.append(build_pc_request(source))
 
         try:
             self._sdk = create_standard_sdk(SPOT_CLIENT_NAME)
@@ -766,60 +580,6 @@ class SpotWrapper:
                 )
                 time.sleep(sleep_secs)
 
-        # Add hand camera requests
-        if self._robot.has_arm():
-            self._camera_image_requests.append(
-                build_image_request(
-                    "hand_color_image",
-                    image_format=image_pb2.Image.FORMAT_JPEG,
-                    pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                    quality_percent=50,
-                )
-            )
-            self._depth_image_requests.append(
-                build_image_request(
-                    "hand_depth",
-                    pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
-                )
-            )
-            self._depth_registered_image_requests.append(
-                build_image_request(
-                    "hand_depth_in_hand_color_frame",
-                    pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
-                )
-            )
-
-        # Build image requests by camera
-        self._image_requests_by_camera = {}
-        for camera in IMAGE_SOURCES_BY_CAMERA:
-            if camera == "hand" and not self._robot.has_arm():
-                continue
-            self._image_requests_by_camera[camera] = {}
-            image_types = IMAGE_SOURCES_BY_CAMERA[camera]
-            for image_type in image_types:
-                if image_type.startswith("depth"):
-                    image_format = image_pb2.Image.FORMAT_RAW
-                    pixel_format = image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
-                else:
-                    image_format = image_pb2.Image.FORMAT_JPEG
-                    if camera == "hand" or self._rgb_cameras:
-                        pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
-                    elif camera != "hand":
-                        self._logger.info(
-                            f"Switching {camera}:{image_type} to greyscale image format."
-                        )
-                        pixel_format = image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8
-
-                source = IMAGE_SOURCES_BY_CAMERA[camera][image_type]
-                self._image_requests_by_camera[camera][
-                    image_type
-                ] = build_image_request(
-                    source,
-                    image_format=image_format,
-                    pixel_format=pixel_format,
-                    quality_percent=75,
-                )
-
         # Store the most recent knowledge of the state of the robot based on rpc calls.
         self._init_current_graph_nav_state()
 
@@ -843,35 +603,6 @@ class SpotWrapper:
             max(0.0, self._rates.get("lease", 0.0)),
             self._callbacks.get("lease", None),
         )
-        self._front_image_task = AsyncImageService(
-            self._image_client,
-            self._logger,
-            max(0.0, self._rates.get("front_image", 0.0)),
-            self._callbacks.get("front_image", None),
-            self._front_image_requests,
-        )
-        self._side_image_task = AsyncImageService(
-            self._image_client,
-            self._logger,
-            max(0.0, self._rates.get("side_image", 0.0)),
-            self._callbacks.get("side_image", None),
-            self._side_image_requests,
-        )
-        self._rear_image_task = AsyncImageService(
-            self._image_client,
-            self._logger,
-            max(0.0, self._rates.get("rear_image", 0.0)),
-            self._callbacks.get("rear_image", None),
-            self._rear_image_requests,
-        )
-        self._hand_image_task = AsyncImageService(
-            self._image_client,
-            self._logger,
-            max(0.0, self._rates.get("hand_image", 0.0)),
-            self._callbacks.get("hand_image", None),
-            self._hand_image_requests,
-        )
-
         self._idle_task = AsyncIdle(
             self._robot_command_client, self._logger, 10.0, self
         )
@@ -886,10 +617,11 @@ class SpotWrapper:
             self._robot_state_task,
             self._robot_metrics_task,
             self._lease_task,
-            self._front_image_task,
             self._idle_task,
             self._estop_monitor,
         ]
+
+        self._spot_images = SpotImages(self._robot, self._logger, self._image_client)
 
         self._spot_docking = SpotDocking(
             self._robot,
@@ -924,13 +656,6 @@ class SpotWrapper:
         robot_tasks.append(self._world_objects_task)
 
         self._async_tasks = AsyncTasks(robot_tasks)
-
-        self.camera_task_name_to_task_mapping = {
-            "hand_image": self._hand_image_task,
-            "side_image": self._side_image_task,
-            "rear_image": self._rear_image_task,
-            "front_image": self._front_image_task,
-        }
 
         if self._is_licensed_for_choreography:
             self._spot_dance = SpotDance(
@@ -1069,6 +794,11 @@ class SpotWrapper:
         return self._lease_task.proto
 
     @property
+    def spot_images(self) -> SpotImages:
+        """Return SpotImages instance"""
+        return self._spot_images
+
+    @property
     def spot_world_objects(self) -> SpotWorldObjects:
         """Return SpotWorldObjects instance"""
         return self._spot_world_objects
@@ -1082,26 +812,6 @@ class SpotWrapper:
     def world_objects(self) -> world_object_pb2.ListWorldObjectResponse:
         """Return most recent proto from _world_objects_task"""
         return self.spot_world_objects.async_task.proto
-
-    @property
-    def front_images(self):
-        """Return latest proto from the _front_image_task"""
-        return self._front_image_task.proto
-
-    @property
-    def side_images(self):
-        """Return latest proto from the _side_image_task"""
-        return self._side_image_task.proto
-
-    @property
-    def rear_images(self):
-        """Return latest proto from the _rear_image_task"""
-        return self._rear_image_task.proto
-
-    @property
-    def hand_images(self):
-        """Return latest proto from the _hand_image_task"""
-        return self._hand_image_task.proto
 
     @property
     def point_clouds(self) -> typing.List[point_cloud_pb2.PointCloudResponse]:
@@ -2795,219 +2505,7 @@ class SpotWrapper:
         else:
             return False, "Spot is not licensed for choreography", []
 
-    def update_image_tasks(self, image_name):
-        """Adds an async tasks to retrieve images from the specified image source"""
-
-        task_to_add = self.camera_task_name_to_task_mapping[image_name]
-
-        if task_to_add == self._hand_image_task and not self._robot.has_arm():
-            self._logger.warning(
-                "Robot has no arm, therefore the arm image task can not be added"
-            )
-            return
-
-        if task_to_add in self._async_tasks._tasks:
-            self._logger.warning(
-                f"Task {image_name} already in async task list, will not be added again"
-            )
-            return
-
-        self._async_tasks.add_task(self.camera_task_name_to_task_mapping[image_name])
-
-    def get_frontleft_rgb_image(self):
-        try:
-            return self._image_client.get_image(
-                [
-                    build_image_request(
-                        "frontleft_fisheye_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
-                    )
-                ]
-            )[0]
-        except UnsupportedPixelFormatRequestedError as e:
-            return None
-
-    def get_frontright_rgb_image(self):
-        try:
-            return self._image_client.get_image(
-                [
-                    build_image_request(
-                        "frontright_fisheye_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
-                    )
-                ]
-            )[0]
-        except UnsupportedPixelFormatRequestedError as e:
-            return None
-
-    def get_left_rgb_image(self):
-        try:
-            return self._image_client.get_image(
-                [
-                    build_image_request(
-                        "left_fisheye_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
-                    )
-                ]
-            )[0]
-        except UnsupportedPixelFormatRequestedError as e:
-            return None
-
-    def get_right_rgb_image(self):
-        try:
-            return self._image_client.get_image(
-                [
-                    build_image_request(
-                        "right_fisheye_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
-                    )
-                ]
-            )[0]
-        except UnsupportedPixelFormatRequestedError as e:
-            return None
-
-    def get_back_rgb_image(self):
-        try:
-            return self._image_client.get_image(
-                [
-                    build_image_request(
-                        "back_fisheye_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
-                    )
-                ]
-            )[0]
-        except UnsupportedPixelFormatRequestedError as e:
-            return None
-
-    def get_hand_rgb_image(self):
-        if not self.has_arm():
-            return None
-        try:
-            return self._image_client.get_image(
-                [
-                    build_image_request(
-                        "hand_color_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
-                    )
-                ]
-            )[0]
-        except UnsupportedPixelFormatRequestedError as e:
-            return None
-
-    def get_images(
-        self, image_requests: typing.List[image_pb2.ImageRequest]
-    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
-        try:
-            image_responses = self._image_client.get_image(image_requests)
-        except UnsupportedPixelFormatRequestedError as e:
-            return None
-        if self.has_arm():
-            return ImageWithHandBundle(
-                frontleft=image_responses[0],
-                frontright=image_responses[1],
-                left=image_responses[2],
-                right=image_responses[3],
-                back=image_responses[4],
-                hand=image_responses[5],
-            )
-        else:
-            return ImageBundle(
-                frontleft=image_responses[0],
-                frontright=image_responses[1],
-                left=image_responses[2],
-                right=image_responses[3],
-                back=image_responses[4],
-            )
-
-    def get_camera_images(
-        self,
-    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
-        return self.get_images(self._camera_image_requests)
-
-    def get_depth_images(
-        self,
-    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
-        return self.get_images(self._depth_image_requests)
-
-    def get_depth_registered_images(
-        self,
-    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
-        return self.get_images(self._depth_registered_image_requests)
-
-    def get_images_by_cameras(
-        self, camera_sources: typing.List[CameraSource]
-    ) -> typing.List[ImageEntry]:
-        """Calls the GetImage RPC using the image client with requests
-        corresponding to the given cameras.
-
-        Args:
-           camera_sources: a list of CameraSource objects. There are two
-               possibilities for each item in this list. Either it is
-               CameraSource(camera='front') or
-               CameraSource(camera='front', image_types=['visual', 'depth_registered')
-
-                - If the former is provided, the image requests will include all
-                  image types for each specified camera.
-                - If the latter is provided, the image requests will be
-                  limited to the specified image types for each corresponding
-                  camera.
-
-              Note that duplicates of camera names are not allowed.
-
-        Returns:
-            a list, where each entry is (camera_name, image_type, image_response)
-                e.g. ('frontleft', 'visual', image_response)
-        """
-        # Build image requests
-        image_requests = []
-        source_types = []
-        cameras_specified = set()
-        for item in camera_sources:
-            if item.camera_name in cameras_specified:
-                self._logger.error(
-                    f"Duplicated camera source for camera {item.camera_name}"
-                )
-                return None
-            image_types = item.image_types
-            if image_types is None:
-                image_types = IMAGE_TYPES
-            for image_type in image_types:
-                try:
-                    image_requests.append(
-                        self._image_requests_by_camera[item.camera_name][image_type]
-                    )
-                except KeyError:
-                    self._logger.error(
-                        f"Unexpected camera name '{item.camera_name}' or image type '{image_type}'"
-                    )
-                    return None
-                source_types.append((item.camera_name, image_type))
-            cameras_specified.add(item.camera_name)
-
-        # Send image requests
-        try:
-            image_responses = self._image_client.get_image(image_requests)
-        except UnsupportedPixelFormatRequestedError:
-            self._logger.error(
-                "UnsupportedPixelFormatRequestedError. "
-                "Likely pixel_format is set wrong for some image request"
-            )
-            return None
-
-        # Return
-        result = []
-        for i, (camera_name, image_type) in enumerate(source_types):
-            result.append(
-                ImageEntry(
-                    camera_name=camera_name,
-                    image_type=image_type,
-                    image_response=image_responses[i],
-                )
-            )
-        return result
+    def get_docking_state(self, **kwargs):
+        """Get docking state of robot."""
+        state = self._docking_client.get_docking_state(**kwargs)
+        return state
