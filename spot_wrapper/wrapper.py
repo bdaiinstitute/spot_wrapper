@@ -2641,6 +2641,7 @@ class SpotWrapper:
             self._current_annotation_name_to_wp_id,
             self._logger,
         )
+
         if not destination_waypoint:
             return False, "could not find destination waypoint"
         if not self.toggle_power(should_power_on=True):
@@ -2653,38 +2654,46 @@ class SpotWrapper:
         self._lease = self._lease_wallet.advance()
         self.navigate_to_dynamic_sublease = self._lease.create_sublease()
         self._lease_keepalive.shutdown()
-
-
+        # Can't cancel a navigation before it starts
+        self._graphnav_vel_negative = False
         # Navigate to the destination waypoint.
         is_finished = False
         nav_to_cmd_id = -1
-        
-        while not is_finished:
-            self._graphnav_lock.acquire()
-            self._navigating = True
-            # Navigate to the destination waypoint.
-            if self._graphnav_vel_negative:
-                self._navigate_to_dynamic_feedback = "goal cancelled"
-                self._navigating = False
+        try:
+            while not is_finished:
+                #TODO: release the lock in a try except
+                self._logger.info(f"in nav loop: {self._graphnav_vel_negative}")
+                self._graphnav_lock.acquire()
+                self._logger.info("got here")
+                self._navigating = True
+                # Navigate to the destination waypoint.
+                if self._graphnav_vel_negative:
+                    self._navigate_to_dynamic_feedback = "goal cancelled"
+                    self._navigating = False
+                    self._graphnav_lock.release()
+
+                    return False, "goal was cancelled"
+                if self._graphnav_vel_zero:
+                    self._navigate_to_dynamic_feedback = "goal paused"
+                    self._graphnav_lock.release()
+                    time.sleep(0.5)
+                    continue
+                self._logger.info(f"{self.graphnav_travel_params}")
+                # Issue the navigation command about twice a second such that it is easy to terminate the
+                # navigation command (with estop or killing the program).
+                # self._logger.error(f"{self.graphnav_travel_params}")
+                nav_to_cmd_id = self._graph_nav_client.navigate_to(
+                        destination_waypoint, 1.0,  leases=[self.navigate_to_dynamic_sublease.lease_proto]
+                        , travel_params = self.graphnav_travel_params
+                    )
                 self._graphnav_lock.release()
-                return False, "goal was cancelled"
-            if self._graphnav_vel_zero:
-                self._navigate_to_dynamic_feedback = "goal paused"
-                self._graphnav_lock.release()
-                time.sleep(0.5)
-                continue
-            # Issue the navigation command about twice a second such that it is easy to terminate the
-            # navigation command (with estop or killing the program).
-            # self._logger.error(f"{self.graphnav_travel_params}")
-            nav_to_cmd_id = self._graph_nav_client.navigate_to(
-                    destination_waypoint, 1.0,  leases=[self.navigate_to_dynamic_sublease.lease_proto]
-                    , travel_params = self.graphnav_travel_params
-                )
-            self._graphnav_lock.release()
-            time.sleep(0.5)  # Sleep for half a second to allow for command execution.
-            # Poll the robot for feedback to determine if the navigation command is complete. Then sit
-            # the robot down once it is finished.
-            is_finished = self._check_success(nav_to_cmd_id)
+                time.sleep(0.5)  # Sleep for half a second to allow for command execution.
+                # Poll the robot for feedback to determine if the navigation command is complete. Then sit
+                # the robot down once it is finished.
+                is_finished = self._check_success(nav_to_cmd_id)
+        except Exception as e:
+            self._graphnav_lock.release() #Need to avoid deadlocks
+            raise 
         self._navigating = False
 
         self._lease = self._lease_wallet.advance()
