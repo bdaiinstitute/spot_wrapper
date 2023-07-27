@@ -2,6 +2,8 @@ import asyncio
 import datetime
 import enum
 import os.path
+import pathlib
+import shutil
 import threading
 import typing
 import wave
@@ -11,20 +13,25 @@ import math
 import bosdyn.client
 import cv2
 import numpy as np
+from PIL import Image
 from aiortc import RTCConfiguration
+from bosdyn.api import image_pb2
+from bosdyn.api.data_chunk_pb2 import DataChunk
+from bosdyn.api.spot_cam import audio_pb2
+from bosdyn.api.spot_cam.camera_pb2 import Camera
+from bosdyn.api.spot_cam.logging_pb2 import Logpoint
+from bosdyn.api.spot_cam.ptz_pb2 import PtzDescription, PtzVelocity, PtzPosition
 from bosdyn.client import Robot
 from bosdyn.client import spot_cam
-from bosdyn.client.spot_cam.compositor import CompositorClient
-from bosdyn.client.spot_cam.lighting import LightingClient
-from bosdyn.client.spot_cam.power import PowerClient
-from bosdyn.client.spot_cam.health import HealthClient
-from bosdyn.client.spot_cam.audio import AudioClient
-from bosdyn.client.spot_cam.streamquality import StreamQualityClient
-from bosdyn.client.spot_cam.ptz import PtzClient
-from bosdyn.client.spot_cam.media_log import MediaLogClient
 from bosdyn.client.payload import PayloadClient
-from bosdyn.api.spot_cam.ptz_pb2 import PtzDescription, PtzVelocity, PtzPosition
-from bosdyn.api.spot_cam import audio_pb2
+from bosdyn.client.spot_cam.audio import AudioClient
+from bosdyn.client.spot_cam.compositor import CompositorClient
+from bosdyn.client.spot_cam.health import HealthClient
+from bosdyn.client.spot_cam.lighting import LightingClient
+from bosdyn.client.spot_cam.media_log import MediaLogClient
+from bosdyn.client.spot_cam.power import PowerClient
+from bosdyn.client.spot_cam.ptz import PtzClient
+from bosdyn.client.spot_cam.streamquality import StreamQualityClient
 
 from spot_wrapper.cam_webrtc_client import WebRTCClient
 from spot_wrapper.wrapper import SpotWrapper
@@ -156,7 +163,7 @@ class CompositorWrapper:
         """
         return self.client.get_visible_cameras()
 
-    def set_screen(self, screen):
+    def set_screen(self, screen: str):
         """
         Set the screen to be streamed over the network
 
@@ -164,6 +171,15 @@ class CompositorWrapper:
             screen: Screen to show
         """
         self.client.set_screen(screen)
+
+    def get_screen(self) -> str:
+        """
+        Get the screen currently being streamed over the network
+
+        Returns:
+            Name of the currently displayed screen
+        """
+        return self.client.get_screen()
 
     def set_ir_colormap(self, colormap, min_temp, max_temp, auto_scale=True):
         """
@@ -376,22 +392,288 @@ class StreamQualityWrapper:
         self.client.enable_congestion_control(enable)
 
 
-class MediaLogWrapper:
+class SpotCamCamera(enum.Enum):
     """
-    Wrapper for interacting with the media log. And importantly, information about the cameras themselves
+    More obvious names for the spot cam cameras
     """
 
-    def __init__(self, robot, logger):
+    PANORAMIC = "pano"
+    PTZ = "ptz"
+    IR = "ir"
+    REAR_LEFT_PANO = "c0"
+    FRONT_LEFT_PANO = "c1"
+    FRONT_PANO = "c2"
+    FRONT_RIGHT_PANO = "c3"
+    REAR_RIGHT_PANO = "c4"
+
+
+class MediaLogWrapper:
+    """
+    Wrapper for interacting with the media log. Allows saving of images from the camera to logpoints for full
+    resolution high quality imaging. Importantly, also has information about the cameras available.
+
+    Some functionality adapted from https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/spot_cam/media_log.py
+    """
+
+    def __init__(self, robot, logger) -> None:
         self.client: MediaLogClient = robot.ensure_client(
             MediaLogClient.default_service_name
         )
         self.logger = logger
 
-    def list_cameras(self) -> typing.List:
+    def list_cameras(self) -> typing.List[Camera]:
         """
         List the cameras on the spot cam
         """
         return self.client.list_cameras()
+
+    def list_logpoints(self) -> typing.List[Logpoint]:
+        """
+        List logpoints stored on the camera
+
+        Returns:
+            List of logpoints
+        """
+        return self.client.list_logpoints()
+
+    def retrieve_logpoint(
+        self, name: str, raw: bool = False
+    ) -> typing.Tuple[Logpoint, DataChunk]:
+        """
+        Retrieve a logpoint from the camera
+
+        Args:
+            name: Name of the logpoint to retrieve
+            raw: If true, retrieve raw data from the logpoint. Generally used for IR? See
+                 https://github.com/boston-dynamics/spot-sdk/blob/aa607fec2e32f880ad55da8bf186ce1b3384c891/python/examples/spot_cam/media_log.py#L168-L171
+
+        Returns:
+            Logpoint with the given name, or None if it doesn't exist
+        """
+        # TODO: What does this return if the logpoint doesn't exist? Just an empty logpoint?
+        if raw:
+            return self.client.retrieve_raw_data(logpoint=Logpoint(name=name))
+        else:
+            return self.client.retrieve(logpoint=Logpoint(name=name))
+
+    def get_logpoint_status(self, name: str) -> Logpoint.LogStatus:
+        """
+        Get the status of the logpoint
+
+        https://dev.bostondynamics.com/protos/bosdyn/api/proto_reference.html?highlight=listlogpoints#logpoint-logstatus
+
+        Args:
+            name: Retrieve the status for the logpoint with this name
+
+        Returns:
+            Status of the logpoint
+        """
+        return self.client.get_status(logpoint=Logpoint(name=name))
+
+    def delete_logpoint(self, name: str) -> None:
+        """
+        Delete a logpoint from the camera
+
+        Args:
+            name: Delete this logpoint
+        """
+        self.client.delete(logpoint=Logpoint(name=name))
+
+    def store(
+        self, camera: SpotCamCamera, tag: typing.Optional[str] = None
+    ) -> Logpoint:
+        """
+        Take a snapshot of the data currently on the given camera and store it to a logpoint.
+
+        Args:
+            camera: Camera for which a logpoint should be recorded
+            tag: Optional tag to associate with the logpoint
+
+        Returns:
+            Logpoint containing information about the stored data
+        """
+        return self.client.store(
+            camera=Camera(name=camera.value), record_type=Logpoint.STILLIMAGE, tag=tag
+        )
+
+    def tag(self, name: str, tag: str) -> None:
+        """
+        Update the tag of the given logpoint
+
+        Args:
+            name: Name of the Logpoint for which the tag should be updated
+            tag: New tag for the Logpoint
+        """
+        self.client.tag(logpoint=Logpoint(name=name, tag=tag))
+
+    def _build_filename(
+        self,
+        logpoint: Logpoint,
+        filename: str,
+        extension: str,
+        camera: typing.Optional[SpotCamCamera] = None,
+    ) -> str:
+        """
+        Build a filename from a base name. Returns files of the form basefilename_cameraname_iso_date
+
+
+        Args:
+            logpoint: Build a filename for this logpoint
+            filename: Base filename to use
+            extension: Extension to use
+            camera: If provided, the camera name will be added to the full filename
+
+        Returns:
+            Filename of the form filename{_cameraname}_YYYY-mm-ddTHH:MM:SS.MS.extension
+        """
+        if not extension.startswith("."):
+            extension = f".{extension}"
+
+        log_time = datetime.datetime.fromtimestamp(logpoint.timestamp.seconds)
+        log_time.replace(microsecond=int(logpoint.timestamp.nanos * 0.001))
+        if camera:
+            return f"{filename}_{camera.name}_{log_time.isoformat()}{extension}"
+        else:
+            return f"{filename}_{log_time.isoformat()}{extension}"
+
+    def save_logpoint_image(
+        self,
+        logpoint_name: str,
+        path: str,
+        base_filename: str,
+        raw: bool = False,
+        camera: typing.Optional[SpotCamCamera] = None,
+        use_rgb24: bool = False,
+    ) -> typing.Optional[str]:
+        """
+        Save the data in a logpoint to the given file on the caller's local machine.
+
+        Adapted from https://github.com/boston-dynamics/spot-sdk/blob/aa607fec2e32f880ad55da8bf186ce1b3384c891/python/examples/spot_cam/media_log.py#L166-L206
+
+        Args:
+            logpoint_name: Save the image associated with this logpoint
+            path: Save the data to this directory
+            base_filename: Use this filename as the base name for the image file
+            raw: If true, retrieve raw data rather than processed data. Useful for IR images?
+            camera: If set, add the name of the camera to the output filename. The logpoint doesn't store this information
+            use_rgb24: If set, save the ptz image in .rgb24 format without compression. By default it is saved to png
+
+        Returns:
+            Filename the image was saved to, or None if saving failed
+        """
+
+        logpoint, image = self.retrieve_logpoint(logpoint_name, raw=raw)
+
+        save_path = os.path.abspath(os.path.expanduser(path))
+
+        if not os.path.isdir(save_path):
+            pathlib.Path(save_path).mkdir(parents=True, exist_ok=True)
+
+        # Special case for 16 bit raw thermal image
+        if logpoint.image_params.format == image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U16:
+            np_img = np.frombuffer(image, dtype=np.uint16).byteswap()
+            np_img = np_img.reshape(
+                (logpoint.image_params.height, logpoint.image_params.width, 1)
+            )
+            full_path = os.path.join(
+                save_path,
+                self._build_filename(logpoint, base_filename, ".pgm", SpotCamCamera.IR),
+            )
+            cv2.imwrite(full_path, np_img)
+            return full_path
+
+        # Pano and IR both come in as JPEG from retrieve command
+        if (
+            logpoint.image_params.height == 4800
+            or logpoint.image_params.height == 2400
+            or (
+                logpoint.image_params.width == 640
+                and logpoint.image_params.height == 512
+            )
+        ):
+            full_path = os.path.join(
+                save_path,
+                self._build_filename(logpoint, base_filename, ".jpg", camera),
+            )
+            # If we're saving as jpg we don't want to rewrite the image file with use_rgb24
+            jpg = True
+        else:
+            full_path = os.path.join(
+                save_path,
+                self._build_filename(logpoint, base_filename, ".rgb24", camera),
+            )
+            jpg = False
+
+        # The original method saves the image to file first, then reads and saves it in a different way if rgb24 is
+        # not requested, so we do it the same way. There's probably a better way to do it.  Maybe frombytes with the
+        # raw option?
+        with open(full_path, "wb") as f:
+            f.write(image)
+
+        if not jpg and not use_rgb24:
+            with open(full_path, mode="rb") as fd:
+                data = fd.read()
+
+            mode = "RGB"
+            try:
+                image = Image.frombuffer(
+                    mode,
+                    (logpoint.image_params.width, logpoint.image_params.height),
+                    data,
+                    "raw",
+                    mode,
+                    0,
+                    1,
+                )
+            except ValueError as e:
+                self.logger.error(
+                    f"Error while trying to save image as png: {e}. You may need to restart the camera to fix this."
+                )
+                return None
+
+            os.remove(full_path)  # remove the rgb24 image
+            full_path = os.path.join(
+                save_path,
+                self._build_filename(logpoint, base_filename, ".png", camera),
+            )
+            image.save(full_path)
+
+        return logpoint
+
+    def store_and_save_image(
+        self, camera: SpotCamCamera, path: str, base_filename: str, delete: bool = True
+    ) -> typing.Optional[str]:
+        """
+        Stores a logpoint and saves the data to the given path on the caller's local machine. Blocks until the image
+        is ready to be saved.
+
+        Args:
+            camera: Camera from which data should be saved
+            path: Save the data to this directory
+            base_filename: Use this as the base name of the saved file
+            delete: If true, delete the logpoint which is created after saving the image
+
+        Returns:
+            File the image was saved to, or None if saving failed
+        """
+        logpoint = self.store(camera)
+        # Wait until the data is stored on disk before attempting a save
+        while self.get_logpoint_status(logpoint.name).status != Logpoint.COMPLETE:
+            logpoint = self.get_logpoint_status(logpoint.name)
+
+        output_fname = self.save_logpoint_image(
+            logpoint.name,
+            path,
+            base_filename,
+            raw=False,
+            camera=camera,
+        )
+
+        if delete:
+            # Since we have saved the logpoint image, can probably safely delete it
+            self.delete_logpoint(logpoint.name)
+
+        return output_fname
 
 
 class PTZWrapper:
@@ -561,7 +843,10 @@ class PTZWrapper:
 
 class ImageStreamWrapper:
     """
-    A wrapper for the image stream from WebRTC
+    A wrapper for the image stream from WebRTC.
+
+    It's not recommended to use images from this image stream for anything beyond casual viewing as they are heavily
+    compressed. Prefer use of MediaLog methods to get uncompressed high resolution images.
 
     Can view the same stream at https://192.168.50.3:31102/h264.sdp.html (depending on the IP of the robot)
 
