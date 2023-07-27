@@ -648,11 +648,11 @@ class ImageStreamWrapper:
         self.shutdown_flag.set()
 
     def get_last_image(self):
-        #with self.image_lock:
-        if self.last_image_time is not None:
-            return self.last_image
-        else:
-            return None
+        with self.image_lock:
+            if self.last_image_time is not None:
+                return self.last_image
+            else:
+                return None
 
 class SpotCamWrapper:
     def __init__(self, hostname, username, password, logger):
