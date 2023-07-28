@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import functools
 import logging
 import math
@@ -6,14 +7,10 @@ import time
 import traceback
 import threading
 import typing
-from enum import Enum
-from collections import namedtuple
-from dataclasses import dataclass, field
 
 import bosdyn.client.auth
 from bosdyn.api import arm_command_pb2
 from bosdyn.api import geometry_pb2
-from bosdyn.api import image_pb2
 from bosdyn.api import lease_pb2
 from bosdyn.api import point_cloud_pb2
 from bosdyn.api import manipulation_api_pb2
@@ -27,7 +24,6 @@ from bosdyn.api import point_cloud_pb2
 from bosdyn.api.graph_nav import graph_nav_pb2
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.api.graph_nav import nav_pb2
-from bosdyn.client import create_standard_sdk, ResponseError, RpcError
 from bosdyn.client import frame_helpers
 from bosdyn.client import math_helpers
 from bosdyn.client import robot_command
@@ -37,25 +33,21 @@ from bosdyn.client.estop import (
     EstopClient,
     EstopEndpoint,
     EstopKeepAlive,
-    MotorsOnError,
 )
 from bosdyn.client.frame_helpers import get_odom_tform_body
 from bosdyn.client.graph_nav import GraphNavClient
-from bosdyn.client.image import (
-    ImageClient,
-    build_image_request,
-    UnsupportedPixelFormatRequestedError,
-)
+from bosdyn.client.image import ImageClient
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.payload_registration import PayloadNotAuthorizedError
+from bosdyn.client.point_cloud import PointCloudClient, build_pc_request
 from bosdyn.client.power import safe_power_off, PowerClient, power_on
 from bosdyn.client.robot import UnregisteredServiceError, Robot
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
 from bosdyn.client.robot_state import RobotStateClient
+from bosdyn.client.spot_check import SpotCheckClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
-from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.license import LicenseClient
 from bosdyn.client import ResponseError, RpcError, create_standard_sdk
 
@@ -75,6 +67,7 @@ from google.protobuf.duration_pb2 import Duration
 
 SPOT_CLIENT_NAME = "ros_spot"
 MAX_COMMAND_DURATION = 1e5
+VELODYNE_SERVICE_NAME = "velodyne-point-cloud"
 
 ### Release
 from . import graph_nav_util
@@ -85,118 +78,17 @@ from . import graph_nav_util
 from bosdyn.api import basic_command_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
+from .spot_arm import SpotArm
+from .spot_check import SpotCheck
 from .spot_docking import SpotDocking
 from .spot_eap import SpotEAP
+from .spot_images import SpotImages
 from .spot_world_objects import SpotWorldObjects
 
 from .wrapper_helpers import RobotCommandData, RobotState
 
-
-front_image_sources = [
-    "frontleft_fisheye_image",
-    "frontright_fisheye_image",
-    "frontleft_depth",
-    "frontright_depth",
-]
-"""List of image sources for front image periodic query"""
-side_image_sources = [
-    "left_fisheye_image",
-    "right_fisheye_image",
-    "left_depth",
-    "right_depth",
-]
-"""List of image sources for side image periodic query"""
-rear_image_sources = ["back_fisheye_image", "back_depth"]
-"""List of image sources for rear image periodic query"""
-VELODYNE_SERVICE_NAME = "velodyne-point-cloud"
 """Service name for getting pointcloud of VLP16 connected to Spot Core"""
 point_cloud_sources = ["velodyne-point-cloud"]
-"""List of point cloud sources"""
-hand_image_sources = [
-    "hand_image",
-    "hand_depth",
-    "hand_color_image",
-    "hand_depth_in_hand_color_frame",
-]
-"""List of image sources for hand image periodic query"""
-
-
-# TODO: Missing Hand images
-CAMERA_IMAGE_SOURCES = [
-    "frontleft_fisheye_image",
-    "frontright_fisheye_image",
-    "left_fisheye_image",
-    "right_fisheye_image",
-    "back_fisheye_image",
-]
-DEPTH_IMAGE_SOURCES = [
-    "frontleft_depth",
-    "frontright_depth",
-    "left_depth",
-    "right_depth",
-    "back_depth",
-]
-DEPTH_REGISTERED_IMAGE_SOURCES = [
-    "frontleft_depth_in_visual_frame",
-    "frontright_depth_in_visual_frame",
-    "right_depth_in_visual_frame",
-    "left_depth_in_visual_frame",
-    "back_depth_in_visual_frame",
-]
-ImageBundle = namedtuple(
-    "ImageBundle", ["frontleft", "frontright", "left", "right", "back"]
-)
-ImageWithHandBundle = namedtuple(
-    "ImageBundle", ["frontleft", "frontright", "left", "right", "back", "hand"]
-)
-
-IMAGE_SOURCES_BY_CAMERA = {
-    "frontleft": {
-        "visual": "frontleft_fisheye_image",
-        "depth": "frontleft_depth",
-        "depth_registered": "frontleft_depth_in_visual_frame",
-    },
-    "frontright": {
-        "visual": "frontright_fisheye_image",
-        "depth": "frontright_depth",
-        "depth_registered": "frontright_depth_in_visual_frame",
-    },
-    "left": {
-        "visual": "left_fisheye_image",
-        "depth": "left_depth",
-        "depth_registered": "left_depth_in_visual_frame",
-    },
-    "right": {
-        "visual": "right_fisheye_image",
-        "depth": "right_depth",
-        "depth_registered": "right_depth_in_visual_frame",
-    },
-    "back": {
-        "visual": "back_fisheye_image",
-        "depth": "back_depth",
-        "depth_registered": "back_depth_in_visual_frame",
-    },
-    "hand": {
-        "visual": "hand_color_image",
-        "depth": "hand_depth",
-        "depth_registered": "hand_depth_in_hand_color_frame",
-    },
-}
-
-IMAGE_TYPES = {"visual", "depth", "depth_registered"}
-
-
-@dataclass(frozen=True, eq=True)
-class CameraSource:
-    camera_name: str
-    image_types: typing.List[str]
-
-
-@dataclass(frozen=True)
-class ImageEntry:
-    camera_name: str
-    image_type: str
-    image_response: image_pb2.ImageResponse
 
 
 def robotToLocalTime(timestamp: Timestamp, robot: Robot) -> Timestamp:
@@ -223,6 +115,14 @@ def robotToLocalTime(timestamp: Timestamp, robot: Robot) -> Timestamp:
         rtime.nanos = 0
 
     return rtime
+
+
+class MissingSpotArm(Exception):
+    """Raised when the arm is not available on the robot"""
+
+    def __init__(self, message="Spot arm not available"):
+        # Call the base class constructor with the parameters it needs
+        super().__init__(message)
 
 
 class AsyncRobotState(AsyncPeriodicQuery):
@@ -296,32 +196,6 @@ class AsyncLease(AsyncPeriodicQuery):
     def _start_query(self):
         if self._callback:
             callback_future = self._client.list_leases_async()
-            callback_future.add_done_callback(self._callback)
-            return callback_future
-
-
-class AsyncImageService(AsyncPeriodicQuery):
-    """Class to get images at regular intervals.  get_image_from_sources_async query sent to the robot at every tick.  Callback registered to defined callback function.
-
-    Attributes:
-        client: The Client to a service on the robot
-        logger: Logger object
-        rate: Rate (Hz) to trigger the query
-        callback: Callback function to call when the results of the query are available
-    """
-
-    def __init__(self, client, logger, rate, callback, image_requests):
-        super(AsyncImageService, self).__init__(
-            "robot_image_service", client, logger, period_sec=1.0 / max(rate, 1.0)
-        )
-        self._callback = None
-        if rate > 0.0:
-            self._callback = callback
-        self._image_requests = image_requests
-
-    def _start_query(self):
-        if self._callback:
-            callback_future = self._client.get_image_async(self._image_requests)
             callback_future.add_done_callback(self._callback)
             return callback_future
 
@@ -608,58 +482,10 @@ class SpotWrapper:
         self._graphnav_lock = threading.Lock()
         self._navigating = False
 
-        self._front_image_requests = []
-        for source in front_image_sources:
-            self._front_image_requests.append(
-                build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
-            )
-
-        self._side_image_requests = []
-        for source in side_image_sources:
-            self._side_image_requests.append(
-                build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
-            )
-
-        self._rear_image_requests = []
-        for source in rear_image_sources:
-            self._rear_image_requests.append(
-                build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
-            )
-
-        self._hand_image_requests = []
-        for source in hand_image_sources:
-            self._hand_image_requests.append(
-                build_image_request(source, image_format=image_pb2.Image.FORMAT_RAW)
-            )
-
-        self._camera_image_requests = []
-        for camera_source in CAMERA_IMAGE_SOURCES:
-            self._camera_image_requests.append(
-                build_image_request(
-                    camera_source,
-                    image_format=image_pb2.Image.FORMAT_JPEG,
-                    pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8
-                    if self._rgb_cameras
-                    else image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8,
-                    quality_percent=50,
-                )
-            )
-
-        self._depth_image_requests = []
-        for camera_source in DEPTH_IMAGE_SOURCES:
-            self._depth_image_requests.append(
-                build_image_request(
-                    camera_source, pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
-                )
-            )
-
-        self._depth_registered_image_requests = []
-        for camera_source in DEPTH_REGISTERED_IMAGE_SOURCES:
-            self._depth_registered_image_requests.append(
-                build_image_request(
-                    camera_source, pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
-                )
-            )
+ 
+        self._point_cloud_requests = []
+        for source in point_cloud_sources:
+            self._point_cloud_requests.append(build_pc_request(source))
 
         try:
             self._sdk = create_standard_sdk(SPOT_CLIENT_NAME)
@@ -723,6 +549,9 @@ class SpotWrapper:
                 self._docking_client = self._robot.ensure_client(
                     DockingClient.default_service_name
                 )
+                self._spot_check_client = self._robot.ensure_client(
+                    SpotCheckClient.default_service_name
+                )
                 self._license_client = self._robot.ensure_client(
                     LicenseClient.default_service_name
                 )
@@ -771,60 +600,6 @@ class SpotWrapper:
                 )
                 time.sleep(sleep_secs)
 
-        # Add hand camera requests
-        if self._robot.has_arm():
-            self._camera_image_requests.append(
-                build_image_request(
-                    "hand_color_image",
-                    image_format=image_pb2.Image.FORMAT_JPEG,
-                    pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                    quality_percent=50,
-                )
-            )
-            self._depth_image_requests.append(
-                build_image_request(
-                    "hand_depth",
-                    pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
-                )
-            )
-            self._depth_registered_image_requests.append(
-                build_image_request(
-                    "hand_depth_in_hand_color_frame",
-                    pixel_format=image_pb2.Image.PIXEL_FORMAT_DEPTH_U16,
-                )
-            )
-
-        # Build image requests by camera
-        self._image_requests_by_camera = {}
-        for camera in IMAGE_SOURCES_BY_CAMERA:
-            if camera == "hand" and not self._robot.has_arm():
-                continue
-            self._image_requests_by_camera[camera] = {}
-            image_types = IMAGE_SOURCES_BY_CAMERA[camera]
-            for image_type in image_types:
-                if image_type.startswith("depth"):
-                    image_format = image_pb2.Image.FORMAT_RAW
-                    pixel_format = image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
-                else:
-                    image_format = image_pb2.Image.FORMAT_JPEG
-                    if camera == "hand" or self._rgb_cameras:
-                        pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
-                    elif camera != "hand":
-                        self._logger.info(
-                            f"Switching {camera}:{image_type} to greyscale image format."
-                        )
-                        pixel_format = image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8
-
-                source = IMAGE_SOURCES_BY_CAMERA[camera][image_type]
-                self._image_requests_by_camera[camera][
-                    image_type
-                ] = build_image_request(
-                    source,
-                    image_format=image_format,
-                    pixel_format=pixel_format,
-                    quality_percent=75,
-                )
-
         # Store the most recent knowledge of the state of the robot based on rpc calls.
         self._init_current_graph_nav_state()
 
@@ -856,35 +631,6 @@ class SpotWrapper:
             max(0.0, self._rates.get("lease", 0.0)),
             self._callbacks.get("lease", None),
         )
-        self._front_image_task = AsyncImageService(
-            self._image_client,
-            self._logger,
-            max(0.0, self._rates.get("front_image", 0.0)),
-            self._callbacks.get("front_image", None),
-            self._front_image_requests,
-        )
-        self._side_image_task = AsyncImageService(
-            self._image_client,
-            self._logger,
-            max(0.0, self._rates.get("side_image", 0.0)),
-            self._callbacks.get("side_image", None),
-            self._side_image_requests,
-        )
-        self._rear_image_task = AsyncImageService(
-            self._image_client,
-            self._logger,
-            max(0.0, self._rates.get("rear_image", 0.0)),
-            self._callbacks.get("rear_image", None),
-            self._rear_image_requests,
-        )
-        self._hand_image_task = AsyncImageService(
-            self._image_client,
-            self._logger,
-            max(0.0, self._rates.get("hand_image", 0.0)),
-            self._callbacks.get("hand_image", None),
-            self._hand_image_requests,
-        )
-
         self._idle_task = AsyncIdle(
             self._robot_command_client, self._logger, 10.0, self
         )
@@ -899,10 +645,33 @@ class SpotWrapper:
             self._robot_state_task,
             self._robot_metrics_task,
             self._lease_task,
-            self._front_image_task,
             self._idle_task,
             self._estop_monitor,
         ]
+
+        self._spot_check = SpotCheck(
+            self._robot,
+            self._logger,
+            self._state,
+            self._spot_check_client,
+            self._robot_command_client,
+            self._lease_client,
+        )
+
+        if self._robot.has_arm():
+            self._spot_arm = SpotArm(
+                self._robot,
+                self._logger,
+                self._state,
+                self._robot_command_client,
+                self._manipulation_api_client,
+                self._robot_state_client,
+                MAX_COMMAND_DURATION,
+            )
+        else:
+            self._spot_arm = None
+
+        self._spot_images = SpotImages(self._robot, self._logger, self._image_client)
 
         self._spot_docking = SpotDocking(
             self._robot,
@@ -937,13 +706,6 @@ class SpotWrapper:
         robot_tasks.append(self._world_objects_task)
 
         self._async_tasks = AsyncTasks(robot_tasks)
-
-        self.camera_task_name_to_task_mapping = {
-            "hand_image": self._hand_image_task,
-            "side_image": self._side_image_task,
-            "rear_image": self._rear_image_task,
-            "front_image": self._front_image_task,
-        }
 
         if self._is_licensed_for_choreography:
             self._spot_dance = SpotDance(
@@ -1047,6 +809,19 @@ class SpotWrapper:
         return self._frame_prefix
 
     @property
+    def spot_arm(self) -> SpotArm:
+        """Return SpotArm instance"""
+        if not self._robot.has_arm():
+            raise MissingSpotArm()
+        else:
+            return self._spot_arm
+
+    @property
+    def spot_check(self) -> SpotCheck:
+        """Return SpotCheck instance"""
+        return self._spot_check
+
+    @property
     def spot_eap_lidar(self) -> typing.Optional[SpotEAP]:
         """Return SpotEAP instance"""
         return self._spot_eap
@@ -1082,6 +857,11 @@ class SpotWrapper:
         return self._lease_task.proto
 
     @property
+    def spot_images(self) -> SpotImages:
+        """Return SpotImages instance"""
+        return self._spot_images
+
+    @property
     def spot_world_objects(self) -> SpotWorldObjects:
         """Return SpotWorldObjects instance"""
         return self._spot_world_objects
@@ -1095,26 +875,6 @@ class SpotWrapper:
     def world_objects(self) -> world_object_pb2.ListWorldObjectResponse:
         """Return most recent proto from _world_objects_task"""
         return self.spot_world_objects.async_task.proto
-
-    @property
-    def front_images(self):
-        """Return latest proto from the _front_image_task"""
-        return self._front_image_task.proto
-
-    @property
-    def side_images(self):
-        """Return latest proto from the _side_image_task"""
-        return self._side_image_task.proto
-
-    @property
-    def rear_images(self):
-        """Return latest proto from the _rear_image_task"""
-        return self._rear_image_task.proto
-
-    @property
-    def hand_images(self):
-        """Return latest proto from the _hand_image_task"""
-        return self._hand_image_task.proto
 
     @property
     def point_clouds(self) -> typing.List[point_cloud_pb2.PointCloudResponse]:
@@ -1847,466 +1607,6 @@ class SpotWrapper:
 
         return resp
 
-    # Arm ############################################
-    @try_claim
-    def ensure_arm_power_and_stand(self):
-        if not self._robot.has_arm():
-            return False, "Spot with an arm is required for this service"
-
-        try:
-            if not self.check_is_powered_on():
-                self._logger.info("Spot is powering on within the timeout of 20 secs")
-                self._robot.power_on(timeout_sec=20)
-            assert self._robot.is_powered_on(), "Spot failed to power on"
-            self._logger.info("Spot is powered on")
-        except Exception as e:
-            return (
-                False,
-                f"Exception occured while Spot or its arm were trying to power on: {e}",
-            )
-
-        if not self.is_standing:
-            robot_command.blocking_stand(
-                command_client=self._robot_command_client, timeout_sec=10.0
-            )
-            self._logger.info("Spot is standing")
-        else:
-            self._logger.info("Spot is already standing")
-
-        return True, "Spot has an arm, is powered on, and standing"
-
-    @try_claim
-    def arm_stow(self):
-        try:
-            success, msg = self.ensure_arm_power_and_stand()
-            if not success:
-                self._logger.info(msg)
-                return False, msg
-            else:
-                # Stow Arm
-                stow = RobotCommandBuilder.arm_stow_command()
-
-                # Command issue with RobotCommandClient
-                self._robot_command_client.robot_command(stow)
-                self._logger.info("Command stow issued")
-                time.sleep(2.0)
-
-        except Exception as e:
-            return False, f"Exception occured while trying to stow: {e}"
-
-        return True, "Stow arm success"
-
-    @try_claim
-    def arm_unstow(self):
-        try:
-            success, msg = self.ensure_arm_power_and_stand()
-            if not success:
-                self._logger.info(msg)
-                return False, msg
-            else:
-                # Unstow Arm
-                unstow = RobotCommandBuilder.arm_ready_command()
-
-                # Command issue with RobotCommandClient
-                self._robot_command_client.robot_command(unstow)
-                self._logger.info("Command unstow issued")
-                time.sleep(2.0)
-
-        except Exception as e:
-            return False, f"Exception occured while trying to unstow: {e}"
-
-        return True, "Unstow arm success"
-
-    @try_claim
-    def arm_carry(self):
-        try:
-            success, msg = self.ensure_arm_power_and_stand()
-            if not success:
-                self._logger.info(msg)
-                return False, msg
-            else:
-                # Get Arm in carry mode
-                carry = RobotCommandBuilder.arm_carry_command()
-
-                # Command issue with RobotCommandClient
-                self._robot_command_client.robot_command(carry)
-                self._logger.info("Command carry issued")
-                time.sleep(2.0)
-
-        except Exception as e:
-            return False, f"Exception occured while carry mode was issued: {e}"
-
-        return True, "Carry mode success"
-
-    def make_arm_trajectory_command(self, arm_joint_trajectory):
-        """Helper function to create a RobotCommand from an ArmJointTrajectory.
-        Copy from 'spot-sdk/python/examples/arm_joint_move/arm_joint_move.py'"""
-
-        joint_move_command = arm_command_pb2.ArmJointMoveCommand.Request(
-            trajectory=arm_joint_trajectory
-        )
-        arm_command = arm_command_pb2.ArmCommand.Request(
-            arm_joint_move_command=joint_move_command
-        )
-        sync_arm = synchronized_command_pb2.SynchronizedCommand.Request(
-            arm_command=arm_command
-        )
-        arm_sync_robot_cmd = robot_command_pb2.RobotCommand(
-            synchronized_command=sync_arm
-        )
-        return RobotCommandBuilder.build_synchro_command(arm_sync_robot_cmd)
-
-    @try_claim
-    def arm_joint_move(self, joint_targets):
-        # All perspectives are given when looking at the robot from behind after the unstow service is called
-        # Joint1: 0.0 arm points to the front. positive: turn left, negative: turn right)
-        # RANGE: -3.14 -> 3.14
-        # Joint2: 0.0 arm points to the front. positive: move down, negative move up
-        # RANGE: 0.4 -> -3.13 (
-        # Joint3: 0.0 arm straight. moves the arm down
-        # RANGE: 0.0 -> 3.1415
-        # Joint4: 0.0 middle position. negative: moves ccw, positive moves cw
-        # RANGE: -2.79253 -> 2.79253
-        # # Joint5: 0.0 gripper points to the front. positive moves the gripper down
-        # RANGE: -1.8326 -> 1.8326
-        # Joint6: 0.0 Gripper is not rolled, positive is ccw
-        # RANGE: -2.87 -> 2.87
-        # Values after unstow are: [0.0, -0.9, 1.8, 0.0, -0.9, 0.0]
-        if abs(joint_targets[0]) > 3.14:
-            msg = "Joint 1 has to be between -3.14 and 3.14"
-            self._logger.warning(msg)
-            return False, msg
-        elif joint_targets[1] > 0.4 or joint_targets[1] < -3.13:
-            msg = "Joint 2 has to be between -3.13 and 0.4"
-            self._logger.warning(msg)
-            return False, msg
-        elif joint_targets[2] > 3.14 or joint_targets[2] < 0.0:
-            msg = "Joint 3 has to be between 0.0 and 3.14"
-            self._logger.warning(msg)
-            return False, msg
-        elif abs(joint_targets[3]) > 2.79253:
-            msg = "Joint 4 has to be between -2.79253 and 2.79253"
-            self._logger.warning(msg)
-            return False, msg
-        elif abs(joint_targets[4]) > 1.8326:
-            msg = "Joint 5 has to be between -1.8326 and 1.8326"
-            self._logger.warning(msg)
-            return False, msg
-        elif abs(joint_targets[5]) > 2.87:
-            msg = "Joint 6 has to be between -2.87 and 2.87"
-            self._logger.warning(msg)
-            return False, msg
-        try:
-            success, msg = self.ensure_arm_power_and_stand()
-            if not success:
-                self._logger.info(msg)
-                return False, msg
-            else:
-                trajectory_point = (
-                    RobotCommandBuilder.create_arm_joint_trajectory_point(
-                        joint_targets[0],
-                        joint_targets[1],
-                        joint_targets[2],
-                        joint_targets[3],
-                        joint_targets[4],
-                        joint_targets[5],
-                    )
-                )
-                arm_joint_trajectory = arm_command_pb2.ArmJointTrajectory(
-                    points=[trajectory_point]
-                )
-                arm_command = self.make_arm_trajectory_command(arm_joint_trajectory)
-
-                # Send the request
-                cmd_id = self._robot_command_client.robot_command(arm_command)
-
-                # Query for feedback to determine how long it will take
-                feedback_resp = self._robot_command_client.robot_command_feedback(
-                    cmd_id
-                )
-                joint_move_feedback = (
-                    feedback_resp.feedback.synchronized_feedback.arm_command_feedback.arm_joint_move_feedback
-                )
-                time_to_goal: Duration = joint_move_feedback.time_to_goal
-                time_to_goal_in_seconds: float = (
-                    time_to_goal.seconds + time_to_goal.nanos / 1e9
-                )
-                time.sleep(time_to_goal_in_seconds)
-                return True, "Spot Arm moved successfully"
-
-        except Exception as e:
-            return False, f"Exception occured during arm movement: {e}"
-
-    @try_claim
-    def force_trajectory(self, data):
-        try:
-            success, msg = self.ensure_arm_power_and_stand()
-            if not success:
-                self._logger.info(msg)
-                return False, msg
-            else:
-
-                def create_wrench_from_msg(forces, torques):
-                    force = geometry_pb2.Vec3(x=forces[0], y=forces[1], z=forces[2])
-                    torque = geometry_pb2.Vec3(x=torques[0], y=torques[1], z=torques[2])
-                    return geometry_pb2.Wrench(force=force, torque=torque)
-
-                # Duration in seconds.
-                traj_duration = data.duration
-
-                # first point on trajectory
-                wrench0 = create_wrench_from_msg(data.forces_pt0, data.torques_pt0)
-                t0 = seconds_to_duration(0)
-                traj_point0 = trajectory_pb2.WrenchTrajectoryPoint(
-                    wrench=wrench0, time_since_reference=t0
-                )
-
-                # Second point on the trajectory
-                wrench1 = create_wrench_from_msg(data.forces_pt1, data.torques_pt1)
-                t1 = seconds_to_duration(traj_duration)
-                traj_point1 = trajectory_pb2.WrenchTrajectoryPoint(
-                    wrench=wrench1, time_since_reference=t1
-                )
-
-                # Build the trajectory
-                trajectory = trajectory_pb2.WrenchTrajectory(
-                    points=[traj_point0, traj_point1]
-                )
-
-                # Build the trajectory request, putting all axes into force mode
-                arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
-                    root_frame_name=data.frame,
-                    wrench_trajectory_in_task=trajectory,
-                    x_axis=arm_command_pb2.ArmCartesianCommand.Request.AXIS_MODE_FORCE,
-                    y_axis=arm_command_pb2.ArmCartesianCommand.Request.AXIS_MODE_FORCE,
-                    z_axis=arm_command_pb2.ArmCartesianCommand.Request.AXIS_MODE_FORCE,
-                    rx_axis=arm_command_pb2.ArmCartesianCommand.Request.AXIS_MODE_FORCE,
-                    ry_axis=arm_command_pb2.ArmCartesianCommand.Request.AXIS_MODE_FORCE,
-                    rz_axis=arm_command_pb2.ArmCartesianCommand.Request.AXIS_MODE_FORCE,
-                )
-                arm_command = arm_command_pb2.ArmCommand.Request(
-                    arm_cartesian_command=arm_cartesian_command
-                )
-                synchronized_command = (
-                    synchronized_command_pb2.SynchronizedCommand.Request(
-                        arm_command=arm_command
-                    )
-                )
-                robot_command = robot_command_pb2.RobotCommand(
-                    synchronized_command=synchronized_command
-                )
-
-                # Send the request
-                self._robot_command_client.robot_command(robot_command)
-                self._logger.info("Force trajectory command sent")
-
-                time.sleep(traj_duration + 1.0)
-
-        except Exception as e:
-            return False, f"Exception occured during arm movement: {e}"
-
-        return True, "Moved arm successfully"
-
-    @try_claim
-    def gripper_open(self):
-        try:
-            success, msg = self.ensure_arm_power_and_stand()
-            if not success:
-                self._logger.info(msg)
-                return False, msg
-            else:
-                # Open gripper
-                command = RobotCommandBuilder.claw_gripper_open_command()
-
-                # Command issue with RobotCommandClient
-                self._robot_command_client.robot_command(command)
-                self._logger.info("Command gripper open sent")
-                time.sleep(2.0)
-
-        except Exception as e:
-            return False, f"Exception occured while gripper was moving: {e}"
-
-        return True, "Open gripper success"
-
-    @try_claim
-    def gripper_close(self):
-        try:
-            success, msg = self.ensure_arm_power_and_stand()
-            if not success:
-                self._logger.info(msg)
-                return False, msg
-            else:
-                # Close gripper
-                command = RobotCommandBuilder.claw_gripper_close_command()
-
-                # Command issue with RobotCommandClient
-                self._robot_command_client.robot_command(command)
-                self._logger.info("Command gripper close sent")
-                time.sleep(2.0)
-
-        except Exception as e:
-            return False, f"Exception occured while gripper was moving: {e}"
-
-        return True, "Closed gripper successfully"
-
-    @try_claim
-    def gripper_angle_open(self, gripper_ang):
-        # takes an angle between 0 (closed) and 90 (fully opened) and opens the
-        # gripper at this angle
-        if gripper_ang > 90 or gripper_ang < 0:
-            return False, "Gripper angle must be between 0 and 90"
-        try:
-            success, msg = self.ensure_arm_power_and_stand()
-            if not success:
-                self._logger.info(msg)
-                return False, msg
-            else:
-                # The open angle command does not take degrees but the limits
-                # defined in the urdf, that is why we have to interpolate
-                closed = 0.349066
-                opened = -1.396263
-                angle = gripper_ang / 90.0 * (opened - closed) + closed
-                command = RobotCommandBuilder.claw_gripper_open_angle_command(angle)
-
-                # Command issue with RobotCommandClient
-                self._robot_command_client.robot_command(command)
-                self._logger.info("Command gripper open angle sent")
-                time.sleep(2.0)
-
-        except Exception as e:
-            return False, f"Exception occured while gripper was moving: {e}"
-
-        return True, "Opened gripper successfully"
-
-    @try_claim
-    def hand_pose(self, data):
-        try:
-            success, msg = self.ensure_arm_power_and_stand()
-            if not success:
-                self._logger.info(msg)
-                return False, msg
-            else:
-                pose_point = data.pose_point
-                # Move the arm to a spot in front of the robot given a pose for the gripper.
-                # Build a position to move the arm to (in meters, relative to the body frame origin.)
-                position = geometry_pb2.Vec3(
-                    x=pose_point.position.x,
-                    y=pose_point.position.y,
-                    z=pose_point.position.z,
-                )
-
-                # # Rotation as a quaternion.
-                rotation = geometry_pb2.Quaternion(
-                    w=pose_point.orientation.w,
-                    x=pose_point.orientation.x,
-                    y=pose_point.orientation.y,
-                    z=pose_point.orientation.z,
-                )
-
-                seconds = data.duration
-                duration = seconds_to_duration(seconds)
-
-                # Build the SE(3) pose of the desired hand position in the moving body frame.
-                hand_pose = geometry_pb2.SE3Pose(position=position, rotation=rotation)
-                hand_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(
-                    pose=hand_pose, time_since_reference=duration
-                )
-                hand_trajectory = trajectory_pb2.SE3Trajectory(
-                    points=[hand_pose_traj_point]
-                )
-
-                arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
-                    root_frame_name=data.frame,
-                    pose_trajectory_in_task=hand_trajectory,
-                    force_remain_near_current_joint_configuration=True,
-                )
-                arm_command = arm_command_pb2.ArmCommand.Request(
-                    arm_cartesian_command=arm_cartesian_command
-                )
-                synchronized_command = (
-                    synchronized_command_pb2.SynchronizedCommand.Request(
-                        arm_command=arm_command
-                    )
-                )
-
-                robot_command = robot_command_pb2.RobotCommand(
-                    synchronized_command=synchronized_command
-                )
-
-                command = RobotCommandBuilder.build_synchro_command(robot_command)
-
-                # Send the request
-                self._robot_command_client.robot_command(robot_command)
-                self._logger.info("Moving arm to position.")
-
-                time.sleep(2.0)
-
-        except Exception as e:
-            return (
-                False,
-                f"An error occured while trying to move arm \n Exception: {e}",
-            )
-
-        return True, "Moved arm successfully"
-
-    @try_claim
-    def grasp_3d(self, frame, object_rt_frame):
-        try:
-            frm = str(frame)
-            pos = geometry_pb2.Vec3(
-                x=object_rt_frame[0], y=object_rt_frame[1], z=object_rt_frame[2]
-            )
-
-            grasp = manipulation_api_pb2.PickObject(frame_name=frm, object_rt_frame=pos)
-
-            # Ask the robot to pick up the object
-            grasp_request = manipulation_api_pb2.ManipulationApiRequest(
-                pick_object=grasp
-            )
-            # Send the request
-            cmd_response = self._manipulation_api_client.manipulation_api_command(
-                manipulation_api_request=grasp_request
-            )
-
-            # Get feedback from the robot
-            while True:
-                feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
-                    manipulation_cmd_id=cmd_response.manipulation_cmd_id
-                )
-
-                # Send the request
-                response = (
-                    self._manipulation_api_client.manipulation_api_feedback_command(
-                        manipulation_api_feedback_request=feedback_request
-                    )
-                )
-
-                print(
-                    "Current state: ",
-                    manipulation_api_pb2.ManipulationFeedbackState.Name(
-                        response.current_state
-                    ),
-                )
-
-                if (
-                    response.current_state
-                    == manipulation_api_pb2.MANIP_STATE_GRASP_SUCCEEDED
-                    or response.current_state
-                    == manipulation_api_pb2.MANIP_STATE_GRASP_FAILED
-                ):
-                    break
-
-                time.sleep(0.25)
-
-            self._robot.logger.info("Finished grasp.")
-
-        except Exception as e:
-            return False, f"An error occured while trying to grasp from pose: {e}"
-
-        return True, "Grasped successfully"
-
-    ###################################################################
-
     def _init_current_graph_nav_state(self):
         # Store the most recent knowledge of the state of the robot based on rpc calls.
         self._current_graph = None
@@ -2925,219 +2225,7 @@ class SpotWrapper:
         else:
             return False, "Spot is not licensed for choreography", []
 
-    def update_image_tasks(self, image_name):
-        """Adds an async tasks to retrieve images from the specified image source"""
-
-        task_to_add = self.camera_task_name_to_task_mapping[image_name]
-
-        if task_to_add == self._hand_image_task and not self._robot.has_arm():
-            self._logger.warning(
-                "Robot has no arm, therefore the arm image task can not be added"
-            )
-            return
-
-        if task_to_add in self._async_tasks._tasks:
-            self._logger.warning(
-                f"Task {image_name} already in async task list, will not be added again"
-            )
-            return
-
-        self._async_tasks.add_task(self.camera_task_name_to_task_mapping[image_name])
-
-    def get_frontleft_rgb_image(self):
-        try:
-            return self._image_client.get_image(
-                [
-                    build_image_request(
-                        "frontleft_fisheye_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
-                    )
-                ]
-            )[0]
-        except UnsupportedPixelFormatRequestedError as e:
-            return None
-
-    def get_frontright_rgb_image(self):
-        try:
-            return self._image_client.get_image(
-                [
-                    build_image_request(
-                        "frontright_fisheye_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
-                    )
-                ]
-            )[0]
-        except UnsupportedPixelFormatRequestedError as e:
-            return None
-
-    def get_left_rgb_image(self):
-        try:
-            return self._image_client.get_image(
-                [
-                    build_image_request(
-                        "left_fisheye_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
-                    )
-                ]
-            )[0]
-        except UnsupportedPixelFormatRequestedError as e:
-            return None
-
-    def get_right_rgb_image(self):
-        try:
-            return self._image_client.get_image(
-                [
-                    build_image_request(
-                        "right_fisheye_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
-                    )
-                ]
-            )[0]
-        except UnsupportedPixelFormatRequestedError as e:
-            return None
-
-    def get_back_rgb_image(self):
-        try:
-            return self._image_client.get_image(
-                [
-                    build_image_request(
-                        "back_fisheye_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
-                    )
-                ]
-            )[0]
-        except UnsupportedPixelFormatRequestedError as e:
-            return None
-
-    def get_hand_rgb_image(self):
-        if not self.has_arm():
-            return None
-        try:
-            return self._image_client.get_image(
-                [
-                    build_image_request(
-                        "hand_color_image",
-                        pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8,
-                        quality_percent=50,
-                    )
-                ]
-            )[0]
-        except UnsupportedPixelFormatRequestedError as e:
-            return None
-
-    def get_images(
-        self, image_requests: typing.List[image_pb2.ImageRequest]
-    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
-        try:
-            image_responses = self._image_client.get_image(image_requests)
-        except UnsupportedPixelFormatRequestedError as e:
-            return None
-        if self.has_arm():
-            return ImageWithHandBundle(
-                frontleft=image_responses[0],
-                frontright=image_responses[1],
-                left=image_responses[2],
-                right=image_responses[3],
-                back=image_responses[4],
-                hand=image_responses[5],
-            )
-        else:
-            return ImageBundle(
-                frontleft=image_responses[0],
-                frontright=image_responses[1],
-                left=image_responses[2],
-                right=image_responses[3],
-                back=image_responses[4],
-            )
-
-    def get_camera_images(
-        self,
-    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
-        return self.get_images(self._camera_image_requests)
-
-    def get_depth_images(
-        self,
-    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
-        return self.get_images(self._depth_image_requests)
-
-    def get_depth_registered_images(
-        self,
-    ) -> typing.Optional[typing.Union[ImageBundle, ImageWithHandBundle]]:
-        return self.get_images(self._depth_registered_image_requests)
-
-    def get_images_by_cameras(
-        self, camera_sources: typing.List[CameraSource]
-    ) -> typing.List[ImageEntry]:
-        """Calls the GetImage RPC using the image client with requests
-        corresponding to the given cameras.
-
-        Args:
-           camera_sources: a list of CameraSource objects. There are two
-               possibilities for each item in this list. Either it is
-               CameraSource(camera='front') or
-               CameraSource(camera='front', image_types=['visual', 'depth_registered')
-
-                - If the former is provided, the image requests will include all
-                  image types for each specified camera.
-                - If the latter is provided, the image requests will be
-                  limited to the specified image types for each corresponding
-                  camera.
-
-              Note that duplicates of camera names are not allowed.
-
-        Returns:
-            a list, where each entry is (camera_name, image_type, image_response)
-                e.g. ('frontleft', 'visual', image_response)
-        """
-        # Build image requests
-        image_requests = []
-        source_types = []
-        cameras_specified = set()
-        for item in camera_sources:
-            if item.camera_name in cameras_specified:
-                self._logger.error(
-                    f"Duplicated camera source for camera {item.camera_name}"
-                )
-                return None
-            image_types = item.image_types
-            if image_types is None:
-                image_types = IMAGE_TYPES
-            for image_type in image_types:
-                try:
-                    image_requests.append(
-                        self._image_requests_by_camera[item.camera_name][image_type]
-                    )
-                except KeyError:
-                    self._logger.error(
-                        f"Unexpected camera name '{item.camera_name}' or image type '{image_type}'"
-                    )
-                    return None
-                source_types.append((item.camera_name, image_type))
-            cameras_specified.add(item.camera_name)
-
-        # Send image requests
-        try:
-            image_responses = self._image_client.get_image(image_requests)
-        except UnsupportedPixelFormatRequestedError:
-            self._logger.error(
-                "UnsupportedPixelFormatRequestedError. "
-                "Likely pixel_format is set wrong for some image request"
-            )
-            return None
-
-        # Return
-        result = []
-        for i, (camera_name, image_type) in enumerate(source_types):
-            result.append(
-                ImageEntry(
-                    camera_name=camera_name,
-                    image_type=image_type,
-                    image_response=image_responses[i],
-                )
-            )
-        return result
+    def get_docking_state(self, **kwargs):
+        """Get docking state of robot."""
+        state = self._docking_client.get_docking_state(**kwargs)
+        return state
