@@ -939,6 +939,7 @@ class ImageStreamWrapper:
         else:
             return None
 
+
 class SpotCamWrapper:
     def __init__(self, hostname, username, password, logger):
         self._hostname = hostname
