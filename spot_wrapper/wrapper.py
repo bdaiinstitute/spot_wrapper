@@ -243,7 +243,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                     self._logger.warning("Stand command in unknown state")
                     self._spot_wrapper.is_standing = False
             except (ResponseError, RpcError) as e:
-                self._logger.error("Error when getting robot command feedback: %s", e)
+                self._logger.error(f"Error when getting robot command feedback: {e}")
                 self._spot_wrapper.last_stand_command = None
 
         if self._spot_wrapper.last_sit_command is not None:
@@ -261,7 +261,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                 else:
                     self._spot_wrapper.is_sitting = False
             except (ResponseError, RpcError) as e:
-                self._logger.error("Error when getting robot command feedback: %s", e)
+                self._logger.error(f"Error when getting robot command feedback: {e}")
                 self._spot_wrapper.last_sit_command = None
 
         is_moving = False
@@ -320,7 +320,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                     )
                     self._spot_wrapper.last_trajectory_command = None
             except (ResponseError, RpcError) as e:
-                self._logger.error("Error when getting robot command feedback: %s", e)
+                self._logger.error(f"Error when getting robot command feedback: {e}")
                 self._spot_wrapper.last_trajectory_command = None
 
         self._spot_wrapper.is_moving = is_moving
@@ -485,7 +485,7 @@ class SpotWrapper:
         try:
             self._sdk = create_standard_sdk(SPOT_CLIENT_NAME)
         except Exception as e:
-            self._logger.error("Error creating SDK object: %s", e)
+            self._logger.error(f"Error creating SDK object: {e}")
             self._valid = False
             return
         if HAVE_CHOREOGRAPHY:
@@ -2065,10 +2065,7 @@ class SpotWrapper:
             else:
                 all_edges_found = False
                 self._logger.error(
-                    "Failed to find an edge between waypoints: ",
-                    start_wp,
-                    " and ",
-                    end_wp,
+                    "Failed to find an edge between waypoints: {} and {}.".format(start_wp, end_wp)
                 )
                 self._logger.error(
                     "List the graph's waypoints and edges to ensure pairs of waypoints has an edge."
