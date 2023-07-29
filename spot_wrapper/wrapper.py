@@ -624,6 +624,7 @@ class SpotWrapper:
                 self._manipulation_api_client,
                 self._robot_state_client,
                 MAX_COMMAND_DURATION,
+                self._claim_decorator,
             )
         else:
             self._spot_arm = None

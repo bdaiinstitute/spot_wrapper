@@ -21,7 +21,7 @@ from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.util import seconds_to_duration
 
-from spot_wrapper.wrapper_helpers import RobotState
+from spot_wrapper.wrapper_helpers import RobotState, ClaimAndPowerDecorator
 
 
 class SpotArm:
@@ -34,13 +34,19 @@ class SpotArm:
         manipulation_api_client: ManipulationApiClient,
         robot_state_client: RobotStateClient,
         max_command_duration: float,
+        claim_and_power_decorator: ClaimAndPowerDecorator,
     ) -> None:
         """
         Constructor for SpotArm class.
         Args:
             robot: Robot object
             logger: Logger object
+            robot_state: Object containing the robot's state as controlled by the wrapper
+            robot_command_client: Command client to use to send commands to the robot
+            manipulation_api_client: Command client to send manipulation commands to the robot
+            robot_state_client: Client to retrieve state of the robot
             max_command_duration: Maximum duration for commands when using the manipulation command method
+            claim_and_power_decorator: Object to use to decorate the functions on this object
         """
         self._robot = robot
         self._logger = logger
@@ -49,6 +55,23 @@ class SpotArm:
         self._robot_command_client = robot_command_client
         self._manipulation_api_client = manipulation_api_client
         self._robot_state_client = robot_state_client
+        self._claim_and_power_decorator = claim_and_power_decorator
+        self._claim_and_power_decorator.decorate_functions(
+            self,
+            decorate_funcs=[
+                self.ensure_arm_power_and_stand,
+                self.arm_stow,
+                self.arm_unstow,
+                self.arm_carry,
+                self.arm_joint_move,
+                self.force_trajectory,
+                self.gripper_open,
+                self.gripper_close,
+                self.gripper_angle_open,
+                self.hand_pose,
+                self.grasp_3d,
+            ],
+        )
 
     def _manipulation_request(
         self,
