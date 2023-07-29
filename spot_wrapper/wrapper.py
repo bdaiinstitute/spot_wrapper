@@ -86,8 +86,6 @@ from .spot_world_objects import SpotWorldObjects
 
 from .wrapper_helpers import RobotCommandData, RobotState
 
-"""Service name for getting pointcloud of VLP16 connected to Spot Core"""
-point_cloud_sources = ["velodyne-point-cloud"]
 
 
 def robotToLocalTime(timestamp: Timestamp, robot: Robot) -> Timestamp:
@@ -476,10 +474,6 @@ class SpotWrapper:
         self._state = RobotState()
         self._trajectory_status_unknown = False
         self._command_data = RobotCommandData()
-
-        self._point_cloud_requests = []
-        for source in point_cloud_sources:
-            self._point_cloud_requests.append(build_pc_request(source))
 
         try:
             self._sdk = create_standard_sdk(SPOT_CLIENT_NAME)
