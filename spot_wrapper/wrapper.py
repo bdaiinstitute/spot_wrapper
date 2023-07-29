@@ -87,7 +87,6 @@ from .spot_world_objects import SpotWorldObjects
 from .wrapper_helpers import RobotCommandData, RobotState
 
 
-
 def robotToLocalTime(timestamp: Timestamp, robot: Robot) -> Timestamp:
     """Takes a timestamp and an estimated skew and return seconds and nano seconds in local time
 
@@ -666,10 +665,8 @@ class SpotWrapper:
             self._spot_eap = SpotEAP(
                 self._logger,
                 self._point_cloud_client,
-                point_cloud_sources,
-                # If the parameter isn't given assume we don't want any clouds
-                self._rates.get("point_cloud", 0.0),
-                self._callbacks.get("lidar_points", None),
+                rate=self._rates.get("point_cloud", 0.0),
+                callback=self._callbacks.get("lidar_points", None),
             )
             self._point_cloud_task = self._spot_eap.async_task
             robot_tasks.append(self._point_cloud_task)
