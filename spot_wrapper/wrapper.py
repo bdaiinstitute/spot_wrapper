@@ -1607,9 +1607,9 @@ class SpotWrapper:
     @try_claim
     def navigate_to_dynamic(self, navigate_to):
         """Navigate with graph nav. Use this instead of navigate_to if you want to modify Spot's speed during navigation commands
-         and pause/cancel navigations (using handle_set_navigate_to_params in spot_ros2). Unlike navigate_to, this methods assumes
-         the graphnav map has already been uploaded and spot has been loclaized. This results in reduced latency between calling
-         this method and spot starting navigation
+         and pause/cancel navigations (using set_navigate_to_params). Unlike navigate_to, this method assumes
+         the graphnav map has already been uploaded and spot has been localized. This results in reduced latency between calling
+         this method and Spot starting navigation
 
         Args:
            navigate_to : Waypont id string for where to goal
@@ -1618,6 +1618,74 @@ class SpotWrapper:
         resp = self._navigate_to_dynamic([navigate_to])
 
         return resp
+    
+    def set_navigate_to_params(
+        self, x: float, y: float, max_dist: float, max_yaw: float
+    ) -> bool:
+        """Change the navigation params used by navigate_to_dynamic or pause/cancel navigation
+
+       Args:
+            x: the maximum speed (m/s) for Spot in the x (forwards) direction
+            y: the maximum speed (m/s) for Spot in the y (sideways) direction
+            max_dist: Threshold for acceptable distance (in m) between Spot and the goal waypoint
+            max_yaw: Threashold for the acceptable angle (in radians) between Spot and the goal waypoint
+
+        Note that if this method is not used, the default values are (1, 1, 1, 6.4).
+        Setting x or y to 0 will pause the current navigation till x and y are both non-zero
+        Setting x or y to a negative value will cancel the current navigation and will cause any ongoing
+        navigate_to_dynamic call to return
+        """
+
+        self._graphnav_lock.acquire()
+        try:
+            # Pause graphnav if x or y is zero
+            if x == 0 or y == 0:
+                self._graphnav_paused = True
+            else:
+                self._graphnav_paused = False
+            
+            # cancel graphnav if either value is negative
+            if (x < 0 or y < 0):
+                self._graphnav_cancelled = True
+            else:
+                self._graphnav_cancelled = False
+            if self._graphnav_cancelled:
+                # release the lock, wait for the graphnav to terminate, and then return
+                # this makes sure a cancelation request can not be overidden by future set_nav_param requests
+                # Note that requesting a cancellation while spot is not navigating has no effect,
+                # and future navigate_to_dynamic requests will run normally
+                self._graphnav_lock.release()
+                while self._navigating:
+                    time.sleep(0.2)
+                return True
+                    
+            # hardcode the angular_velocity limit
+            angular_velocity_limit = 1
+            velocity_max = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = x, y = y), angular = angular_velocity_limit)
+            velocity_min = geometry_pb2.SE2Velocity(linear = geometry_pb2.Vec2(x = - x, y = - y), angular = -angular_velocity_limit)
+            velocity_params = geometry_pb2.SE2VelocityLimit(max_vel = velocity_max, min_vel = velocity_min)
+            self.graphnav_travel_params = self._graph_nav_client.generate_travel_params(max_dist, max_yaw, velocity_params)
+
+            # The code upto this point should be sufficient to modify velocity
+            # However due to a SDK bug, we need to change the goal waypoint temporarily for Graphnav to register the change in travel params.
+            # Have talked to this BD support and they confirmed this is a bug.
+
+            # If spot is navigating, we will send a quick navigation request to its current location (not noticable)
+            if self._navigating:
+                localization_state = self._graph_nav_client.get_localization_state()
+                current_waypoint = localization_state.localization.waypoint_id
+                if not current_waypoint: # Should be able to get current waypoint, something has gone wrong
+                    self._graphnav_lock.release()
+                    return False
+                self._graph_nav_client.navigate_to(
+                        current_waypoint, 0.1,  leases=[self.navigate_to_dynamic_sublease.lease_proto])
+                time.sleep(0.1) #Sleep to wait for navigation to complete
+            self._graphnav_lock.release()
+            return True
+        except Exception:
+            # Release lock to avoid deadlocks in future runs
+            self._graphnav_lock.release() 
+            raise
 
     def _init_current_graph_nav_state(self):
         # Store the most recent knowledge of the state of the robot based on rpc calls.
@@ -1939,7 +2007,7 @@ class SpotWrapper:
 
     @try_claim
     def _navigate_to_dynamic(self, *args):
-        """Navigate to a specific waypoint. Can change velocity and pause/cancel navigation (see handle_set_navigate_to_params in spot_ros2)"""
+        """Navigate to a specific waypoint. Can change velocity and pause/cancel navigation (see set_navigate_to_params)"""
 
         # Take the first argument as the destination waypoint.
         if len(args) < 1:
@@ -1977,7 +2045,7 @@ class SpotWrapper:
         nav_to_cmd_id = -1
         try:
             while not is_finished:
-                # Acquire lock to coordinate with handle_set_navigate_to_params in spot_ros2
+                # Acquire lock to coordinate with set_navigate_to_params
                 self._graphnav_lock.acquire()
                 self._navigating = True
                 # Navigate to the destination waypoint.
