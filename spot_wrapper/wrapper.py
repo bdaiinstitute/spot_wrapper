@@ -690,20 +690,12 @@ class SpotWrapper:
             self.battery_change_pose,
             self.velocity_cmd,
             self.trajectory_cmd,
-            self.ensure_arm_power_and_stand,
-            self.arm_stow,
-            self.arm_unstow,
-            self.arm_joint_move,
-            self.force_trajectory,
-            self.gripper_open,
-            self.gripper_close,
-            self.gripper_angle_open,
-            self.hand_pose,
-            self.grasp_3d,
             self.navigate_to,
             self._navigate_to,
             self._navigate_route,
             self.execute_dance,
+            self._robot_command,
+            self._manipulation_request
         ]
         decorated_funcs_no_power = [
             self.stop,

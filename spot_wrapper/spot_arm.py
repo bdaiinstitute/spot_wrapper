@@ -58,7 +58,7 @@ class SpotArm:
         self._claim_and_power_decorator = claim_and_power_decorator
         self._claim_and_power_decorator.decorate_functions(
             self,
-            decorate_funcs=[
+            decorated_funcs=[
                 self.ensure_arm_power_and_stand,
                 self.arm_stow,
                 self.arm_unstow,
