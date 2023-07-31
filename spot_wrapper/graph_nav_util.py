@@ -122,10 +122,7 @@ def update_waypoints_and_edges(graph, localization_id, logger):
             edges[edge.id.to_waypoint] = [edge.id.from_waypoint]
         logger.info(
             "(Edge) from waypoint id: %s and to waypoint id: %s"
-            % (
-                edge.id.from_waypoint,
-                edge.id.to_waypoint
-            )
+            % (edge.id.from_waypoint, edge.id.to_waypoint)
         )
 
     return name_to_id, edges
