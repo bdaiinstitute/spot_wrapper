@@ -695,7 +695,7 @@ class SpotWrapper:
             self._navigate_route,
             self.execute_dance,
             self._robot_command,
-            self._manipulation_request
+            self._manipulation_request,
         ]
         decorated_funcs_no_power = [
             self.stop,
