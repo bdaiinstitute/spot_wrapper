@@ -375,7 +375,7 @@ class AsyncEStopMonitor(AsyncPeriodicQuery):
             # estop keepalive is ok
             pass
 
-
+ 
 class SpotWrapper:
     """Generic wrapper class to encompass release 1.1.4 API features as well as maintaining leases automatically"""
 
@@ -696,9 +696,6 @@ class SpotWrapper:
             self.battery_change_pose,
             self.velocity_cmd,
             self.trajectory_cmd,
-            # self.navigate_to,
-            # self._navigate_to,
-            # self._navigate_route,
             self.execute_dance,
             self._robot_command,
             self._manipulation_request,

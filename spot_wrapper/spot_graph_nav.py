@@ -97,7 +97,7 @@ class SpotGraphNav:
         self._lease_keepalive = LeaseKeepAlive(self._lease_client)
         if upload_filepath:
             self.clear_graph()
-            self.upload_graph_and_snapshots(upload_filepath)
+            self._upload_graph_and_snapshots(upload_filepath)
         else:
             self._download_current_graph()
             self._logger.info(
@@ -442,6 +442,7 @@ class SpotGraphNav:
 
     def _upload_graph_and_snapshots(self, upload_filepath: str):
         """Upload the graph and snapshots to the robot."""
+        self._lease = self._get_lease()
         self._logger.info("Loading the graph from disk into local storage...")
         with open(os.path.join(upload_filepath, "graph"), "rb") as graph_file:
             # Load the graph from disk.
