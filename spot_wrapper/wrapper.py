@@ -375,7 +375,7 @@ class AsyncEStopMonitor(AsyncPeriodicQuery):
             # estop keepalive is ok
             pass
 
- 
+
 class SpotWrapper:
     """Generic wrapper class to encompass release 1.1.4 API features as well as maintaining leases automatically"""
 
