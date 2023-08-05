@@ -9,6 +9,7 @@ from bosdyn.client.robot import Robot
 from bosdyn.client.spot_check import SpotCheckClient, run_spot_check
 from bosdyn.client.spot_check import spot_check_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
+
 from spot_wrapper.wrapper_helpers import RobotState
 
 

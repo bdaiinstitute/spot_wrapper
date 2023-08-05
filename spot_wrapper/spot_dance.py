@@ -2,10 +2,6 @@ import time
 import tempfile
 import os
 
-from bosdyn.choreography.client.choreography import (
-    load_choreography_sequence_from_txt_file,
-    ChoreographyClient,
-)
 from bosdyn.client import ResponseError
 from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.robot import Robot

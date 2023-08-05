@@ -1,14 +1,13 @@
 import asyncio
 import datetime
 import enum
+import math
 import os.path
 import pathlib
-import shutil
 import threading
+import time
 import typing
 import wave
-import time
-import math
 
 import bosdyn.client
 import cv2

@@ -4,12 +4,12 @@ import typing
 
 from bosdyn.api import arm_command_pb2
 from bosdyn.api import geometry_pb2
+from bosdyn.api import gripper_command_pb2
 from bosdyn.api import manipulation_api_pb2
 from bosdyn.api import robot_command_pb2
 from bosdyn.api import synchronized_command_pb2
 from bosdyn.api import trajectory_pb2
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
-from bosdyn.api import gripper_command_pb2
 from bosdyn.client.robot import Robot
 from bosdyn.client.robot_command import (
     RobotCommandBuilder,

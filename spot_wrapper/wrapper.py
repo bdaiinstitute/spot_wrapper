@@ -1,31 +1,20 @@
-from dataclasses import dataclass
-import functools
 import logging
-import math
-import os
 import time
 import traceback
 import typing
 
 import bosdyn.client.auth
-from bosdyn.api import arm_command_pb2
-from bosdyn.api import geometry_pb2
+from bosdyn.api import basic_command_pb2
 from bosdyn.api import lease_pb2
-from bosdyn.api import point_cloud_pb2
 from bosdyn.api import manipulation_api_pb2
-from bosdyn.api import robot_command_pb2
-from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
-from bosdyn.api import robot_state_pb2
-from bosdyn.api import synchronized_command_pb2
-from bosdyn.api import trajectory_pb2
-from bosdyn.api import world_object_pb2
 from bosdyn.api import point_cloud_pb2
-from bosdyn.api.graph_nav import graph_nav_pb2
-from bosdyn.api.graph_nav import map_pb2
-from bosdyn.api.graph_nav import nav_pb2
+from bosdyn.api import robot_command_pb2
+from bosdyn.api import robot_state_pb2
+from bosdyn.api import world_object_pb2
+from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
+from bosdyn.client import ResponseError, RpcError, create_standard_sdk
 from bosdyn.client import frame_helpers
 from bosdyn.client import math_helpers
-from bosdyn.client import robot_command
 from bosdyn.client.async_tasks import AsyncPeriodicQuery, AsyncTasks
 from bosdyn.client.docking import DockingClient
 from bosdyn.client.estop import (
@@ -33,15 +22,14 @@ from bosdyn.client.estop import (
     EstopEndpoint,
     EstopKeepAlive,
 )
-from bosdyn.client.frame_helpers import get_odom_tform_body
 from bosdyn.client.graph_nav import GraphNavClient
 from bosdyn.client.image import ImageClient
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
+from bosdyn.client.license import LicenseClient
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.map_processing import MapProcessingServiceClient
-from bosdyn.client.point_cloud import build_pc_request
 from bosdyn.client.payload_registration import PayloadNotAuthorizedError
-from bosdyn.client.point_cloud import PointCloudClient, build_pc_request
+from bosdyn.client.point_cloud import build_pc_request
 from bosdyn.client.power import safe_power_off, PowerClient, power_on
 from bosdyn.client.robot import UnregisteredServiceError, Robot
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder
@@ -49,8 +37,17 @@ from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.spot_check import SpotCheckClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
-from bosdyn.client.license import LicenseClient
-from bosdyn.client import ResponseError, RpcError, create_standard_sdk
+from bosdyn.geometry import EulerZXY
+from google.protobuf.timestamp_pb2 import Timestamp
+
+from .spot_arm import SpotArm
+from .spot_check import SpotCheck
+from .spot_docking import SpotDocking
+from .spot_eap import SpotEAP
+from .spot_graph_nav import SpotGraphNav
+from .spot_images import SpotImages
+from .spot_world_objects import SpotWorldObjects
+from .wrapper_helpers import RobotCommandData, RobotState, ClaimAndPowerDecorator
 
 try:
     from bosdyn.choreography.client.choreography import (
@@ -62,26 +59,11 @@ try:
 except ModuleNotFoundError:
     HAVE_CHOREOGRAPHY = False
 
-from bosdyn.geometry import EulerZXY
-from bosdyn.util import seconds_to_duration
-from google.protobuf.duration_pb2 import Duration
 
 SPOT_CLIENT_NAME = "ros_spot"
 MAX_COMMAND_DURATION = 1e5
 VELODYNE_SERVICE_NAME = "velodyne-point-cloud"
 
-from bosdyn.api import basic_command_pb2
-from google.protobuf.timestamp_pb2 import Timestamp
-
-from .spot_arm import SpotArm
-from .spot_check import SpotCheck
-from .spot_docking import SpotDocking
-from .spot_eap import SpotEAP
-from .spot_graph_nav import SpotGraphNav
-from .spot_images import SpotImages
-from .spot_world_objects import SpotWorldObjects
-
-from .wrapper_helpers import RobotCommandData, RobotState, ClaimAndPowerDecorator
 
 """Service name for getting pointcloud of VLP16 connected to Spot Core"""
 point_cloud_sources = ["velodyne-point-cloud"]
