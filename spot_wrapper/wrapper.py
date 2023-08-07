@@ -645,6 +645,7 @@ class SpotWrapper:
             self._map_processing_client,
             self._robot_state_client,
             self._lease_client,
+            self._claim_decorator,
         )
 
         if self._point_cloud_client:

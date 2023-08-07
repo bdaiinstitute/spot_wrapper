@@ -16,6 +16,8 @@ from bosdyn.client.robot import Robot
 from bosdyn.client.robot_state import RobotStateClient
 from google.protobuf import wrappers_pb2
 
+from spot_wrapper.wrapper_helpers import ClaimAndPowerDecorator
+
 
 class SpotGraphNav:
     def __init__(
@@ -26,6 +28,7 @@ class SpotGraphNav:
         map_processing_client: MapProcessingServiceClient,
         robot_state_client: RobotStateClient,
         lease_client: LeaseClient,
+        claim_and_power_decorator: ClaimAndPowerDecorator,
     ):
         self._robot = robot
         self._logger = logger
@@ -34,6 +37,16 @@ class SpotGraphNav:
         self._robot_state_client = robot_state_client
         self._lease_client = lease_client
         self._lease_wallet: LeaseWallet = self._lease_client.lease_wallet
+        self._claim_and_power_decorator = claim_and_power_decorator
+        self._claim_and_power_decorator.decorate_functions(
+            self,
+            decorated_funcs=[
+                self._navigate_to,
+                self._navigate_route,
+                self.navigate_through_route,
+                self.navigate_to_existing_waypoint,
+            ],
+        )
 
         self._init_current_graph_nav_state()
 
@@ -77,7 +90,6 @@ class SpotGraphNav:
 
         Args:
            upload_path : Path to the root directory of the map.
-           navigate_to : Waypont id string for where to goal
            initial_localization_fiducial : Tells the initializer whether to use fiducials
            initial_localization_waypoint : Waypoint id string of current robot position (optional)
         """
