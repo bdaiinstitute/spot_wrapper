@@ -411,7 +411,7 @@ def try_claim(func=None, *, power_on=False):
     return wrapper_try_claim
 
 
-@dataclass()
+@dataclass
 class SpotWrapperConfiguration:
     """
     Convenience class to specify the configuration of the spot wrapper
@@ -454,6 +454,9 @@ class SpotWrapperConfiguration:
     def __post_init__(self) -> None:
         if self.robot_name is not None:
             self.frame_prefix = self.robot_name + "/"
+
+        self.rates = self.rates or {}
+        self.callbacks = self.callbacks or {}
 
 
 class SpotWrapper:
