@@ -114,12 +114,12 @@ class ImageQualityConfig:
     Dataclass to store configuration of image quality. Default values are the default for the build_image_request
     """
 
-    DEFAULT_QUALITY = 75
+    DEFAULT_QUALITY = 75.0
 
-    robot_depth_quality: int = DEFAULT_QUALITY
-    robot_image_quality: int = DEFAULT_QUALITY
-    hand_image_quality: int = DEFAULT_QUALITY
-    hand_depth_quality: int = DEFAULT_QUALITY
+    robot_depth_quality: float = DEFAULT_QUALITY
+    robot_image_quality: float = DEFAULT_QUALITY
+    hand_image_quality: float = DEFAULT_QUALITY
+    hand_depth_quality: float = DEFAULT_QUALITY
 
 
 class SpotImages:

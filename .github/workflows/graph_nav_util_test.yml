@@ -1,0 +1,53 @@
+name: graph_nav_util unit tests
+
+# Run on every push
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Make directory
+        run: mkdir -p ~/spot_wrapper
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          path: spot_wrapper
+
+      - name: Check files
+        run: ls spot_wrapper
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+
+      - name: Install dependencies
+        run: |
+          pip install -r spot_wrapper/requirements.txt
+          pip install -e spot_wrapper
+
+      - name: Run tests
+        run: pytest --junit-xml=test-results.xml
+
+      - name: Surface failing tests
+        if: always()
+        uses: pmeier/pytest-summary-gha@main
+        with:
+          # A list of JUnit XML files, directories containing the former, and wildcard patterns to process.
+          path: test-results.xml
+
+          # Add a summary of the results at the top of the report
+          summary: true
+
+          # Select which results should be included in the report.
+          # Follows the same syntax as `pytest -r`
+          display-options: fEX
+
+          # Fail the workflow if no JUnit XML was found.
+          fail-on-empty: true
