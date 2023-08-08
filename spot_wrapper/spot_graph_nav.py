@@ -3,6 +3,7 @@ import math
 import os
 import time
 import typing
+import re
 
 from bosdyn.api.graph_nav import graph_nav_pb2
 from bosdyn.api.graph_nav import map_pb2
@@ -71,14 +72,15 @@ class SpotGraphNav:
         Args:
           upload_path : Path to the root directory of the map.
         """
-        ids, eds = self._list_graph_waypoint_and_edge_ids()
+        ids, _ = self._list_graph_waypoint_and_edge_ids()
 
-        return [
-            v
-            for k, v in sorted(
-                ids.items(), key=lambda id: int(id[0].replace("waypoint_", ""))
-            )
-        ]
+        def key_for_id(id) -> int:
+            try:
+                return int(re.sub(r"\D", "", id[0]))
+            except ValueError:
+                return 0
+
+        return [v for k, v in sorted(ids.items(), key=key_for_id)]
 
     def navigate_initial_localization(
         self,
