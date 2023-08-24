@@ -15,7 +15,7 @@ import cv2
 import numpy as np
 from PIL import Image
 from aiortc import RTCConfiguration
-from bosdyn.api import image_pb2
+from bosdyn.api import image_pb2, gripper_camera_param_pb2
 from bosdyn.api.data_chunk_pb2 import DataChunk
 from bosdyn.api.spot_cam import audio_pb2
 from bosdyn.api.spot_cam.camera_pb2 import Camera
@@ -32,6 +32,7 @@ from bosdyn.client.spot_cam.media_log import MediaLogClient
 from bosdyn.client.spot_cam.power import PowerClient
 from bosdyn.client.spot_cam.ptz import PtzClient
 from bosdyn.client.spot_cam.streamquality import StreamQualityClient
+from bosdyn.client.gripper_camera_param import GripperCameraParamClient
 
 from spot_wrapper.cam_webrtc_client import WebRTCClient
 from spot_wrapper.wrapper import SpotWrapper
@@ -933,9 +934,31 @@ class ImageStreamWrapper:
 
         self.shutdown_flag.set()
 
+class GripperCameraParamWrapper:
+    """
+    Wrapper for gripper camera parameters
+    """
+
+    def __init__(
+            self, 
+            robot: Robot, 
+            logger
+        ) -> None:
+        self._client: GripperCameraParamClient = robot.ensure_client(
+            GripperCameraParamClient.default_service_name
+        )
+        self._logger = logger
+
+    def set_params(self, camera_param_request: gripper_camera_param_pb2.GripperCameraParamRequest) -> gripper_camera_param_pb2.GripperCameraParamResponse: 
+        self._logger.info("Setting Gripper Camera Parameters")
+        return self._client.set_camera_params(camera_param_request)
+
+    def get_params(self, camera_get_param_request: gripper_camera_param_pb2.GripperCameraGetParamRequest) -> gripper_camera_param_pb2.GripperCameraGetParamResponse:
+        self._logger.info("Getting Gripper Camera Parameters")
+        return self._client.get_camera_params(self, camera_get_param_request)
 
 class SpotCamWrapper:
-    def __init__(self, hostname, username, password, logger):
+    def __init__(self, hostname, username, password, logger, has_arm=False):
         self._hostname = hostname
         self._username = username
         self._password = password
@@ -974,6 +997,9 @@ class SpotCamWrapper:
         self.stream_quality = StreamQualityWrapper(self.robot, self._logger)
         self.media_log = MediaLogWrapper(self.robot, self._logger)
         self.ptz = PTZWrapper(self.robot, self._logger)
+
+        if has_arm:
+            self.gripper = GripperCameraParamWrapper(self.robot, self._logger)
 
         self._logger.info("Finished setting up spot cam wrapper components")
 
