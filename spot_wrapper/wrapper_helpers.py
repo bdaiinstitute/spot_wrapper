@@ -1,7 +1,7 @@
 """Helper classes for the wrapper. This file is necessary to prevent circular imports caused by the modules also
 using these classes"""
-import typing
 import functools
+import typing
 from dataclasses import dataclass
 
 
