@@ -1,28 +1,26 @@
 import asyncio
 import datetime
 import enum
+import math
 import os.path
 import pathlib
-import shutil
 import threading
+import time
 import typing
 import wave
-import time
-import math
 
 import bosdyn.client
 import cv2
 import numpy as np
-from PIL import Image
 from aiortc import RTCConfiguration
-from bosdyn.api import image_pb2, gripper_camera_param_pb2
+from bosdyn.api import gripper_camera_param_pb2, image_pb2
 from bosdyn.api.data_chunk_pb2 import DataChunk
 from bosdyn.api.spot_cam import audio_pb2
 from bosdyn.api.spot_cam.camera_pb2 import Camera
 from bosdyn.api.spot_cam.logging_pb2 import Logpoint
-from bosdyn.api.spot_cam.ptz_pb2 import PtzDescription, PtzVelocity, PtzPosition
-from bosdyn.client import Robot
-from bosdyn.client import spot_cam
+from bosdyn.api.spot_cam.ptz_pb2 import PtzDescription, PtzPosition, PtzVelocity
+from bosdyn.client import Robot, spot_cam
+from bosdyn.client.gripper_camera_param import GripperCameraParamClient
 from bosdyn.client.payload import PayloadClient
 from bosdyn.client.spot_cam.audio import AudioClient
 from bosdyn.client.spot_cam.compositor import CompositorClient
@@ -32,7 +30,7 @@ from bosdyn.client.spot_cam.media_log import MediaLogClient
 from bosdyn.client.spot_cam.power import PowerClient
 from bosdyn.client.spot_cam.ptz import PtzClient
 from bosdyn.client.spot_cam.streamquality import StreamQualityClient
-from bosdyn.client.gripper_camera_param import GripperCameraParamClient
+from PIL import Image
 
 from spot_wrapper.cam_webrtc_client import WebRTCClient
 from spot_wrapper.wrapper import SpotWrapper
@@ -934,28 +932,31 @@ class ImageStreamWrapper:
 
         self.shutdown_flag.set()
 
+
 class GripperCameraParamWrapper:
     """
     Wrapper for gripper camera parameters
     """
 
-    def __init__(
-            self, 
-            robot: Robot, 
-            logger
-        ) -> None:
+    def __init__(self, robot: Robot, logger) -> None:
         self._client: GripperCameraParamClient = robot.ensure_client(
             GripperCameraParamClient.default_service_name
         )
         self._logger = logger
 
-    def set_params(self, camera_param_request: gripper_camera_param_pb2.GripperCameraParamRequest) -> gripper_camera_param_pb2.GripperCameraParamResponse: 
+    def set_params(
+        self, camera_param_request: gripper_camera_param_pb2.GripperCameraParamRequest
+    ) -> gripper_camera_param_pb2.GripperCameraParamResponse:
         self._logger.info("Setting Gripper Camera Parameters")
         return self._client.set_camera_params(camera_param_request)
 
-    def get_params(self, camera_get_param_request: gripper_camera_param_pb2.GripperCameraGetParamRequest) -> gripper_camera_param_pb2.GripperCameraGetParamResponse:
+    def get_params(
+        self,
+        camera_get_param_request: gripper_camera_param_pb2.GripperCameraGetParamRequest,
+    ) -> gripper_camera_param_pb2.GripperCameraGetParamResponse:
         self._logger.info("Getting Gripper Camera Parameters")
         return self._client.get_camera_params(self, camera_get_param_request)
+
 
 class SpotCamWrapper:
     def __init__(self, hostname, username, password, logger, has_arm=False):
