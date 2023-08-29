@@ -3,11 +3,12 @@ import typing
 from collections import namedtuple
 from dataclasses import dataclass
 
-from bosdyn.api import image_pb2
+from bosdyn.api import gripper_camera_param_pb2, image_pb2
+from bosdyn.client.gripper_camera_param import GripperCameraParamClient
 from bosdyn.client.image import (
     ImageClient,
-    build_image_request,
     UnsupportedPixelFormatRequestedError,
+    build_image_request,
 )
 from bosdyn.client.robot import Robot
 
@@ -153,6 +154,9 @@ class SpotImages:
         self._rgb_cameras = rgb_cameras
         self._image_client = image_client
         self._image_quality = image_quality
+        self._gripper_cam_param_client = robot.ensure_client(
+            GripperCameraParamClient.default_service_name
+        )
 
         ############################################
         self._camera_image_requests = []
@@ -443,3 +447,18 @@ class SpotImages:
                 )
             )
         return result
+
+    def set_gripper_camera_params(
+        self, camera_param_request: gripper_camera_param_pb2.GripperCameraParamRequest
+    ) -> gripper_camera_param_pb2.GripperCameraParamResponse:
+        self._logger.info("Setting Gripper Camera Parameters")
+        return self._gripper_cam_param_client.set_camera_params(camera_param_request)
+
+    def get_gripper_camera_params(
+        self,
+        camera_get_param_request: gripper_camera_param_pb2.GripperCameraGetParamRequest,
+    ) -> gripper_camera_param_pb2.GripperCameraGetParamResponse:
+        self._logger.info("Getting Gripper Camera Parameters")
+        return self._gripper_cam_param_client.get_camera_params(
+            self, camera_get_param_request
+        )
