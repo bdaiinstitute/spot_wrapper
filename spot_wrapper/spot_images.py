@@ -460,5 +460,5 @@ class SpotImages:
     ) -> gripper_camera_param_pb2.GripperCameraGetParamResponse:
         self._logger.info("Getting Gripper Camera Parameters")
         return self._gripper_cam_param_client.get_camera_params(
-            self, camera_get_param_request
+            camera_get_param_request
         )
