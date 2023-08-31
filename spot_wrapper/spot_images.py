@@ -154,7 +154,7 @@ class SpotImages:
         self._rgb_cameras = rgb_cameras
         self._image_client = image_client
         self._image_quality = image_quality
-        self._gripper_cam_param_client = robot.ensure_client(
+        self._gripper_cam_param_client = self._robot.ensure_client(
             GripperCameraParamClient.default_service_name
         )
 
