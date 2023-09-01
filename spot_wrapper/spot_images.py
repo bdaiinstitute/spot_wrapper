@@ -138,6 +138,7 @@ class SpotImages:
         robot: Robot,
         logger: logging.Logger,
         image_client: ImageClient,
+        gripper_cam_param_client: GripperCameraParamClient,
         rgb_cameras: bool = True,
         image_quality: ImageQualityConfig = ImageQualityConfig(),
     ) -> None:
@@ -154,9 +155,7 @@ class SpotImages:
         self._rgb_cameras = rgb_cameras
         self._image_client = image_client
         self._image_quality = image_quality
-        self._gripper_cam_param_client = self._robot.ensure_client(
-            GripperCameraParamClient.default_service_name
-        )
+        self._gripper_cam_param_client = gripper_cam_param_client
 
         ############################################
         self._camera_image_requests = []
