@@ -47,7 +47,13 @@ try:
     from bosdyn.choreography.client.choreography import (
         ChoreographyClient,
     )
-
+    from bosdyn.api.spot.choreography_sequence_pb2 import (
+        Animation,
+        ChoreographySequence,
+        ChoreographyStatusResponse,
+        StartRecordingStateResponse,
+        StopRecordingStateResponse,
+    )
     from .spot_dance import SpotDance
 
     HAVE_CHOREOGRAPHY = True
@@ -1486,7 +1492,7 @@ class SpotWrapper:
         self._powered_on = power_state.motor_power_state == power_state.STATE_ON
         return self._powered_on
 
-    def execute_dance(self, data):
+    def execute_dance(self, data: typing.Union[ChoreographySequence, str]):
         if self._is_licensed_for_choreography:
             return self._spot_dance.execute_dance(data)
         else:
@@ -1502,6 +1508,14 @@ class SpotWrapper:
         else:
             return False, "Spot is not licensed for choreography"
 
+    def upload_animation_proto(
+        self, animation_proto: Animation
+    ) -> typing.Tuple[bool, str]:
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.upload_animation_proto(animation_proto)
+        else:
+            return False, "Spot is not licensed for choreography"
+
     def list_all_moves(self) -> typing.Tuple[bool, str, typing.List[str]]:
         if self._is_licensed_for_choreography:
             return self._spot_dance.list_all_moves()
@@ -1514,7 +1528,51 @@ class SpotWrapper:
         else:
             return False, "Spot is not licensed for choreography", []
 
+    def get_choreography_status(
+        self,
+    ) -> typing.Tuple[bool, str, ChoreographyStatusResponse]:
+        """get status of choreography playback"""
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.get_choreography_status()
+        else:
+            return (
+                False,
+                "Spot is not licensed for choreography",
+                ChoreographyStatusResponse.STATUS_UNKOWN,
+            )
+
     def get_docking_state(self, **kwargs):
         """Get docking state of robot."""
         state = self._docking_client.get_docking_state(**kwargs)
         return state
+
+    def start_recording_state(
+        self, duration_seconds: float
+    ) -> typing.Tuple[bool, str, StartRecordingStateResponse]:
+        """start recording robot motion as choreography"""
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.start_recording_state(duration_seconds)
+        else:
+            empty = StartRecordingStateResponse()
+            return False, "Spot is not licensed for choreography", empty
+
+    def stop_recording_state(
+        self,
+    ) -> typing.Tuple[bool, str, StopRecordingStateResponse]:
+        """stop recording robot motion as choreography"""
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.stop_recording_state()
+        else:
+            empty = StopRecordingStateResponse()
+            return False, "Spot is not licensed for choreography", empty
+
+    def choreography_log_to_animation_file(
+        self, name: str, fpath: str, has_arm: bool, **kwargs
+    ) -> typing.Tuple[bool, str, str]:
+        """save a choreography log to a file as an animation"""
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.choreography_log_to_animation_file(
+                name, fpath, has_arm, **kwargs
+            )
+        else:
+            return False, "Spot is not licensed for choreography", ""
