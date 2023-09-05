@@ -3,7 +3,7 @@ import typing
 from collections import namedtuple
 from dataclasses import dataclass
 
-from bosdyn.api import gripper_camera_param_pb2, header_pb2, image_pb2
+from bosdyn.api import gripper_camera_param_pb2, image_pb2
 from bosdyn.client.gripper_camera_param import GripperCameraParamClient
 from bosdyn.client.image import (
     ImageClient,
@@ -454,12 +454,6 @@ class SpotImages:
         response = self._gripper_cam_param_client.set_camera_params(
             camera_param_request
         )
-        if (
-            response.header.error
-            and response.header.error.code != header_pb2.CommonError.CODE_OK
-        ):
-            print("Got an error:")
-            print(response.header.error)
         return response
 
     def get_gripper_camera_params(
@@ -470,10 +464,4 @@ class SpotImages:
         response = self._gripper_cam_param_client.get_camera_params(
             camera_get_param_request
         )
-        if (
-            response.header.error
-            and response.header.error.code != header_pb2.CommonError.CODE_OK
-        ):
-            print("Got an error:")
-            print(response.header.error)
         return response
