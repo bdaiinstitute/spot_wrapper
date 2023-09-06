@@ -138,7 +138,7 @@ class SpotImages:
         robot: Robot,
         logger: logging.Logger,
         image_client: ImageClient,
-        gripper_cam_param_client: GripperCameraParamClient,
+        gripper_cam_param_client: GripperCameraParamClient = None,
         rgb_cameras: bool = True,
         image_quality: ImageQualityConfig = ImageQualityConfig(),
     ) -> None:
@@ -148,6 +148,7 @@ class SpotImages:
             robot: Robot object this image module is associated with
             logger: Logger to use
             image_client: Image client to use to retrieve images
+            gripper_cam_param_client: Gripper Camera Parameter client used to adjust gripper camera settings
             rgb_cameras: If true, the robot model has RGB cameras as opposed to greyscale ones.
         """
         self._robot = robot
@@ -450,6 +451,8 @@ class SpotImages:
     def set_gripper_camera_params(
         self, camera_param_request: gripper_camera_param_pb2.GripperCameraParamRequest
     ) -> gripper_camera_param_pb2.GripperCameraParamResponse:
+        if not self._robot.has_arm:
+            raise Exception("Gripper camera is not available")
         self._logger.info("Setting Gripper Camera Parameters")
         response = self._gripper_cam_param_client.set_camera_params(
             camera_param_request
@@ -460,6 +463,8 @@ class SpotImages:
         self,
         camera_get_param_request: gripper_camera_param_pb2.GripperCameraGetParamRequest,
     ) -> gripper_camera_param_pb2.GripperCameraGetParamResponse:
+        if not self._robot.has_arm:
+            raise Exception("Gripper camera is not available")
         self._logger.info("Getting Gripper Camera Parameters")
         response = self._gripper_cam_param_client.get_camera_params(
             camera_get_param_request

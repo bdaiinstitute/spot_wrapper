@@ -477,9 +477,6 @@ class SpotWrapper:
                 self._graph_nav_client = self._robot.ensure_client(
                     GraphNavClient.default_service_name
                 )
-                self._gripper_cam_param_client = self._robot.ensure_client(
-                    GripperCameraParamClient.default_service_name
-                )
                 self._map_processing_client = self._robot.ensure_client(
                     MapProcessingServiceClient.default_service_name
                 )
@@ -505,7 +502,10 @@ class SpotWrapper:
                 self._license_client = self._robot.ensure_client(
                     LicenseClient.default_service_name
                 )
-
+                if self._robot.has_arm():
+                    self._gripper_cam_param_client = self._robot.ensure_client(
+                        GripperCameraParamClient.default_service_name
+                    )
                 if HAVE_CHOREOGRAPHY:
                     if self._license_client.get_feature_enabled(
                         [ChoreographyClient.license_name]
@@ -608,16 +608,23 @@ class SpotWrapper:
                 MAX_COMMAND_DURATION,
                 self._claim_decorator,
             )
+
+            self._spot_images = SpotImages(
+                self._robot,
+                self._logger,
+                self._image_client,
+                self._rgb_cameras,
+            )
         else:
             self._spot_arm = None
 
-        self._spot_images = SpotImages(
-            self._robot,
-            self._logger,
-            self._image_client,
-            self._gripper_cam_param_client,
-            self._rgb_cameras,
-        )
+            self._spot_images = SpotImages(
+                self._robot,
+                self._logger,
+                self._image_client,
+                self._gripper_cam_param_client,
+                self._rgb_cameras,
+            )
 
         self._spot_docking = SpotDocking(
             self._robot,
