@@ -13,7 +13,13 @@ from bosdyn.api import (
     world_object_pb2,
 )
 from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
-from bosdyn.client import ResponseError, RpcError, create_standard_sdk, frame_helpers, math_helpers
+from bosdyn.client import (
+    ResponseError,
+    RpcError,
+    create_standard_sdk,
+    frame_helpers,
+    math_helpers,
+)
 from bosdyn.client.async_tasks import AsyncPeriodicQuery, AsyncTasks
 from bosdyn.client.docking import DockingClient
 from bosdyn.client.estop import (
@@ -606,7 +612,11 @@ class SpotWrapper:
             self._spot_arm = None
 
         self._spot_images = SpotImages(
-            self._robot, self._logger, self._image_client, self._gripper_cam_param_client, self._rgb_cameras
+            self._robot,
+            self._logger,
+            self._image_client,
+            self._gripper_cam_param_client,
+            self._rgb_cameras,
         )
 
         self._spot_docking = SpotDocking(
