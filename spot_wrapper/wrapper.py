@@ -613,6 +613,7 @@ class SpotWrapper:
                 self._robot,
                 self._logger,
                 self._image_client,
+                self._gripper_cam_param_client,
                 self._rgb_cameras,
             )
         else:
@@ -622,7 +623,6 @@ class SpotWrapper:
                 self._robot,
                 self._logger,
                 self._image_client,
-                self._gripper_cam_param_client,
                 self._rgb_cameras,
             )
 
