@@ -453,11 +453,12 @@ class SpotImages:
     ) -> gripper_camera_param_pb2.GripperCameraParamResponse:
         if not self._robot.has_arm:
             raise Exception("Gripper camera is not available")
-        self._logger.info("Setting Gripper Camera Parameters")
-        response = self._gripper_cam_param_client.set_camera_params(
-            camera_param_request
-        )
-        return response
+        else:
+            self._logger.info("Setting Gripper Camera Parameters")
+            response = self._gripper_cam_param_client.set_camera_params(
+                camera_param_request
+            )
+            return response
 
     def get_gripper_camera_params(
         self,
@@ -465,8 +466,9 @@ class SpotImages:
     ) -> gripper_camera_param_pb2.GripperCameraGetParamResponse:
         if not self._robot.has_arm:
             raise Exception("Gripper camera is not available")
-        self._logger.info("Getting Gripper Camera Parameters")
-        response = self._gripper_cam_param_client.get_camera_params(
-            camera_get_param_request
-        )
-        return response
+        else:
+            self._logger.info("Getting Gripper Camera Parameters")
+            response = self._gripper_cam_param_client.get_camera_params(
+                camera_get_param_request
+            )
+            return response
