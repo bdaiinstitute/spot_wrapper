@@ -52,16 +52,14 @@ class SpotDance:
             except Exception as e:
                 return (
                     False,
-                    "Failed to convert animation file to protobuf message: {}".format(
-                        e
-                    ),
+                    f"Failed to convert animation file to protobuf message: {e}",
                 )
 
     def upload_animation_proto(self, animation: Animation) -> Tuple[bool, str]:
         result = False
         result_message = ""
         try:
-            self._logger.info("Uploading the name {}".format(animation.name))
+            self._logger.info(f"Uploading the name {animation.name}")
             upload_response = self._choreography_client.upload_animated_move(
                 animation, animation.name
             )
@@ -69,17 +67,13 @@ class SpotDance:
             if result:
                 result_message = "Successfully uploaded"
                 if upload_response.warnings:
-                    result_message += " with warnings from validator {}".format(
-                        upload_response.warnings
+                    result_message += (
+                        f" with warnings from validator {upload_response.warnings}"
                     )
             else:
-                result_message = (
-                    "Failed to upload animation with status {} and warnings: {}".format(
-                        upload_response.status, upload_response.warnings
-                    )
-                )
+                result_message = f"Failed to upload animation with status {upload_response.status} and warnings: {upload_response.warnings}"
         except Exception as e:
-            result_message = "Failed to upload animation: {}".format(e)
+            result_message = f"Failed to upload animation: {e}"
             return result, result_message
         return result, result_message
 
