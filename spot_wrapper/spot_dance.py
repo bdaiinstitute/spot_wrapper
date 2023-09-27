@@ -106,7 +106,7 @@ class SpotDance:
     def get_choreography_status(self) -> Tuple[bool, str, ChoreographyStatusResponse]:
         """get status of choreography playback"""
         try:
-            status = self._choreography_client.get_choreography_status()[0]
+            (status, client_time) = self._choreography_client.get_choreography_status()
             return True, "success", status
         except Exception as e:
             return (
