@@ -8,7 +8,10 @@ from bosdyn.choreography.client.choreography import (
 from bosdyn.client import ResponseError
 from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.robot import Robot
-from bosdyn.choreography.client.choreography import ChoreographyClient
+from bosdyn.choreography.client.choreography import (
+    ChoreographyClient,
+    AnimationValidationFailedError,
+)
 from bosdyn.choreography.client.animation_file_to_proto import (
     convert_animation_file_to_proto,
 )
@@ -72,6 +75,12 @@ class SpotDance:
                     )
             else:
                 result_message = f"Failed to upload animation with status {upload_response.status} and warnings: {upload_response.warnings}"
+        except AnimationValidationFailedError as e:
+            result_message = f"Failed to upload animation: {e}"
+            if e.response.warnings:
+                result_message += f" with warnings from validator {e.response.warnings}"
+            self._logger.info(f"upload result {result_message}")
+            return result, result_message
         except Exception as e:
             result_message = f"Failed to upload animation: {e}"
             return result, result_message
