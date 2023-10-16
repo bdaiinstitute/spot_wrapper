@@ -512,7 +512,7 @@ class SpotWrapper:
                     )
                 else:
                     self._gripper_cam_param_client = None
-                
+
                 try:
                     if self._license_client.get_feature_enabled(
                         [ChoreographyClient.license_name]
@@ -529,7 +529,7 @@ class SpotWrapper:
                     self._logger.info("Robot is not licensed for choreography")
                     self._is_licensed_for_choreography = False
                     self._choreography_client = None
-                
+
                 try:
                     self._point_cloud_client = self._robot.ensure_client(
                         VELODYNE_SERVICE_NAME
