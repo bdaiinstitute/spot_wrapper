@@ -430,7 +430,6 @@ class SpotWrapper:
         self._state = RobotState()
         self._trajectory_status_unknown = False
         self._command_data = RobotCommandData()
-        self._is_licensed_for_choreography = False
 
         try:
             self._sdk = create_standard_sdk(SPOT_CLIENT_NAME)
