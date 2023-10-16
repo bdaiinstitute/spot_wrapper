@@ -513,19 +513,14 @@ class SpotWrapper:
                 else:
                     self._gripper_cam_param_client = None
 
-                try:
-                    if self._license_client.get_feature_enabled(
-                        [ChoreographyClient.license_name]
-                    )[ChoreographyClient.license_name]:
-                        self._is_licensed_for_choreography = True
-                        self._choreography_client = self._robot.ensure_client(
-                            ChoreographyClient.default_service_name
-                        )
-                    else:
-                        self._logger.info("Robot is not licensed for choreography")
-                        self._is_licensed_for_choreography = False
-                        self._choreography_client = None
-                except Exception as e:
+                if self._license_client.get_feature_enabled(
+                    [ChoreographyClient.license_name]
+                )[ChoreographyClient.license_name]:
+                    self._is_licensed_for_choreography = True
+                    self._choreography_client = self._robot.ensure_client(
+                        ChoreographyClient.default_service_name
+                    )
+                else:
                     self._logger.info("Robot is not licensed for choreography")
                     self._is_licensed_for_choreography = False
                     self._choreography_client = None
