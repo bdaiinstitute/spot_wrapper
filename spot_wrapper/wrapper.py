@@ -438,11 +438,8 @@ class SpotWrapper:
             self._logger.error("Error creating SDK object: %s", e)
             self._valid = False
             return
-        try:
-            self._sdk.register_service_client(ChoreographyClient)
-        except:
-            self._logger.info("Could not register choreography service")
-
+            
+        self._sdk.register_service_client(ChoreographyClient)
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
 
