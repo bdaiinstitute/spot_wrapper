@@ -43,22 +43,16 @@ from bosdyn.client.spot_check import SpotCheckClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
 
-try:
-    from bosdyn.choreography.client.choreography import (
-        ChoreographyClient,
-    )
-    from bosdyn.api.spot.choreography_sequence_pb2 import (
-        Animation,
-        ChoreographySequence,
-        ChoreographyStatusResponse,
-        StartRecordingStateResponse,
-        StopRecordingStateResponse,
-    )
-    from .spot_dance import SpotDance
-
-    HAVE_CHOREOGRAPHY = True
-except ModuleNotFoundError:
-    HAVE_CHOREOGRAPHY = False
+from bosdyn.choreography.client.choreography import (
+    ChoreographyClient,
+)
+from bosdyn.api.spot.choreography_sequence_pb2 import (
+    Animation,
+    ChoreographySequence,
+    StartRecordingStateResponse,
+    StopRecordingStateResponse,
+)
+from .spot_dance import SpotDance
 
 from bosdyn.geometry import EulerZXY
 
@@ -443,8 +437,8 @@ class SpotWrapper:
             self._logger.error("Error creating SDK object: %s", e)
             self._valid = False
             return
-        if HAVE_CHOREOGRAPHY:
-            self._sdk.register_service_client(ChoreographyClient)
+
+        self._sdk.register_service_client(ChoreographyClient)
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
 
@@ -515,22 +509,17 @@ class SpotWrapper:
                 else:
                     self._gripper_cam_param_client = None
 
-                if HAVE_CHOREOGRAPHY:
-                    if self._license_client.get_feature_enabled(
-                        [ChoreographyClient.license_name]
-                    )[ChoreographyClient.license_name]:
-                        self._is_licensed_for_choreography = True
-                        self._choreography_client = self._robot.ensure_client(
-                            ChoreographyClient.default_service_name
-                        )
-                    else:
-                        self._logger.info("Robot is not licensed for choreography")
-                        self._is_licensed_for_choreography = False
-                        self._choreography_client = None
+                if self._license_client.get_feature_enabled(
+                    [ChoreographyClient.license_name]
+                )[ChoreographyClient.license_name]:
+                    self._is_licensed_for_choreography = True
+                    self._choreography_client = self._robot.ensure_client(
+                        ChoreographyClient.default_service_name
+                    )
                 else:
-                    self._logger.info("Choreography is not available.")
-                    self._choreography_client = None
+                    self._logger.info("Robot is not licensed for choreography")
                     self._is_licensed_for_choreography = False
+                    self._choreography_client = None
 
                 try:
                     self._point_cloud_client = self._robot.ensure_client(
@@ -1527,19 +1516,6 @@ class SpotWrapper:
             return self._spot_dance.list_all_dances()
         else:
             return False, "Spot is not licensed for choreography", []
-
-    def get_choreography_status(
-        self,
-    ) -> typing.Tuple[bool, str, ChoreographyStatusResponse]:
-        """get status of choreography playback"""
-        if self._is_licensed_for_choreography:
-            return self._spot_dance.get_choreography_status()
-        else:
-            return (
-                False,
-                "Spot is not licensed for choreography",
-                ChoreographyStatusResponse.STATUS_UNKOWN,
-            )
 
     def get_docking_state(self, **kwargs):
         """Get docking state of robot."""
