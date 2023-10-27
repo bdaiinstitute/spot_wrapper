@@ -51,7 +51,7 @@ from bosdyn.api.spot.choreography_sequence_pb2 import (
     ChoreographySequence,
     StartRecordingStateResponse,
     StopRecordingStateResponse,
-    UploadChoreographyResponse
+    UploadChoreographyResponse,
 )
 from .spot_dance import SpotDance
 
@@ -1491,7 +1491,9 @@ class SpotWrapper:
         else:
             return False, "Spot is not licensed for choreography"
 
-    def execute_dance(self, data: typing.Union[ChoreographySequence, str]) -> typing.Tuple[bool, str]:
+    def execute_dance(
+        self, data: typing.Union[ChoreographySequence, str]
+    ) -> typing.Tuple[bool, str]:
         """Upload and execute dance. Data can be passed as
         - ChoreographySequence: proto passed directly to function
         - str: file contents of a .csq read directly from disk
@@ -1501,20 +1503,25 @@ class SpotWrapper:
         else:
             return False, "Spot is not licensed for choreography"
 
-    def execute_choreography_by_name(self, choreography_name: str,start_slice: int, use_async: bool = False) -> typing.Tuple[bool, str]:
+    def execute_choreography_by_name(
+        self, choreography_name: str, start_slice: int, use_async: bool = False
+    ) -> typing.Tuple[bool, str]:
         """Execute choreography that has already been uploaded to the robot"""
         if self._is_licensed_for_choreography:
-            return self._spot_dance.execute_choreography_by_name(choreography_name, start_slice, use_async)
+            return self._spot_dance.execute_choreography_by_name(
+                choreography_name, start_slice, use_async
+            )
         else:
             return False, "Spot is not licensed for choreography"
 
-    def upload_choreography(self, choreography_sequence: ChoreographySequence) -> typing.Tuple[bool, str, UploadChoreographyResponse]:
+    def upload_choreography(
+        self, choreography_sequence: ChoreographySequence
+    ) -> typing.Tuple[bool, str, UploadChoreographyResponse]:
         """Upload choreography sequence for later playback"""
         if self._is_licensed_for_choreography:
             return self._spot_dance.upload_choreography(choreography_sequence)
         else:
             return False, "Spot is not licensed for choreography"
-
 
     def upload_animation(
         self, animation_name: str, animation_file_content: str

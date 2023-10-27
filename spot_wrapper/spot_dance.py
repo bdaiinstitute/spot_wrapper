@@ -24,7 +24,7 @@ from bosdyn.api.spot.choreography_sequence_pb2 import (
     StartRecordingStateResponse,
     StopRecordingStateResponse,
     UploadAnimatedMoveResponse,
-    UploadChoreographyResponse
+    UploadChoreographyResponse,
 )
 from google.protobuf import text_format
 from rclpy.impl.rcutils_logger import RcutilsLogger
@@ -157,7 +157,7 @@ class SpotDance:
                 f"request to turn log into animation file failed. Msg: {e}",
                 "",
             )
-        
+
     def stop_choreography(self) -> Tuple[bool, str, ExecuteChoreographyResponse]:
         """
         Issue an empty choreography sequence to stop the robot from dancing
@@ -176,8 +176,9 @@ class SpotDance:
         self.upload_choreography(template_sequence)
         return self.execute_choreography_by_name(CHOREO_NAME, start_slice=0)
 
-
-    def execute_choreography_by_name(self, choreography_name: str, start_slice: int, use_async: bool = False) -> Union[FutureWrapper, Tuple[bool, str, ExecuteChoreographyResponse]]:
+    def execute_choreography_by_name(
+        self, choreography_name: str, start_slice: int, use_async: bool = False
+    ) -> Union[FutureWrapper, Tuple[bool, str, ExecuteChoreographyResponse]]:
         """
         Execute choreography that has already been uploaded to the robot.
         Returns a future wrapper when use_async is true, success, msg tuple otherwise
@@ -185,28 +186,31 @@ class SpotDance:
         client_start_time = time.time()
 
         try:
-
             if use_async:
                 return self._choreography_client.execute_choreography_async(
-                            choreography_name=choreography_name,
-                            client_start_time=client_start_time,
-                            choreography_starting_slice=start_slice,
-                    )
+                    choreography_name=choreography_name,
+                    client_start_time=client_start_time,
+                    choreography_starting_slice=start_slice,
+                )
             else:
                 execute_response = self._choreography_client.execute_choreography(
-                        choreography_name=choreography_name,
-                        client_start_time=client_start_time,
-                        choreography_starting_slice=start_slice,
+                    choreography_name=choreography_name,
+                    client_start_time=client_start_time,
+                    choreography_starting_slice=start_slice,
                 )
-                result = execute_response.status == ExecuteChoreographyResponse.STATUS_OK
+                result = (
+                    execute_response.status == ExecuteChoreographyResponse.STATUS_OK
+                )
                 msg = "Success" if result else "Failure"
                 return (result, msg, execute_response)
         except Exception as e:
             empty_response = ExecuteChoreographyResponse()
             error_msg = f"Exception: {e}"
             return (False, error_msg, empty_response)
- 
-    def upload_choreography(self, choreography_sequence: ChoreographySequence) -> Tuple[bool, str, UploadChoreographyResponse]:
+
+    def upload_choreography(
+        self, choreography_sequence: ChoreographySequence
+    ) -> Tuple[bool, str, UploadChoreographyResponse]:
         """Upload choreography sequence for later playback"""
         empty_response = UploadChoreographyResponse()
 
@@ -223,7 +227,7 @@ class SpotDance:
             for warn in err.response.warnings:
                 error_msg += warn
             return False, error_msg, empty_response
-        
+
         return True, "Success", upload_response
 
     def execute_dance(self, data: Union[ChoreographySequence, str]) -> Tuple[bool, str]:
@@ -251,9 +255,8 @@ class SpotDance:
 
         (result, message, upload_response) = self.upload_choreography(choreography)
 
-        if not result: 
+        if not result:
             return (result, message)
-
 
         try:
             # Setup common response in case of exception
@@ -266,7 +269,9 @@ class SpotDance:
                 result_msg += f"Success: Choreography Upload\n"
 
             self._robot.power_on()
-            (result, message, execute_response) = self.execute_choreography_by_name(choreography.name, start_slice=0, use_async=False)
+            (result, message, execute_response) = self.execute_choreography_by_name(
+                choreography.name, start_slice=0, use_async=False
+            )
 
             if result:
                 result_msg += "Success: Dance Execution"
