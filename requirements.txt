@@ -1,9 +1,9 @@
-bosdyn-core==3.2.3
-bosdyn_choreography_client==3.2.3
-bosdyn_choreography_protos==3.2.3
-bosdyn-client==3.2.3
-bosdyn-mission==3.2.3
-bosdyn-api==3.2.3
+bosdyn-core==3.3.2
+bosdyn_choreography_client==3.3.2
+bosdyn_choreography_protos==3.3.2
+bosdyn-client==3.3.2
+bosdyn-mission==3.3.2
+bosdyn-api==3.3.2
 protobuf==4.22.1
 setuptools==45.2.0
 pytest==7.3.1
