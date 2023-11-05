@@ -37,7 +37,7 @@ from bosdyn.client.map_processing import MapProcessingServiceClient
 from bosdyn.client.payload_registration import PayloadNotAuthorizedError
 from bosdyn.client.power import PowerClient, power_on, safe_power_off
 from bosdyn.client.robot import Robot, UnregisteredServiceError
-from bosdyn.client.robot_command import RobotCommandBuilder, RobotCommandClient
+from bosdyn.client.robot_command import RobotCommandBuilder, RobotCommandClientf
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.spot_check import SpotCheckClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
@@ -1487,7 +1487,7 @@ class SpotWrapper:
         Issue an empty choreography sequence to stop the robot from dancing
         """
         if self._is_licensed_for_choreography:
-            return self._spot_dance.stop_choreography()[:2]
+            return self._spot_dance.stop_choreography()
         else:
             return False, "Spot is not licensed for choreography"
 
