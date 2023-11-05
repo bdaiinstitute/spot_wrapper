@@ -275,16 +275,14 @@ class SpotDance:
                 result_msg += f"Success: Choreography Upload\n"
 
             self._robot.power_on()
-            (result, message, execute_response) = self.execute_choreography_by_name(
+            (result, message) = self.execute_choreography_by_name(
                 choreography.name, start_slice=0, use_async=False
             )
 
             if result:
                 result_msg += "Success: Dance Execution"
             else:
-                result_msg = (
-                    f"Dance Execution failed with status {execute_response.status}"
-                )
+                result_msg = f"Dance Execution failed with message: {message}"
 
             total_choreography_slices = 0
             for move in choreography.moves:
