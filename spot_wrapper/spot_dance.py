@@ -259,21 +259,14 @@ class SpotDance:
                 )
                 return False, error_msg
 
-        (result, message, upload_response) = self.upload_choreography(choreography)
+        (result, message) = self.upload_choreography(choreography)
 
         if not result:
             return (result, message)
 
         try:
             # Setup common response in case of exception
-            result_msg = ""
-            if upload_response.warnings:
-                result_msg += (
-                    f"Warnings uploading choreography {upload_response.warnings}\n"
-                )
-            else:
-                result_msg += f"Success: Choreography Upload\n"
-
+            result_msg = f"Choreography uploaded with message: {message} \n"
             self._robot.power_on()
             (result, message) = self.execute_choreography_by_name(
                 choreography.name, start_slice=0, use_async=False
