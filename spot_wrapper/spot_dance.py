@@ -6,6 +6,7 @@ from bosdyn.choreography.client.choreography import (
     ChoreographyClient,
 )
 from bosdyn.client import ResponseError
+from bosdyn.client.common import FutureWrapper
 from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.robot import Robot
 from bosdyn.choreography.client.choreography import (
@@ -19,9 +20,11 @@ from bosdyn.api.spot.choreography_sequence_pb2 import (
     Animation,
     ChoreographySequence,
     ExecuteChoreographyResponse,
+    MoveParams,
     StartRecordingStateResponse,
     StopRecordingStateResponse,
     UploadAnimatedMoveResponse,
+    UploadChoreographyResponse,
 )
 from google.protobuf import text_format
 from rclpy.impl.rcutils_logger import RcutilsLogger
@@ -155,6 +158,84 @@ class SpotDance:
                 "",
             )
 
+    def stop_choreography(self) -> Tuple[bool, str]:
+        """
+        Issue an empty choreography sequence to stop the robot from dancing
+        """
+        CHOREO_NAME = "stop_seq"
+        empty_move = MoveParams()
+        empty_move.type = "ripple_color"
+        empty_move.start_slice = 1
+        empty_move.requested_slices = 4
+
+        template_sequence = ChoreographySequence()
+        template_sequence.name = CHOREO_NAME
+        template_sequence.slices_per_minute = 1
+        template_sequence.moves.extend([empty_move])
+
+        upload_res, upload_msg = self.upload_choreography(template_sequence)
+        # Try ro execute regardless of upload success - may have uploaded successfully in the past
+        execute_res, execute_msg = self.execute_choreography_by_name(
+            CHOREO_NAME, start_slice=0
+        )
+        combined_message = (
+            f"Stop upload msg: {upload_msg}\n, Stop execute message: {execute_msg}"
+        )
+        return execute_res, combined_message
+
+    def execute_choreography_by_name(
+        self, choreography_name: str, start_slice: int, use_async: bool = False
+    ) -> Union[FutureWrapper, Tuple[bool, str]]:
+        """
+        Execute choreography that has already been uploaded to the robot.
+        Returns a future wrapper when use_async is true, success, msg tuple otherwise
+        """
+        client_start_time = time.time()
+
+        try:
+            if use_async:
+                return self._choreography_client.execute_choreography_async(
+                    choreography_name=choreography_name,
+                    client_start_time=client_start_time,
+                    choreography_starting_slice=start_slice,
+                )
+            else:
+                execute_response = self._choreography_client.execute_choreography(
+                    choreography_name=choreography_name,
+                    client_start_time=client_start_time,
+                    choreography_starting_slice=start_slice,
+                )
+                result = (
+                    execute_response.status == ExecuteChoreographyResponse.STATUS_OK
+                )
+                msg = "Success" if result else "Failure"
+                return (result, msg)
+        except Exception as e:
+            error_msg = f"Exception: {e}"
+            return (False, error_msg)
+
+    def upload_choreography(
+        self, choreography_sequence: ChoreographySequence
+    ) -> Tuple[bool, str]:
+        """Upload choreography sequence for later playback"""
+        try:
+            upload_response = self._choreography_client.upload_choreography(
+                choreography_sequence, non_strict_parsing=True
+            )
+        except UnauthenticatedError as err:
+            error_msg = (
+                "The robot license must contain 'choreography' permissions to upload and execute dances. "
+                "Please contact Boston Dynamics Support to get the appropriate license file. "
+            )
+            return False, error_msg
+        except ResponseError as err:
+            error_msg = "Choreography sequence upload failed. The following warnings were produced: "
+            for warn in err.response.warnings:
+                error_msg += warn
+            return False, error_msg
+
+        return True, "Success"
+
     def execute_dance(self, data: Union[ChoreographySequence, str]) -> Tuple[bool, str]:
         """Upload and execute dance. Data can be passed as
         - ChoreographySequence: proto passed directly to function
@@ -178,47 +259,23 @@ class SpotDance:
                 )
                 return False, error_msg
 
-        try:
-            upload_response = self._choreography_client.upload_choreography(
-                choreography, non_strict_parsing=True
-            )
-        except UnauthenticatedError as err:
-            error_msg = "The robot license must contain 'choreography' permissions to upload and execute dances."
-            "Please contact Boston Dynamics Support to get the appropriate license file. "
-            return False, error_msg
-        except ResponseError as err:
-            error_msg = "Choreography sequence upload failed. The following warnings were produced: "
-            for warn in err.response.warnings:
-                error_msg += warn
-            return False, error_msg
+        (result, message) = self.upload_choreography(choreography)
+
+        if not result:
+            return (result, message)
+
         try:
             # Setup common response in case of exception
-            result_msg = ""
-            if upload_response.warnings:
-                result_msg += (
-                    f"Warnings uploading choreography {upload_response.warnings}\n"
-                )
-            else:
-                result_msg += f"Success: Choreography Upload\n"
-
+            result_msg = f"Choreography uploaded with message: {message} \n"
             self._robot.power_on()
-            routine_name = choreography.name
-            client_start_time = time.time()
-            start_slice = 0  # start the choreography at the beginning
-
-            execute_response = self._choreography_client.execute_choreography(
-                choreography_name=routine_name,
-                client_start_time=client_start_time,
-                choreography_starting_slice=start_slice,
+            (result, message) = self.execute_choreography_by_name(
+                choreography.name, start_slice=0, use_async=False
             )
-            result = execute_response.status == ExecuteChoreographyResponse.STATUS_OK
 
             if result:
                 result_msg += "Success: Dance Execution"
             else:
-                result_msg = (
-                    f"Dance Execution failed with status {execute_response.status}"
-                )
+                result_msg = f"Dance Execution failed with message: {message}"
 
             total_choreography_slices = 0
             for move in choreography.moves:
