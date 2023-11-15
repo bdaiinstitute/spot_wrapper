@@ -5,7 +5,7 @@ bosdyn-client==3.2.3
 bosdyn-mission==3.2.3
 bosdyn-api==3.2.3
 protobuf==4.22.1
-setuptools==45.2.0
+setuptools==59.6.0
 pytest==7.3.1
 aiortc==1.5.0
 image==1.5.33
