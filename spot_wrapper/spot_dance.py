@@ -37,7 +37,7 @@ class SpotDance:
         self,
         robot: Robot,
         choreography_client: ChoreographyClient,
-        logger: logging.Logger
+        logger: logging.Logger,
     ):
         self._robot = robot
         self._choreography_client = choreography_client

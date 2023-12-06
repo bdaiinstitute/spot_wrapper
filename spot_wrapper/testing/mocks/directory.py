@@ -142,7 +142,8 @@ class MockDirectoryService(DirectoryServiceServicer):
                 entry = ServiceEntry()
                 if service_type not in self.DEFAULT_SERVICES:
                     _, _, service_typename = service_type.rpartition(".")
-                    service_name = service_typename.removesuffix("Service")
+                    if service_typename.endswith("Service"):
+                        service_name = service_typename[: -len("Service")]
                     service_name = inflection.underscore(service_name).replace("_", "-")
                     entry.type = service_type
                     entry.name = service_name

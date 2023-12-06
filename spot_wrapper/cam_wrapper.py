@@ -933,7 +933,9 @@ class ImageStreamWrapper:
 
 
 class SpotCamWrapper:
-    def __init__(self, hostname, username, password, logger, port: typing.Optional[int] = None):
+    def __init__(
+        self, hostname, username, password, logger, port: typing.Optional[int] = None
+    ):
         self._hostname = hostname
         self._username = username
         self._password = password
