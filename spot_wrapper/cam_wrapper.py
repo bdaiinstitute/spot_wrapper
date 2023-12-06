@@ -933,7 +933,7 @@ class ImageStreamWrapper:
 
 
 class SpotCamWrapper:
-    def __init__(self, hostname, username, password, logger):
+    def __init__(self, hostname, username, password, logger, port: typing.Optional[int] = None):
         self._hostname = hostname
         self._username = username
         self._password = password
@@ -944,6 +944,8 @@ class SpotCamWrapper:
         spot_cam.register_all_service_clients(self.sdk)
 
         self.robot = self.sdk.create_robot(self._hostname)
+        if port is not None:
+            self.robot.update_secure_channel_port(port)
         SpotWrapper.authenticate(
             self.robot, self._username, self._password, self._logger
         )

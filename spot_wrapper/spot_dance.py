@@ -1,3 +1,4 @@
+import logging
 import time
 import tempfile
 import os
@@ -27,7 +28,6 @@ from bosdyn.api.spot.choreography_sequence_pb2 import (
     UploadChoreographyResponse,
 )
 from google.protobuf import text_format
-from rclpy.impl.rcutils_logger import RcutilsLogger
 from typing import Tuple, List, Union
 
 
@@ -36,7 +36,7 @@ class SpotDance:
         self,
         robot: Robot,
         choreography_client: ChoreographyClient,
-        logger: RcutilsLogger,
+        logger: logging.Logger
     ):
         self._robot = robot
         self._choreography_client = choreography_client
