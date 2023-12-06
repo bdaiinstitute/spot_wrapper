@@ -49,6 +49,7 @@ from bosdyn.choreography.client.choreography import (
 from bosdyn.api.spot.choreography_sequence_pb2 import (
     Animation,
     ChoreographySequence,
+    ChoreographyStatusResponse,
     StartRecordingStateResponse,
     StopRecordingStateResponse,
     UploadChoreographyResponse,
@@ -1555,6 +1556,21 @@ class SpotWrapper:
             return self._spot_dance.list_all_dances()
         else:
             return False, "Spot is not licensed for choreography", []
+
+    def get_choreography_status(
+        self,
+    ) -> typing.Tuple[bool, str, ChoreographyStatusResponse]:
+        """get status of choreography playback"""
+        if self._is_licensed_for_choreography:
+            return self._spot_dance.get_choreography_status()
+        else:
+            response = ChoreographyStatusResponse()
+            response.status = ChoreographyStatusResponse.STATUS_UNKNOWN
+            return (
+                False,
+                "Spot is not licensed for choreography",
+                response,
+            )
 
     def get_docking_state(self, **kwargs):
         """Get docking state of robot."""

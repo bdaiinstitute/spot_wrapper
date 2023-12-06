@@ -19,6 +19,7 @@ from bosdyn.choreography.client.animation_file_to_proto import (
 )
 from bosdyn.api.spot.choreography_sequence_pb2 import (
     Animation,
+    ChoreographyStatusResponse,
     ChoreographySequence,
     ExecuteChoreographyResponse,
     MoveParams,
@@ -112,6 +113,20 @@ class SpotDance:
                 False,
                 f"request to choreography client for moves failed. Msg: {e}",
                 [],
+            )
+
+    def get_choreography_status(self) -> Tuple[bool, str, ChoreographyStatusResponse]:
+        """get status of choreography playback"""
+        try:
+            (status, client_time) = self._choreography_client.get_choreography_status()
+            return True, "success", status
+        except Exception as e:
+            response = ChoreographyStatusResponse()
+            response.status = ChoreographyStatusResponse.STATUS_UNKNOWN
+            return (
+                False,
+                f"request to choreography client for status failed. Msg: {e}",
+                response,
             )
 
     def start_recording_state(
