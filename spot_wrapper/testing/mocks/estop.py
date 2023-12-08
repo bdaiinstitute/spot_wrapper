@@ -167,5 +167,5 @@ class MockEStopService(EstopServiceServicer):
                 endpoint_with_status = response.status.endpoints.add()
                 endpoint_with_status.endpoint.CopyFrom(ep)
                 endpoint_with_status.stop_level = EstopStopLevel.ESTOP_LEVEL_NONE
-        response.stop_level = EstopStopLevel.ESTOP_LEVEL_NONE
+        response.status.stop_level = EstopStopLevel.ESTOP_LEVEL_NONE
         return response
