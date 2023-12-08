@@ -29,6 +29,15 @@ class MockRobotStateService(RobotStateServiceServicer):
     def __init__(self, **kwargs: typing.Any) -> None:
         super().__init__(**kwargs)
         self.robot_state = RobotState()
+        transforms_snapshot = self.robot_state.kinematic_state.transforms_snapshot
+        world_to_odom_edge = transforms_snapshot.child_to_parent_edge_map["odom"]
+        world_to_odom_edge.parent_tform_child.rotation.w = 1.0
+        odom_to_body_edge = transforms_snapshot.child_to_parent_edge_map["body"]
+        odom_to_body_edge.parent_frame_name = "odom"
+        odom_to_body_edge.parent_tform_child.rotation.w = 1.0
+        body_to_vision_edge = transforms_snapshot.child_to_parent_edge_map["vision"]
+        body_to_vision_edge.parent_frame_name = "body"
+        body_to_vision_edge.parent_tform_child.rotation.w = 1.0
         self.robot_metrics = RobotMetrics()
         self.hardware_configuration = HardwareConfiguration()
 
