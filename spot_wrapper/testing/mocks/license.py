@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Boston Dynamics AI Institute LLC. All rights reserved.
+# Copyright (c) 2023 Boston Dynamics AI Institute LLC. See LICENSE file for more info.
 
 import grpc
 from bosdyn.api.license_pb2 import (

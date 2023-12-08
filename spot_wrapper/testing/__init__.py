@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Boston Dynamics AI Institute LLC. All rights reserved.
+# Copyright (c) 2023 Boston Dynamics AI Institute LLC. See LICENSE file for more info.
 
 """
 This subpackage provides `pytest` compatible machinery to test Spot SDK use.
