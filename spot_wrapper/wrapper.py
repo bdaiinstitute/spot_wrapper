@@ -372,9 +372,9 @@ class SpotWrapper:
         username: str,
         password: str,
         hostname: str,
+        port: int,
         robot_name: str,
         logger: logging.Logger,
-        port: typing.Optional[int] = None,
         start_estop: bool = True,
         estop_timeout: float = 9.0,
         rates: typing.Optional[typing.Dict[str, float]] = None,
@@ -444,7 +444,7 @@ class SpotWrapper:
         self._sdk.register_service_client(ChoreographyClient)
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
-        if port is not None:
+        if port:
             self._robot.update_secure_channel_port(port)
 
         authenticated = False
