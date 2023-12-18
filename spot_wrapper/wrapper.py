@@ -372,6 +372,7 @@ class SpotWrapper:
         username: str,
         password: str,
         hostname: str,
+        port: int,
         robot_name: str,
         logger: logging.Logger,
         start_estop: bool = True,
@@ -443,6 +444,8 @@ class SpotWrapper:
         self._sdk.register_service_client(ChoreographyClient)
         self._logger.info("Initialising robot at {}".format(self._hostname))
         self._robot = self._sdk.create_robot(self._hostname)
+        if port:
+            self._robot.update_secure_channel_port(port)
 
         authenticated = False
         if self._payload_credentials_file:

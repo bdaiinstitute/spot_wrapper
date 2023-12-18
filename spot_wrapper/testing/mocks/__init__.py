@@ -1,0 +1,199 @@
+# Copyright (c) 2023 Boston Dynamics AI Institute LLC. See LICENSE file for more info.
+
+import typing
+
+from bosdyn.api.arm_surface_contact_service_pb2_grpc import (
+    ArmSurfaceContactServiceServicer,
+)
+from bosdyn.api.auth_service_pb2_grpc import AuthServiceServicer
+from bosdyn.api.auto_return.auto_return_service_pb2_grpc import (
+    AutoReturnServiceServicer,
+)
+from bosdyn.api.autowalk.autowalk_service_pb2_grpc import AutowalkServiceServicer
+from bosdyn.api.data_acquisition_plugin_service_pb2_grpc import (
+    DataAcquisitionPluginServiceServicer,
+)
+from bosdyn.api.data_acquisition_store_service_pb2_grpc import (
+    DataAcquisitionStoreServiceServicer,
+)
+from bosdyn.api.data_buffer_service_pb2_grpc import DataBufferServiceServicer
+from bosdyn.api.data_service_pb2_grpc import DataServiceServicer
+from bosdyn.api.directory_registration_service_pb2_grpc import (
+    DirectoryRegistrationServiceServicer,
+)
+from bosdyn.api.directory_service_pb2_grpc import DirectoryServiceServicer
+from bosdyn.api.docking.docking_service_pb2_grpc import DockingServiceServicer
+from bosdyn.api.estop_service_pb2_grpc import EstopServiceServicer
+from bosdyn.api.fault_service_pb2_grpc import FaultServiceServicer
+from bosdyn.api.graph_nav.area_callback_service_pb2_grpc import (
+    AreaCallbackServiceServicer,
+)
+from bosdyn.api.graph_nav.graph_nav_service_pb2_grpc import GraphNavServiceServicer
+from bosdyn.api.graph_nav.map_processing_service_pb2_grpc import (
+    MapProcessingServiceServicer,
+)
+from bosdyn.api.graph_nav.recording_service_pb2_grpc import (
+    GraphNavRecordingServiceServicer,
+)
+from bosdyn.api.gripper_camera_param_service_pb2_grpc import (
+    GripperCameraParamServiceServicer,
+)
+from bosdyn.api.image_service_pb2_grpc import ImageServiceServicer
+from bosdyn.api.ir_enable_disable_service_pb2_grpc import IREnableDisableServiceServicer
+from bosdyn.api.keepalive.keepalive_service_pb2_grpc import KeepaliveServiceServicer
+from bosdyn.api.lease_service_pb2_grpc import LeaseServiceServicer
+from bosdyn.api.license_service_pb2_grpc import LicenseServiceServicer
+from bosdyn.api.local_grid_service_pb2_grpc import LocalGridServiceServicer
+from bosdyn.api.log_status.log_status_service_pb2_grpc import LogStatusServiceServicer
+from bosdyn.api.manipulation_api_service_pb2_grpc import ManipulationApiServiceServicer
+from bosdyn.api.mission.mission_service_pb2_grpc import MissionServiceServicer
+from bosdyn.api.mission.remote_service_pb2_grpc import RemoteMissionServiceServicer
+from bosdyn.api.network_compute_bridge_service_pb2_grpc import (
+    NetworkComputeBridgeWorkerServicer,
+)
+from bosdyn.api.payload_registration_service_pb2_grpc import (
+    PayloadRegistrationServiceServicer,
+)
+from bosdyn.api.payload_service_pb2_grpc import PayloadServiceServicer
+from bosdyn.api.point_cloud_service_pb2_grpc import PointCloudServiceServicer
+from bosdyn.api.power_service_pb2_grpc import (
+    PowerServiceServicer as PowerCommandServiceServicer,
+)
+from bosdyn.api.robot_command_service_pb2_grpc import RobotCommandServiceServicer
+from bosdyn.api.robot_id_service_pb2_grpc import RobotIdServiceServicer
+from bosdyn.api.robot_state_service_pb2_grpc import RobotStateServiceServicer
+from bosdyn.api.spot.choreography_service_pb2_grpc import ChoreographyServiceServicer
+from bosdyn.api.spot.door_service_pb2_grpc import DoorServiceServicer
+from bosdyn.api.spot.inverse_kinematics_service_pb2_grpc import (
+    InverseKinematicsServiceServicer,
+)
+from bosdyn.api.spot.spot_check_service_pb2_grpc import SpotCheckServiceServicer
+from bosdyn.api.spot_cam.service_pb2_grpc import (
+    AudioServiceServicer,
+    CompositorServiceServicer,
+    HealthServiceServicer,
+    LightingServiceServicer,
+    MediaLogServiceServicer,
+    NetworkServiceServicer,
+    PowerServiceServicer,
+    PtzServiceServicer,
+    StreamQualityServiceServicer,
+    VersionServiceServicer,
+)
+from bosdyn.api.time_sync_service_pb2_grpc import TimeSyncServiceServicer
+from bosdyn.api.world_object_service_pb2_grpc import WorldObjectServiceServicer
+
+from spot_wrapper.testing.grpc import AutoServicer, collect_method_handlers
+from spot_wrapper.testing.helpers import enforce_matching_headers
+from spot_wrapper.testing.mocks.auth import MockAuthService
+from spot_wrapper.testing.mocks.directory import MockDirectoryService
+from spot_wrapper.testing.mocks.estop import MockEStopService
+from spot_wrapper.testing.mocks.keepalive import MockKeepaliveService
+from spot_wrapper.testing.mocks.lease import MockLeaseService
+from spot_wrapper.testing.mocks.license import MockLicenseService
+from spot_wrapper.testing.mocks.payload_registration import (
+    MockPayloadRegistrationService,
+)
+from spot_wrapper.testing.mocks.robot_id import MockRobotIdService
+from spot_wrapper.testing.mocks.robot_state import MockRobotStateService
+from spot_wrapper.testing.mocks.time_sync import MockTimeSyncService
+
+
+class BaseMockSpot(
+    AutoServicer,
+    AreaCallbackServiceServicer,
+    ArmSurfaceContactServiceServicer,
+    AudioServiceServicer,
+    AuthServiceServicer,
+    AutoReturnServiceServicer,
+    AutowalkServiceServicer,
+    ChoreographyServiceServicer,
+    CompositorServiceServicer,
+    DataAcquisitionPluginServiceServicer,
+    DataAcquisitionStoreServiceServicer,
+    DataBufferServiceServicer,
+    DataServiceServicer,
+    DirectoryRegistrationServiceServicer,
+    DirectoryServiceServicer,
+    DockingServiceServicer,
+    DoorServiceServicer,
+    EstopServiceServicer,
+    FaultServiceServicer,
+    GraphNavRecordingServiceServicer,
+    GraphNavServiceServicer,
+    GripperCameraParamServiceServicer,
+    HealthServiceServicer,
+    IREnableDisableServiceServicer,
+    ImageServiceServicer,
+    InverseKinematicsServiceServicer,
+    KeepaliveServiceServicer,
+    LeaseServiceServicer,
+    LicenseServiceServicer,
+    LightingServiceServicer,
+    LocalGridServiceServicer,
+    LogStatusServiceServicer,
+    ManipulationApiServiceServicer,
+    MapProcessingServiceServicer,
+    MediaLogServiceServicer,
+    MissionServiceServicer,
+    NetworkComputeBridgeWorkerServicer,
+    NetworkServiceServicer,
+    PayloadRegistrationServiceServicer,
+    PayloadServiceServicer,
+    PointCloudServiceServicer,
+    PowerCommandServiceServicer,
+    PowerServiceServicer,
+    PtzServiceServicer,
+    RemoteMissionServiceServicer,
+    RobotCommandServiceServicer,
+    RobotIdServiceServicer,
+    RobotStateServiceServicer,
+    SpotCheckServiceServicer,
+    StreamQualityServiceServicer,
+    TimeSyncServiceServicer,
+    VersionServiceServicer,
+    WorldObjectServiceServicer,
+):
+    """
+    Base Spot mock.
+
+    It implements nothing.
+    """
+
+    name = "mockie"
+
+    def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        super().__init__(*args, **kwargs)
+        for _, handler in collect_method_handlers(self):
+            if handler.request_streaming:
+                continue
+            if handler.response_streaming:
+                continue
+            setattr(
+                self,
+                handler.unary_unary.__name__,
+                enforce_matching_headers(handler.unary_unary),
+            )
+
+
+class MockSpot(
+    BaseMockSpot,
+    MockAuthService,
+    MockDirectoryService,
+    MockEStopService,
+    MockKeepaliveService,
+    MockLeaseService,
+    MockLicenseService,
+    MockPayloadRegistrationService,
+    MockRobotIdService,
+    MockRobotStateService,
+    MockTimeSyncService,
+):
+    """
+    Nominal Spot mock.
+
+    It implements the bare minimum for Spot wrapper initialization.
+    For the rest, it relies on automatic specification.
+    """
+
+    autospec = True
