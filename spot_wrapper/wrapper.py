@@ -1287,8 +1287,8 @@ class SpotWrapper:
         """
         # Don't bother trying to power on if we are already powered on
         if not self.check_is_powered_on():
-            # If we are requested to start the estop, we have to acquire it when powering on.
-            if self._start_estop:
+            # If we are requested to start the estop, we have to acquire it when powering on. Ignore if estop is already acquired.
+            if self._start_estop and self._estop_keepalive is None:
                 self.resetEStop()
             try:
                 self._logger.info("Powering on")
