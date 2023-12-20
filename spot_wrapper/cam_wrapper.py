@@ -795,9 +795,9 @@ class PTZWrapper:
                 self._get_ptz_description(ptz_name)
             )
             while (
-                (not math.isclose(current_position.pan.value, pan, abs_tol=1)
-                or not math.isclose(current_position.tilt.value, tilt, abs_tol=1)
-                or not math.isclose(current_position.zoom.value, zoom, abs_tol=0.5))
+                not (math.isclose(current_position.pan.value, pan, abs_tol=1)
+                and math.isclose(current_position.tilt.value, tilt, abs_tol=1)
+                and math.isclose(current_position.zoom.value, zoom, abs_tol=0.5))
                 and datetime.datetime.now() - start_time < datetime.timedelta(seconds=3)
             ):
                 current_position = self.client.get_ptz_position(
