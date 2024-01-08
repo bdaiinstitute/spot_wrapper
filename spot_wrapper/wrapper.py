@@ -30,7 +30,7 @@ from bosdyn.client.estop import (
 from bosdyn.client.graph_nav import GraphNavClient
 from bosdyn.client.gripper_camera_param import GripperCameraParamClient
 from bosdyn.client.image import ImageClient
-from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
+from bosdyn.client.lease import Lease, LeaseClient, LeaseKeepAlive
 from bosdyn.client.license import LicenseClient
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.map_processing import MapProcessingServiceClient
@@ -849,6 +849,11 @@ class SpotWrapper:
     def lease(self) -> typing.List[lease_pb2.LeaseResource]:
         """Return latest proto from the _lease_task"""
         return self._lease_task.proto
+
+    @property
+    def lease2(self) -> Lease:
+        """Return the most recently `take`n or `acquire`d lease"""
+        return self._lease
 
     @property
     def spot_images(self) -> SpotImages:
