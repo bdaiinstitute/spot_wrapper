@@ -851,8 +851,8 @@ class SpotWrapper:
         return self._lease_task.proto
 
     @property
-    def lease2(self) -> Lease:
-        """Return the most recently `take`n or `acquire`d lease"""
+    def lease2(self) -> typing.Optional[Lease]:
+        """Return the most recently `take`n or `acquire`d lease, or `None` if it is `release`d."""
         return self._lease
 
     @property
