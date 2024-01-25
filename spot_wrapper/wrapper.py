@@ -101,7 +101,7 @@ def robotToLocalTime(timestamp: Timestamp, robot: Robot) -> Timestamp:
 class MissingSpotArm(Exception):
     """Raised when the arm is not available on the robot"""
 
-    def __init__(self, message="Spot arm not available"):
+    def __init__(self, message: str ="Spot arm not available"):
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
 
@@ -117,7 +117,7 @@ class AsyncRobotState(AsyncPeriodicQuery):
         callback: Callback function to call when the results of the query are available
     """
 
-    def __init__(self, client, logger, rate, callback):
+    def __init__(self, client: RobotCommandClient, logger: logging.Logger, rate: float, callback) -> None:
         super(AsyncRobotState, self).__init__("robot-state", client, logger, period_sec=1.0 / max(rate, 1.0))
         self._callback = None
         if rate > 0.0:
@@ -141,7 +141,7 @@ class AsyncMetrics(AsyncPeriodicQuery):
         callback: Callback function to call when the results of the query are available
     """
 
-    def __init__(self, client, logger, rate, callback):
+    def __init__(self, client: RobotCommandClient, logger: logging.Logger, rate: float, callback) -> None:
         super(AsyncMetrics, self).__init__("robot-metrics", client, logger, period_sec=1.0 / max(rate, 1.0))
         self._callback = None
         if rate > 0.0:
@@ -165,7 +165,7 @@ class AsyncLease(AsyncPeriodicQuery):
         callback: Callback function to call when the results of the query are available
     """
 
-    def __init__(self, client, logger, rate, callback):
+    def __init__(self, client: RobotCommandClient, logger: logging.Logger, rate: float, callback) -> None:
         super(AsyncLease, self).__init__("lease", client, logger, period_sec=1.0 / max(rate, 1.0))
         self._callback = None
         if rate > 0.0:
@@ -264,7 +264,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                     is_moving = True
                     self._spot_wrapper.near_goal = True
                 elif status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_UNKNOWN:
-                    self._spot_wrapper.trajectory_status_unknown = True
+                    self._spot_wrapper._trajectory_status_unknown = True
                     self._spot_wrapper.last_trajectory_command = None
                 else:
                     self._logger.error(
@@ -301,11 +301,11 @@ class AsyncEStopMonitor(AsyncPeriodicQuery):
         spot_wrapper: A handle to the wrapper library
     """
 
-    def __init__(self, client, logger, rate, spot_wrapper):
+    def __init__(self, client: RobotCommandClient, logger: logging.Logger, rate: float, spot_wrapper) -> None:
         super(AsyncEStopMonitor, self).__init__("estop_alive", client, logger, period_sec=1.0 / rate)
         self._spot_wrapper = spot_wrapper
 
-    def _start_query(self):
+    def _start_query(self) -> None:
         if not self._spot_wrapper._estop_keepalive:
             self._logger.debug("No keepalive yet - the lease has not been claimed.")
             return
@@ -339,7 +339,7 @@ class SpotWrapper:
         get_lease_on_action: bool = False,
         continually_try_stand: bool = True,
         rgb_cameras: bool = True,
-        payload_credentials_file: str = None,
+        payload_credentials_file: typing.Optional[str] = None,
     ) -> None:
         """
         Args:
@@ -478,7 +478,7 @@ class SpotWrapper:
                 time.sleep(sleep_secs)
 
         # Async Tasks
-        self._async_task_list = []
+        self._async_task_list: list = []
         self._robot_state_task = AsyncRobotState(
             self._robot_state_client,
             self._logger,
@@ -501,7 +501,7 @@ class SpotWrapper:
         self._estop_monitor = AsyncEStopMonitor(self._estop_client, self._logger, 20.0, self)
 
         self._estop_endpoint = None
-        self._estop_keepalive = None
+        self._estop_keepalive: typing.Optional[EstopKeepAlive] = None
 
         robot_tasks = [
             self._robot_state_task,
@@ -520,6 +520,7 @@ class SpotWrapper:
             self._lease_client,
         )
 
+        self._spot_arm: typing.Optional[SpotArm] = None
         if self._robot.has_arm():
             self._spot_arm = SpotArm(
                 self._robot,
@@ -531,8 +532,6 @@ class SpotWrapper:
                 MAX_COMMAND_DURATION,
                 self._claim_decorator,
             )
-        else:
-            self._spot_arm = None
 
         self._spot_images = SpotImages(
             self._robot,
@@ -562,6 +561,7 @@ class SpotWrapper:
             self._claim_decorator,
         )
 
+        self._spot_eap: typing.Optional[SpotEAP] = None
         if self._point_cloud_client:
             self._spot_eap = SpotEAP(
                 self._logger,
@@ -571,8 +571,6 @@ class SpotWrapper:
             )
             self._point_cloud_task = self._spot_eap.async_task
             robot_tasks.append(self._point_cloud_task)
-        else:
-            self._spot_eap = None
 
         self._spot_world_objects = SpotWorldObjects(
             self._logger,
@@ -588,10 +586,10 @@ class SpotWrapper:
         if self._is_licensed_for_choreography:
             self._spot_dance = SpotDance(self._robot, self._choreography_client, self._logger)
 
-        self._robot_id = None
+        self._robot_id: typing.Optional[str] = None
         self._lease = None
 
-    def decorate_functions(self):
+    def decorate_functions(self) -> None:
         """
         Many of the functions in the wrapper need to have the lease claimed and the robot powered on before they will
         function. The TryClaimDecorator object includes a decorator which is the mechanism we use to make sure that
@@ -713,7 +711,7 @@ class SpotWrapper:
         return self._spot_graph_nav
 
     @property
-    def spot_arm(self) -> SpotArm:
+    def spot_arm(self) -> typing.Optional[SpotArm]:
         """Return SpotArm instance"""
         if not self._robot.has_arm():
             raise MissingSpotArm()
@@ -741,7 +739,7 @@ class SpotWrapper:
         return self._valid
 
     @property
-    def id(self) -> str:
+    def id(self) -> typing.Optional[str]:
         """Return robot's ID"""
         return self._robot_id
 

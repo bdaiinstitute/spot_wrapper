@@ -50,11 +50,11 @@ class LightingWrapper:
         FRONT_RIGHT = 2
         REAR_RIGHT = 3
 
-    def __init__(self, robot: Robot, logger):
+    def __init__(self, robot: Robot, logger) -> None:
         self.logger = logger
         self.client: LightingClient = robot.ensure_client(LightingClient.default_service_name)
 
-    def set_led_brightness(self, brightness):
+    def set_led_brightness(self, brightness: float) -> None:
         """
         Set the brightness of the LEDs to the specified brightness
 
@@ -82,7 +82,7 @@ class PowerWrapper:
     Wrapper for power interaction
     """
 
-    def __init__(self, robot: Robot, logger):
+    def __init__(self, robot: Robot, logger) -> None:
         self.logger = logger
         self.client: PowerClient = robot.ensure_client(PowerClient.default_service_name)
 
@@ -98,7 +98,7 @@ class PowerWrapper:
         aux1: typing.Optional[bool] = None,
         aux2: typing.Optional[bool] = None,
         external_mic: typing.Optional[bool] = None,
-    ):
+    ) -> None:
         """
         Set power status for each of the devices
 
@@ -116,7 +116,7 @@ class PowerWrapper:
         aux1: typing.Optional[bool] = None,
         aux2: typing.Optional[bool] = None,
         external_mic: typing.Optional[bool] = None,
-    ):
+    ) -> None:
         """
         Cycle power of the specified devices
 
@@ -134,7 +134,7 @@ class CompositorWrapper:
     Wrapper for compositor interaction
     """
 
-    def __init__(self, robot: Robot, logger):
+    def __init__(self, robot: Robot, logger) -> None:
         self.logger = logger
         self.client: CompositorClient = robot.ensure_client(CompositorClient.default_service_name)
 
@@ -157,7 +157,7 @@ class CompositorWrapper:
         """
         return self.client.get_visible_cameras()
 
-    def set_screen(self, screen: str):
+    def set_screen(self, screen: str) -> None:
         """
         Set the screen to be streamed over the network
 
@@ -175,7 +175,7 @@ class CompositorWrapper:
         """
         return self.client.get_screen()
 
-    def set_ir_colormap(self, colormap, min_temp, max_temp, auto_scale=True):
+    def set_ir_colormap(self, colormap, min_temp: float, max_temp: float, auto_scale: bool=True) -> None:
         """
         Set the colormap used for the IR camera
 
@@ -188,7 +188,7 @@ class CompositorWrapper:
         """
         self.client.set_ir_colormap(colormap, min_temp, max_temp, auto_scale)
 
-    def set_ir_meter_overlay(self, x, y, enable=True):
+    def set_ir_meter_overlay(self, x: float, y: float, enable: bool=True) -> None:
         """
         Set the reticle position on the Spot CAM IR.
 
@@ -205,7 +205,7 @@ class HealthWrapper:
     Wrapper for health details
     """
 
-    def __init__(self, robot, logger):
+    def __init__(self, robot: Robot, logger) -> None:
         self.client: HealthClient = robot.ensure_client(HealthClient.default_service_name)
         self.logger = logger
 
@@ -250,7 +250,7 @@ class AudioWrapper:
     Wrapper for audio commands on the camera
     """
 
-    def __init__(self, robot, logger):
+    def __init__(self, robot: Robot, logger) -> None:
         self.client: AudioClient = robot.ensure_client(AudioClient.default_service_name)
         self.logger = logger
 
@@ -263,7 +263,7 @@ class AudioWrapper:
         """
         return self.client.list_sounds()
 
-    def set_volume(self, percentage):
+    def set_volume(self, percentage: float) -> None:
         """
         Set the volume at which sounds should be played
 
@@ -272,7 +272,7 @@ class AudioWrapper:
         """
         self.client.set_volume(percentage)
 
-    def get_volume(self):
+    def get_volume(self) -> float:
         """
         Get the current volume at which sounds are played
 
@@ -281,7 +281,7 @@ class AudioWrapper:
         """
         return self.client.get_volume()
 
-    def play_sound(self, sound_name, gain=1.0):
+    def play_sound(self, sound_name: str, gain: float=1.0) -> None:
         """
         Play a sound which is on the device
 
@@ -292,7 +292,7 @@ class AudioWrapper:
         sound = audio_pb2.Sound(name=sound_name)
         self.client.play_sound(sound, gain)
 
-    def load_sound(self, sound_file, name):
+    def load_sound(self, sound_file: str, name: str) -> None:
         """
         Load a sound from a wav file and save it with the given name onto the device
         Args:
@@ -319,7 +319,7 @@ class AudioWrapper:
 
         self.client.load_sound(sound, data)
 
-    def delete_sound(self, name):
+    def delete_sound(self, name: str) -> None:
         """
         Delete a sound from the device
 
@@ -334,11 +334,11 @@ class StreamQualityWrapper:
     Wrapper for stream quality commands
     """
 
-    def __init__(self, robot, logger):
+    def __init__(self, robot: Robot, logger) -> None:
         self.client: StreamQualityClient = robot.ensure_client(StreamQualityClient.default_service_name)
         self.logger = logger
 
-    def set_stream_params(self, target_bitrate, refresh_interval, idr_interval, awb):
+    def set_stream_params(self, target_bitrate: int, refresh_interval: int, idr_interval: int, awb) -> None:
         """
         Set image compression and postprocessing parameters
 
@@ -369,7 +369,7 @@ class StreamQualityWrapper:
 
         return param_dict
 
-    def enable_congestion_control(self, enable):
+    def enable_congestion_control(self, enable: bool) -> None:
         """
         Enable congestion control on the receiver... not sure what this does
 
@@ -402,7 +402,7 @@ class MediaLogWrapper:
     Some functionality adapted from https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/spot_cam/media_log.py
     """
 
-    def __init__(self, robot, logger) -> None:
+    def __init__(self, robot: Robot, logger) -> None:
         self.client: MediaLogClient = robot.ensure_client(MediaLogClient.default_service_name)
         self.logger = logger
 
@@ -656,7 +656,7 @@ class PTZWrapper:
     Wrapper for controlling the PTZ unit
     """
 
-    def __init__(self, robot, logger):
+    def __init__(self, robot: Robot, logger) -> None:
         self.client: PtzClient = robot.ensure_client(PtzClient.default_service_name)
         self.logger = logger
         self.ptzs = {}
@@ -783,7 +783,7 @@ class PTZWrapper:
         """
         return self.client.get_ptz_velocity(PtzDescription(name=ptz_name))
 
-    def set_ptz_velocity(self, ptz_name, pan, tilt, zoom):
+    def set_ptz_velocity(self, ptz_name, pan, tilt, zoom) -> None:
         """
         Set the velocity of the various axes of the specified ptz
 
@@ -796,7 +796,7 @@ class PTZWrapper:
         # We do not clamp the velocity to the limits, as it is a rate
         self.client.set_ptz_velocity(self._get_ptz_description(ptz_name), pan, tilt, zoom)
 
-    def initialise_lens(self):
+    def initialise_lens(self) -> None:
         """
         Initialises or resets ptz autofocus
         """
@@ -819,12 +819,12 @@ class ImageStreamWrapper:
     def __init__(
         self,
         hostname: str,
-        robot,
+        robot: Robot,
         logger,
         sdp_port=31102,
         sdp_filename="h264.sdp",
         cam_ssl_cert_path=None,
-    ):
+    ) -> None:
         """
         Initialise the wrapper
 
@@ -838,7 +838,7 @@ class ImageStreamWrapper:
         """
         self.shutdown_flag = threading.Event()
         self.logger = logger
-        self.last_image_time = None
+        self.last_image_time: typing.Optional[datetime.datetime] = None
         self.image_lock = threading.Lock()
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -862,7 +862,7 @@ class ImageStreamWrapper:
         self.async_thread = threading.Thread(target=loop.run_forever)
         self.async_thread.start()
 
-    async def _monitor_shutdown(self):
+    async def _monitor_shutdown(self) -> None:
         while not self.shutdown_flag.is_set():
             await asyncio.sleep(1.0)
 
@@ -870,7 +870,7 @@ class ImageStreamWrapper:
         await self.client.pc.close()
         asyncio.get_event_loop().stop()
 
-    async def _process_func(self):
+    async def _process_func(self) -> None:
         while asyncio.get_event_loop().is_running():
             try:
                 frame = await self.client.video_frame_queue.get()
@@ -895,7 +895,7 @@ class ImageStreamWrapper:
 
 
 class SpotCamWrapper:
-    def __init__(self, hostname, username, password, logger, port: typing.Optional[int] = None):
+    def __init__(self, hostname, username, password, logger, port: typing.Optional[int] = None) -> None:
         self._hostname = hostname
         self._username = username
         self._password = password
@@ -935,6 +935,6 @@ class SpotCamWrapper:
 
         self._logger.info("Finished setting up spot cam wrapper components")
 
-    def shutdown(self):
+    def shutdown(self)-> None:
         self._logger.info("Shutting down Spot CAM wrapper")
         self.image.shutdown_flag.set()

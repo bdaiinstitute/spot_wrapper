@@ -13,7 +13,7 @@ from aiortc.contrib.media import MediaBlackhole
 
 
 class SpotCAMMediaStreamTrack(MediaStreamTrack):
-    def __init__(self, track, queue):
+    def __init__(self, track, queue) -> None:
         super().__init__()
         self.track = track
         self.queue = queue
@@ -36,7 +36,7 @@ class WebRTCClient:
         rtc_config,
         media_recorder=None,
         recorder_type=None,
-    ):
+    ) -> None:
         self.pc = RTCPeerConnection(configuration=rtc_config)
 
         self.video_frame_queue = asyncio.Queue()
@@ -64,7 +64,7 @@ class WebRTCClient:
         result = response.json()
         return result["id"], base64.b64decode(result["sdp"]).decode()
 
-    def send_sdp_answer_to_spot_cam(self, token, offer_id, sdp_answer):
+    def send_sdp_answer_to_spot_cam(self, token, offer_id, sdp_answer)-> None:
         headers = {"Authorization": f"Bearer {token}"}
         server_url = f"https://{self.hostname}:{self.sdp_port}/{self.sdp_filename}"
 
@@ -73,7 +73,7 @@ class WebRTCClient:
         if r.status_code != 200:
             raise ValueError(r)
 
-    async def start(self):
+    async def start(self) -> None:
         # first get a token
         try:
             token = self.get_bearer_token()
@@ -83,26 +83,26 @@ class WebRTCClient:
         offer_id, sdp_offer = self.get_sdp_offer_from_spot_cam(token)
 
         @self.pc.on("icegatheringstatechange")
-        def _on_ice_gathering_state_change():
+        def _on_ice_gathering_state_change()-> None:
             print(f"ICE gathering state changed to {self.pc.iceGatheringState}")
 
         @self.pc.on("signalingstatechange")
-        def _on_signaling_state_change():
+        def _on_signaling_state_change()-> None:
             print(f"Signaling state changed to: {self.pc.signalingState}")
 
         @self.pc.on("icecandidate")
-        def _on_ice_candidate(event):
+        def _on_ice_candidate(event)-> None:
             print(f"Received candidate: {event.candidate}")
 
         @self.pc.on("iceconnectionstatechange")
-        async def _on_ice_connection_state_change():
+        async def _on_ice_connection_state_change()-> None:
             print(f"ICE connection state changed to: {self.pc.iceConnectionState}")
 
             if self.pc.iceConnectionState == "checking":
                 self.send_sdp_answer_to_spot_cam(token, offer_id, self.pc.localDescription.sdp.encode())
 
         @self.pc.on("track")
-        def _on_track(track):
+        def _on_track(track)-> None:
             print(f"Received track: {track.kind}")
 
             if self.media_recorder:

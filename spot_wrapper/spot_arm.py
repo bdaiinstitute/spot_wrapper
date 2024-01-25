@@ -80,7 +80,7 @@ class SpotArm:
         request_proto: manipulation_api_pb2,
         end_time_secs: typing.Optional[float] = None,
         timesync_endpoint: typing.Optional[TimeSyncEndpoint] = None,
-    ):
+    ) -> typing.Tuple[bool, str, typing.Optional[str]]:
         """Generic function for sending requests to the manipulation api of a robot.
         Args:
             request_proto: manipulation_api_pb2 object to send to the robot.
@@ -97,7 +97,7 @@ class SpotArm:
             self._logger.error(f"Unable to execute manipulation command: {e}")
             return False, str(e), None
 
-    def manipulation_command(self, request: manipulation_api_pb2):
+    def manipulation_command(self, request: manipulation_api_pb2) -> typing.Tuple[bool, str, typing.Optional[str]]:
         end_time = time.time() + self._max_command_duration
         return self._manipulation_request(
             request,
@@ -136,7 +136,7 @@ class SpotArm:
 
         return True, "Spot has an arm, is powered on, and standing"
 
-    def wait_for_arm_command_to_complete(self, cmd_id, timeout_sec=None):
+    def wait_for_arm_command_to_complete(self, cmd_id, timeout_sec: typing.Optional[float]=None) -> None:
         """
         Wait until a command issued to the arm complets. Wrapper around the SDK function for convenience
 
@@ -231,7 +231,7 @@ class SpotArm:
         arm_sync_robot_cmd = robot_command_pb2.RobotCommand(synchronized_command=sync_arm)
         return RobotCommandBuilder.build_synchro_command(arm_sync_robot_cmd)
 
-    def arm_joint_move(self, joint_targets) -> typing.Tuple[bool, str]:
+    def arm_joint_move(self, joint_targets: typing.List[float]) -> typing.Tuple[bool, str]:
         # All perspectives are given when looking at the robot from behind after the unstow service is called
         # Joint1: 0.0 arm points to the front. positive: turn left, negative: turn right)
         # RANGE: -3.14 -> 3.14
@@ -295,7 +295,7 @@ class SpotArm:
         except Exception as e:
             return False, f"Exception occured during arm movement: {e}"
 
-    def create_wrench_from_forces_and_torques(self, forces, torques):
+    def create_wrench_from_forces_and_torques(self, forces: typing.List[float], torques: typing.List[float]) -> geometry_pb2.Wrench:
         force = geometry_pb2.Vec3(x=forces[0], y=forces[1], z=forces[2])
         torque = geometry_pb2.Vec3(x=torques[0], y=torques[1], z=torques[2])
         return geometry_pb2.Wrench(force=force, torque=torque)
@@ -504,7 +504,7 @@ class SpotArm:
     def block_until_gripper_command_completes(
         robot_command_client: RobotCommandClient,
         cmd_id: int,
-        timeout_sec: float = None,
+        timeout_sec: typing.Optional[float] = None,
     ) -> bool:
         """
         Helper that blocks until a gripper command achieves a finishing state
@@ -544,7 +544,7 @@ class SpotArm:
     def block_until_manipulation_completes(
         manipulation_client: ManipulationApiClient,
         cmd_id: int,
-        timeout_sec: float = None,
+        timeout_sec: typing.Optional[float] = None,
     ) -> bool:
         """
         Helper that blocks until the arm achieves a finishing state for the specific manipulation command.
