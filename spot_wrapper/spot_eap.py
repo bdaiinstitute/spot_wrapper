@@ -47,6 +47,7 @@ class AsyncPointCloudService(AsyncPeriodicQuery):
             callback_future = self._client.get_point_cloud_async(self._point_cloud_requests)
             callback_future.add_done_callback(self._callback)
             return callback_future
+        return None
 
 
 class SpotEAP:

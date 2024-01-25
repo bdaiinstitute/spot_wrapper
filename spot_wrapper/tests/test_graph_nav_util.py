@@ -16,13 +16,13 @@ graph_nav_util = MockSpotGraphNav()
 
 
 class TestGraphNavUtilShortCode:
-    def test_id_to_short_code(self):
+    def test_id_to_short_code(self) -> None:
         assert graph_nav_util._id_to_short_code("ebony-pug-mUzxLNq.TkGlVIxga+UKAQ==") == "ep"
         assert graph_nav_util._id_to_short_code("erose-simian-sug9xpxhCxgft7Mtbhr98A==") == "es"
 
 
 class TestGraphNavUtilFindUniqueWaypointId:
-    def test_short_code(self):
+    def test_short_code(self) -> None:
         # Set up
         self.logger = logging.Logger("test_graph_nav_util", level=logging.INFO)
         self.graph = map_pb2.Graph()
@@ -34,7 +34,7 @@ class TestGraphNavUtilFindUniqueWaypointId:
         # Test annotation name that is unknown
         assert graph_nav_util._find_unique_waypoint_id("ABCDEF", self.graph, self.name_to_id, self.logger) == "ABCDEF"
 
-    def test_short_code_with_graph(self):
+    def test_short_code_with_graph(self) -> None:
         # Set up
         self.logger = logging.Logger("test_graph_nav_util", level=logging.INFO)
         self.graph = map_pb2.Graph()
@@ -51,7 +51,7 @@ class TestGraphNavUtilFindUniqueWaypointId:
 
 
 class TestGraphNavUtilUpdateWaypointsEdges:
-    def test_empty_graph(self):
+    def test_empty_graph(self) -> None:
         self.logger = logging.Logger("test_graph_nav_util", level=logging.INFO)
 
         # Test empty graph
@@ -61,7 +61,7 @@ class TestGraphNavUtilUpdateWaypointsEdges:
         assert len(self.graph.waypoints) == 0
         assert len(self.graph.edges) == 0
 
-    def test_one_waypoint(self):
+    def test_one_waypoint(self) -> None:
         self.logger = logging.Logger("test_graph_nav_util", level=logging.INFO)
 
         # Test graph with 1 waypoint
@@ -80,7 +80,7 @@ class TestGraphNavUtilUpdateWaypointsEdges:
         assert len(self.name_to_id) == 1
         assert self.name_to_id["Node1"] == "ABCDE"
 
-    def test_two_waypoints_with_edge(self):
+    def test_two_waypoints_with_edge(self) -> None:
         self.logger = logging.Logger("test_graph_nav_util", level=logging.INFO)
 
         # Test graph with 2 waypoints and an edge between them
@@ -107,7 +107,7 @@ class TestGraphNavUtilUpdateWaypointsEdges:
         assert self.name_to_id["Node1"] == "ABCDE"
         assert self.name_to_id["Node2"] == "DE"
 
-    def test_two_waypoints_with_edge_and_localization(self):
+    def test_two_waypoints_with_edge_and_localization(self) -> None:
         self.logger = logging.Logger("test_graph_nav_util", level=logging.INFO)
 
         # Test graph with 2 waypoints and an edge between them. Mainly affects the pretty print.

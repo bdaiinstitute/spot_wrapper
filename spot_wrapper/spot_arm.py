@@ -136,7 +136,7 @@ class SpotArm:
 
         return True, "Spot has an arm, is powered on, and standing"
 
-    def wait_for_arm_command_to_complete(self, cmd_id, timeout_sec: typing.Optional[float]=None) -> None:
+    def wait_for_arm_command_to_complete(self, cmd_id, timeout_sec: typing.Optional[float] = None) -> None:
         """
         Wait until a command issued to the arm complets. Wrapper around the SDK function for convenience
 
@@ -295,7 +295,9 @@ class SpotArm:
         except Exception as e:
             return False, f"Exception occured during arm movement: {e}"
 
-    def create_wrench_from_forces_and_torques(self, forces: typing.List[float], torques: typing.List[float]) -> geometry_pb2.Wrench:
+    def create_wrench_from_forces_and_torques(
+        self, forces: typing.List[float], torques: typing.List[float]
+    ) -> geometry_pb2.Wrench:
         force = geometry_pb2.Vec3(x=forces[0], y=forces[1], z=forces[2])
         torque = geometry_pb2.Vec3(x=torques[0], y=torques[1], z=torques[2])
         return geometry_pb2.Wrench(force=force, torque=torque)

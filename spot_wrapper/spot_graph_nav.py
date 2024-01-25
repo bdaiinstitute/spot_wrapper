@@ -51,7 +51,7 @@ class SpotGraphNav:
         self._lease = self._lease_wallet.get_lease()
         return self._lease
 
-    def _init_current_graph_nav_state(self):
+    def _init_current_graph_nav_state(self) -> None:
         # Store the most recent knowledge of the state of the robot based on rpc calls.
         self._current_graph = None
         self._current_edges = {}  # maps to_waypoint to list(from_waypoint)
@@ -75,7 +75,7 @@ class SpotGraphNav:
         upload_path: str,
         initial_localization_fiducial: bool = True,
         initial_localization_waypoint: typing.Optional[str] = None,
-    ):
+    ) -> typing.Tuple[bool, str]:
         """Navigate with graphnav.
 
         Args:
@@ -112,7 +112,7 @@ class SpotGraphNav:
 
         return True, "Localization done!"
 
-    def navigate_to_existing_waypoint(self, waypoint_id: str):
+    def navigate_to_existing_waypoint(self, waypoint_id: str) -> typing.Tuple[bool, str]:
         """Navigate to an existing waypoint.
         Args:
             waypoint_id : Waypoint id string for where to go
@@ -121,7 +121,7 @@ class SpotGraphNav:
         resp = self._navigate_to(waypoint_id)
         return resp
 
-    def navigate_through_route(self, waypoint_ids: typing.List[str]):
+    def navigate_through_route(self, waypoint_ids: typing.List[str]) -> typing.Tuple[bool, str]:
         """
         Args:
             waypoint_ids: List[str] of waypoints to follow
@@ -146,7 +146,7 @@ class SpotGraphNav:
     def optmize_anchoring(self) -> typing.Tuple[bool, str]:
         return self._optimize_anchoring()
 
-    def _write_bytes_while_download(self, filepath: str, data: bytes):
+    def _write_bytes_while_download(self, filepath: str, data: bytes) -> None:
         """Write data to a file.
         Args:
             filepath (str) : Path of file where data will be written.
@@ -257,14 +257,14 @@ class SpotGraphNav:
     # Downloading, reproducing, distributing or otherwise using the SDK Software
     # is subject to the terms and conditions of the Boston Dynamics Software
     # Development Kit License (20191101-BDSDK-SL).
-    def _get_localization_state(self, *args):
+    def _get_localization_state(self, *args) -> None:
         """Get the current localization and state of the robot."""
         state = self._graph_nav_client.get_localization_state()
         self._logger.info(f"Got localization: \n{str(state.localization)}")
         odom_tform_body = get_odom_tform_body(state.robot_kinematics.transforms_snapshot)
         self._logger.info(f"Got robot state in kinematic odometry frame: \n{str(odom_tform_body)}")
 
-    def set_initial_localization_fiducial(self, *args):
+    def set_initial_localization_fiducial(self, *args) -> None:
         """Trigger localization when near a fiducial."""
         robot_state = self._robot_state_client.get_robot_state()
         current_odom_tform_body = get_odom_tform_body(robot_state.kinematic_state.transforms_snapshot).to_proto()
@@ -276,7 +276,7 @@ class SpotGraphNav:
             ko_tform_body=current_odom_tform_body,
         )
 
-    def set_initial_localization_waypoint(self, *args):
+    def set_initial_localization_waypoint(self, *args) -> None:
         """Trigger localization to a waypoint."""
         # Take the first argument as the localization waypoint.
         if len(args) < 1:
@@ -316,7 +316,7 @@ class SpotGraphNav:
         self._current_graph = graph
         return graph
 
-    def _download_full_graph(self, *args):
+    def _download_full_graph(self, *args) -> None:
         """Download the graph and snapshots from the robot."""
         graph = self._graph_nav_client.download_graph()
         if graph is None:
@@ -330,12 +330,12 @@ class SpotGraphNav:
         self._download_and_write_waypoint_snapshots(graph.waypoints)
         self._download_and_write_edge_snapshots(graph.edges)
 
-    def _write_full_graph(self, graph):
+    def _write_full_graph(self, graph) -> None:
         """Download the graph from robot to the specified, local filepath location."""
         graph_bytes = graph.SerializeToString()
         self._write_bytes(self._download_filepath, "/graph", graph_bytes)
 
-    def _download_and_write_waypoint_snapshots(self, waypoints):
+    def _download_and_write_waypoint_snapshots(self, waypoints) -> None:
         """Download the waypoint snapshots from robot to the specified, local filepath location."""
         num_waypoint_snapshots_downloaded = 0
         for waypoint in waypoints:
@@ -359,7 +359,7 @@ class SpotGraphNav:
                 )
             )
 
-    def _download_and_write_edge_snapshots(self, edges):
+    def _download_and_write_edge_snapshots(self, edges) -> None:
         """Download the edge snapshots from robot to the specified, local filepath location."""
         num_edge_snapshots_downloaded = 0
         num_to_download = 0
@@ -383,7 +383,7 @@ class SpotGraphNav:
                 "Downloaded {} of the total {} edge snapshots.".format(num_edge_snapshots_downloaded, num_to_download)
             )
 
-    def _write_bytes(self, filepath: str, filename: str, data):
+    def _write_bytes(self, filepath: str, filename: str, data) -> None:
         """Write data to a file."""
         os.makedirs(filepath, exist_ok=True)
         with open(filepath + filename, "wb+") as f:
@@ -655,7 +655,9 @@ class SpotGraphNav:
                     return map_pb2.Edge.Id(from_waypoint=waypoint1, to_waypoint=waypoint2)
         return None
 
-    def _auto_close_loops(self, close_fiducial_loops: bool, close_odometry_loops: bool, *args):
+    def _auto_close_loops(
+        self, close_fiducial_loops: bool, close_odometry_loops: bool, *args
+    ) -> typing.Tuple[bool, str]:
         """Automatically find and close all loops in the graph."""
         response: map_processing_pb2.ProcessTopologyResponse = self._map_processing_client.process_topology(
             params=map_processing_pb2.ProcessTopologyRequest.Params(
@@ -676,7 +678,7 @@ class SpotGraphNav:
         else:
             return False, "Unknown error during map processing."
 
-    def _optimize_anchoring(self, *args):
+    def _optimize_anchoring(self, *args) -> typing.Tuple[bool, str]:
         """Call anchoring optimization on the server, producing a globally optimal reference frame for waypoints to be
         expressed in.
         """
@@ -712,7 +714,7 @@ class SpotGraphNav:
                 return False, status_mapping[response.status]
             return False, "Unknown error during anchoring optimization."
 
-    def _id_to_short_code(self, id: str):
+    def _id_to_short_code(self, id: str) -> typing.Optional[str]:
         """Convert a unique id to a 2 letter short code."""
         tokens = id.split("-")
         if len(tokens) > 2:
@@ -726,7 +728,7 @@ class SpotGraphNav:
         short_code_to_count: typing.Dict[str, int],
         localization_id: str,
         logger: logging.Logger,
-    ):
+    ) -> None:
         short_code = self._id_to_short_code(waypoint_id)
         if short_code is None or short_code_to_count[short_code] != 1:
             # If the short code is not valid/unique, don't show it.

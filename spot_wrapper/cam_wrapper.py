@@ -175,7 +175,7 @@ class CompositorWrapper:
         """
         return self.client.get_screen()
 
-    def set_ir_colormap(self, colormap, min_temp: float, max_temp: float, auto_scale: bool=True) -> None:
+    def set_ir_colormap(self, colormap, min_temp: float, max_temp: float, auto_scale: bool = True) -> None:
         """
         Set the colormap used for the IR camera
 
@@ -188,7 +188,7 @@ class CompositorWrapper:
         """
         self.client.set_ir_colormap(colormap, min_temp, max_temp, auto_scale)
 
-    def set_ir_meter_overlay(self, x: float, y: float, enable: bool=True) -> None:
+    def set_ir_meter_overlay(self, x: float, y: float, enable: bool = True) -> None:
         """
         Set the reticle position on the Spot CAM IR.
 
@@ -281,7 +281,7 @@ class AudioWrapper:
         """
         return self.client.get_volume()
 
-    def play_sound(self, sound_name: str, gain: float=1.0) -> None:
+    def play_sound(self, sound_name: str, gain: float = 1.0) -> None:
         """
         Play a sound which is on the device
 
@@ -935,6 +935,6 @@ class SpotCamWrapper:
 
         self._logger.info("Finished setting up spot cam wrapper components")
 
-    def shutdown(self)-> None:
+    def shutdown(self) -> None:
         self._logger.info("Shutting down Spot CAM wrapper")
         self.image.shutdown_flag.set()

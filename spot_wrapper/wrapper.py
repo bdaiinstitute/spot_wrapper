@@ -101,7 +101,7 @@ def robotToLocalTime(timestamp: Timestamp, robot: Robot) -> Timestamp:
 class MissingSpotArm(Exception):
     """Raised when the arm is not available on the robot"""
 
-    def __init__(self, message: str ="Spot arm not available"):
+    def __init__(self, message: str = "Spot arm not available"):
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
 

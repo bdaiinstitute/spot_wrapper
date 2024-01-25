@@ -216,7 +216,7 @@ class SpotImages:
                 continue
             self._image_requests_by_camera[camera] = {}
             image_types = IMAGE_SOURCES_BY_CAMERA[camera]
-            quality = 75
+            quality = 75.0
             for image_type in image_types:
                 if image_type.startswith("depth"):
                     image_format = image_pb2.Image.FORMAT_RAW
