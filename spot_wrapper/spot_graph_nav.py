@@ -1,9 +1,11 @@
 import logging
 import math
 import os
+import threading
 import time
 import typing
 
+from bosdyn.api import geometry_pb2
 from bosdyn.api.graph_nav import graph_nav_pb2
 from bosdyn.api.graph_nav import map_pb2
 from bosdyn.api.graph_nav import map_processing_pb2
@@ -50,11 +52,37 @@ class SpotGraphNav:
 
         self._init_current_graph_nav_state()
 
+        # Dynamic graphnav parameters
+        self._graphnav_lock = threading.Lock()
+        self._navigating = False
+          # Default travel params for navigation
+        velocity_x = 1  # m/s
+        velocity_y = 1
+        angular_velocity = 1  # radians/s
+        max_dist = 1  # m
+        max_yaw = 6.4  # radians
+        velocity_max = geometry_pb2.SE2Velocity(
+            linear=geometry_pb2.Vec2(x=velocity_x, y=velocity_y),
+            angular=angular_velocity,
+        )
+        velocity_min = geometry_pb2.SE2Velocity(
+            linear=geometry_pb2.Vec2(x=-velocity_x, y=-velocity_y),
+            angular=-angular_velocity,
+        )
+        velocity_params = geometry_pb2.SE2VelocityLimit(
+            max_vel=velocity_max, min_vel=velocity_min
+        )
+        self.graphnav_travel_params = self._graph_nav_client.generate_travel_params(
+            max_dist, max_yaw, velocity_params
+        )
+        self._graphnav_paused = False
+        self._graphnav_cancelled = False
+
     def _get_lease(self) -> Lease:
         self._lease = self._lease_wallet.get_lease()
         return self._lease
 
-    def _init_current_graph_nav_state(self):
+    def _init_current_graph_nav_state(self) -> None:
         # Store the most recent knowledge of the state of the robot based on rpc calls.
         self._current_graph = None
         self._current_edges = {}  # maps to_waypoint to list(from_waypoint)
@@ -85,7 +113,7 @@ class SpotGraphNav:
         upload_path: str,
         initial_localization_fiducial: bool = True,
         initial_localization_waypoint: typing.Optional[str] = None,
-    ):
+    ) -> typing.Tuple[bool, str]:
         """Navigate with graphnav.
 
         Args:
@@ -124,7 +152,24 @@ class SpotGraphNav:
 
         return True, "Localization done!"
 
-    def navigate_to_existing_waypoint(self, waypoint_id: str):
+    def navigate_to_dynamic(self, waypoint_id: str) -> typing.Tuple[bool, str]:
+        """Navigate with graph nav. Use this instead of navigate_to if you want to modify Spot's speed during navigation commands
+         and pause/cancel navigations (using set_navigate_to_params). Unlike navigate_to, this method assumes
+         the graphnav map has already been uploaded and spot has been localized. This results in reduced latency between calling
+         this method and Spot starting navigation
+
+        Args:
+           waypoint_id : ID of the goal on the map
+
+        Returns:
+
+        """
+        self._get_localization_state()
+        resp = self._navigate_to_dynamic(waypoint_id)
+
+        return resp
+
+    def navigate_to_existing_waypoint(self, waypoint_id: str) -> typing.Tuple[bool, str]:
         """Navigate to an existing waypoint.
         Args:
             waypoint_id : Waypoint id string for where to go
@@ -133,7 +178,7 @@ class SpotGraphNav:
         resp = self._navigate_to(waypoint_id)
         return resp
 
-    def navigate_through_route(self, waypoint_ids: typing.List[str]):
+    def navigate_through_route(self, waypoint_ids: typing.List[str]) -> typing.Tuple[bool, str]:
         """
         Args:
             waypoint_ids: List[str] of waypoints to follow
@@ -340,6 +385,83 @@ class SpotGraphNav:
             fiducial_init=graph_nav_pb2.SetLocalizationRequest.FIDUCIAL_INIT_NO_FIDUCIAL,
             ko_tform_body=current_odom_tform_body,
         )
+
+    def set_navigate_to_params(
+        self, x: float, y: float, max_dist: float, max_yaw: float
+    ) -> bool:
+        """Change the navigation params used by navigate_to_dynamic or pause/cancel navigation
+
+        Args:
+             x: the maximum speed (m/s) for Spot in the x (forwards) direction
+             y: the maximum speed (m/s) for Spot in the y (sideways) direction
+             max_dist: Threshold for acceptable distance (in m) between Spot and the goal waypoint
+             max_yaw: Threashold for the acceptable angle (in radians) between Spot and the goal waypoint
+
+         Note that if this method is not used, the default values are (1, 1, 1, 6.4).
+         Setting x or y to 0 will pause the current navigation till x and y are both non-zero
+         Setting x or y to a negative value will cancel the current navigation and will cause any ongoing
+         navigate_to_dynamic call to return
+        """
+
+        self._graphnav_lock.acquire()
+        try:
+            # Pause graphnav if x or y is zero
+            if x == 0 or y == 0:
+                self._graphnav_paused = True
+            else:
+                self._graphnav_paused = False
+
+            # cancel graphnav if either value is negative
+            if x < 0 or y < 0:
+                self._graphnav_cancelled = True
+            else:
+                self._graphnav_cancelled = False
+            if self._graphnav_cancelled:
+                # release the lock, wait for the graphnav to terminate, and then return
+                # this makes sure a cancelation request can not be overidden by future set_nav_param requests
+                # Note that requesting a cancellation while spot is not navigating has no effect,
+                # and future navigate_to_dynamic requests will run normally
+                self._graphnav_lock.release()
+                while self._navigating:
+                    time.sleep(0.2)
+                return True
+
+            # hardcode the angular_velocity limit
+            angular_velocity_limit = 1
+            velocity_max = geometry_pb2.SE2Velocity(
+                linear=geometry_pb2.Vec2(x=x, y=y), angular=angular_velocity_limit
+            )
+            velocity_min = geometry_pb2.SE2Velocity(
+                linear=geometry_pb2.Vec2(x=-x, y=-y), angular=-angular_velocity_limit
+            )
+            velocity_params = geometry_pb2.SE2VelocityLimit(
+                max_vel=velocity_max, min_vel=velocity_min
+            )
+            self.graphnav_travel_params = self._graph_nav_client.generate_travel_params(
+                max_dist, max_yaw, velocity_params
+            )
+
+            # The code upto this point should be sufficient to modify velocity
+            # However due to a SDK bug, we need to change the goal waypoint temporarily for Graphnav to register the change in travel params.
+            # Have talked to this BD support and they confirmed this is a bug.
+
+            # If spot is navigating, we will send a quick navigation request to its current location (not noticable)
+            if self._navigating:
+                localization_state = self._graph_nav_client.get_localization_state()
+                current_waypoint = localization_state.localization.waypoint_id
+                if not current_waypoint:  # Should be able to get current waypoint, something has gone wrong
+                    self._graphnav_lock.release()
+                    return False
+                self._graph_nav_client.navigate_to(
+                    current_waypoint, 0.1, leases=[self.navigate_to_dynamic_sublease.lease_proto],
+                )
+                time.sleep(0.1)  # Sleep to wait for navigation to complete
+            self._graphnav_lock.release()
+            return True
+        except Exception:
+            # Release lock to avoid deadlocks in future runs
+            self._graphnav_lock.release()
+            raise
 
     def _download_current_graph(self):
         graph = self._graph_nav_client.download_graph()
@@ -594,6 +716,98 @@ class SpotGraphNav:
             # Poll the robot for feedback to determine if the navigation command is complete.
             is_finished = self._check_success(nav_to_cmd_id)
 
+        self._lease = self._lease_wallet.advance()
+        self._lease_keepalive = LeaseKeepAlive(self._lease_client)
+
+        status = self._graph_nav_client.navigation_feedback(nav_to_cmd_id)
+        if (
+            status.status
+            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_REACHED_GOAL
+        ):
+            return True, "Successfully completed the navigation commands!"
+        elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_LOST:
+            return (
+                False,
+                "Robot got lost when navigating the route, the robot will now sit down.",
+            )
+        elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_STUCK:
+            return (
+                False,
+                "Robot got stuck when navigating the route, the robot will now sit down.",
+            )
+        elif (
+            status.status
+            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_ROBOT_IMPAIRED
+        ):
+            return False, "Robot is impaired."
+        else:
+            return False, "Navigation command is not complete yet."
+
+
+    def _navigate_to_dynamic(self, waypoint_id: str) -> typing.Tuple[bool, str]:
+        """Navigate to a specific waypoint. Can change velocity and pause/cancel navigation in set_navigate_to_params"""
+
+        self._lease = self._lease_wallet.get_lease()
+        destination_waypoint = self._find_unique_waypoint_id(
+            waypoint_id,
+            self._current_graph,
+            self._current_annotation_name_to_wp_id,
+            self._logger,
+        )
+
+        if not destination_waypoint:
+            self._logger.info("Could not find destination waypoint")
+            return False, "could not find destination waypoint"
+
+        # Stop the lease keepalive and create a new sublease for graph nav.
+        self._lease = self._lease_wallet.advance()
+        self.navigate_to_dynamic_sublease = self._lease.create_sublease()
+        self._lease_keepalive.shutdown()
+
+        # Can't cancel a navigation before it starts
+        self._graphnav_cancelled = False
+        # Navigate to the destination waypoint.
+        is_finished = False
+        nav_to_cmd_id = -1
+        try:
+            while not is_finished:
+                # Acquire lock to coordinate with set_navigate_to_params
+                self._graphnav_lock.acquire()
+                self._navigating = True
+                # Navigate to the destination waypoint.
+                if self._graphnav_cancelled:
+                    # self._navigate_to_dynamic_feedback = "goal cancelled"
+                    self._navigating = False
+                    self._graphnav_lock.release()
+                    return False, "goal was cancelled"
+
+                if self._graphnav_paused:
+                    # self._navigate_to_dynamic_feedback = "goal paused"
+                    self._graphnav_lock.release()
+                    time.sleep(0.5)
+                    continue
+
+                # Issue the navigation command about twice a second so that user can update velocity/cancel/pause
+                nav_to_cmd_id = self._graph_nav_client.navigate_to(
+                    destination_waypoint,
+                    1.0,
+                    leases=[self.navigate_to_dynamic_sublease.lease_proto],
+                    travel_params=self.graphnav_travel_params,
+                )
+                self._graphnav_lock.release()
+                time.sleep(
+                    0.5
+                )  # Sleep for half a second to allow for command execution.
+
+                # Poll the robot for feedback to determine if the navigation command is complete.
+                is_finished = self._check_success(nav_to_cmd_id)
+
+        except Exception:
+            # In case navigation errors, release lock to avoid deadlocks in successive runs
+            self._graphnav_lock.release()
+            raise
+
+        self._navigating = False
         self._lease = self._lease_wallet.advance()
         self._lease_keepalive = LeaseKeepAlive(self._lease_client)
 
@@ -885,7 +1099,7 @@ class SpotGraphNav:
 
     def _update_waypoints_and_edges(
         self, graph: map_pb2.Graph, localization_id: str, logger: logging.Logger
-    ) -> typing.Tuple[typing.Dict[str, str], typing.Dict[str, str]]:
+    ) -> typing.Tuple[typing.Dict[str, str], typing.Dict[str, typing.List[str]]]:
         """Update and print waypoint ids and edge ids."""
         name_to_id = dict()
         edges = dict()

@@ -909,7 +909,6 @@ class ImageStreamWrapper:
         while asyncio.get_event_loop().is_running():
             try:
                 frame = await self.client.video_frame_queue.get()
-
                 pil_image = frame.to_image()
                 cv_image = np.array(pil_image)
                 # OpenCV needs BGR
@@ -929,6 +928,13 @@ class ImageStreamWrapper:
                 )
 
         self.shutdown_flag.set()
+
+    def get_last_image(self):
+        if self.last_image_time:
+            with self.image_lock:
+                return self.last_image
+        else:
+            return None
 
 
 class SpotCamWrapper:
