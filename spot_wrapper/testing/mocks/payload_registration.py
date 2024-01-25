@@ -58,9 +58,7 @@ class MockPayloadRegistrationService(PayloadRegistrationServiceServicer):
     ) -> GetPayloadAuthTokenResponse:
         response = GetPayloadAuthTokenResponse()
         if request.payload_credentials.guid not in self._payloads:
-            response.status = (
-                GetPayloadAuthTokenResponse.Status.STATUS_INVALID_CREDENTIALS
-            )
+            response.status = GetPayloadAuthTokenResponse.Status.STATUS_INVALID_CREDENTIALS
             return response
         response.status = GetPayloadAuthTokenResponse.Status.STATUS_OK
         response.token = "mock-payload-token"

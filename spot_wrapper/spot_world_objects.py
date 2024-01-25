@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 import typing
 
@@ -28,9 +29,7 @@ class AsyncWorldObjects(AsyncPeriodicQuery):
             rate: Rate (Hz) to trigger the query
             callback: Callback function to call when the results of the query are available
         """
-        super().__init__(
-            "world-objects", client, logger, period_sec=1.0 / max(rate, 1.0)
-        )
+        super().__init__("world-objects", client, logger, period_sec=1.0 / max(rate, 1.0))
         self._callback = None
         if rate > 0.0:
             self._callback = callback
@@ -92,6 +91,4 @@ class SpotWorldObjects:
             List world object response containing the filtered list of world objects
 
         """
-        return self._world_objects_client.list_world_objects(
-            object_types, time_start_point
-        )
+        return self._world_objects_client.list_world_objects(object_types, time_start_point)

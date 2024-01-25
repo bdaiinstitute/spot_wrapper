@@ -34,12 +34,8 @@ DEPTH_REGISTERED_IMAGE_SOURCES = [
     "left_depth_in_visual_frame",
     "back_depth_in_visual_frame",
 ]
-ImageBundle = namedtuple(
-    "ImageBundle", ["frontleft", "frontright", "left", "right", "back"]
-)
-ImageWithHandBundle = namedtuple(
-    "ImageBundle", ["frontleft", "frontright", "left", "right", "back", "hand"]
-)
+ImageBundle = namedtuple("ImageBundle", ["frontleft", "frontright", "left", "right", "back"])
+ImageWithHandBundle = namedtuple("ImageBundle", ["frontleft", "frontright", "left", "right", "back", "hand"])
 
 IMAGE_SOURCES_BY_CAMERA = {
     "frontleft": {
@@ -238,25 +234,19 @@ class SpotImages:
                         else:
                             quality = self._image_quality.robot_image_quality
                     elif camera != "hand":
-                        self._logger.info(
-                            f"Switching {camera}:{image_type} to greyscale image format."
-                        )
+                        self._logger.info(f"Switching {camera}:{image_type} to greyscale image format.")
                         pixel_format = image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8
                         quality = self._image_quality.robot_image_quality
 
                 source = IMAGE_SOURCES_BY_CAMERA[camera][image_type]
-                self._image_requests_by_camera[camera][
-                    image_type
-                ] = build_image_request(
+                self._image_requests_by_camera[camera][image_type] = build_image_request(
                     source,
                     image_format=image_format,
                     pixel_format=pixel_format,
                     quality_percent=quality,
                 )
 
-    def get_rgb_image(
-        self, image_source: str
-    ) -> typing.Optional[image_pb2.ImageResponse]:
+    def get_rgb_image(self, image_source: str) -> typing.Optional[image_pb2.ImageResponse]:
         """
 
         Args:
@@ -406,22 +396,16 @@ class SpotImages:
         cameras_specified = set()
         for item in camera_sources:
             if item.camera_name in cameras_specified:
-                self._logger.error(
-                    f"Duplicated camera source for camera {item.camera_name}"
-                )
+                self._logger.error(f"Duplicated camera source for camera {item.camera_name}")
                 return None
             image_types = item.image_types
             if image_types is None:
                 image_types = IMAGE_TYPES
             for image_type in image_types:
                 try:
-                    image_requests.append(
-                        self._image_requests_by_camera[item.camera_name][image_type]
-                    )
+                    image_requests.append(self._image_requests_by_camera[item.camera_name][image_type])
                 except KeyError:
-                    self._logger.error(
-                        f"Unexpected camera name '{item.camera_name}' or image type '{image_type}'"
-                    )
+                    self._logger.error(f"Unexpected camera name '{item.camera_name}' or image type '{image_type}'")
                     return None
                 source_types.append((item.camera_name, image_type))
             cameras_specified.add(item.camera_name)
@@ -431,8 +415,7 @@ class SpotImages:
             image_responses = self._image_client.get_image(image_requests)
         except UnsupportedPixelFormatRequestedError:
             self._logger.error(
-                "UnsupportedPixelFormatRequestedError. "
-                "Likely pixel_format is set wrong for some image request"
+                "UnsupportedPixelFormatRequestedError. Likely pixel_format is set wrong for some image request"
             )
             return None
 
@@ -455,9 +438,7 @@ class SpotImages:
             raise Exception("Gripper camera is not available")
         else:
             self._logger.info("Setting Gripper Camera Parameters")
-            response = self._gripper_cam_param_client.set_camera_params(
-                camera_param_request
-            )
+            response = self._gripper_cam_param_client.set_camera_params(camera_param_request)
             return response
 
     def get_gripper_camera_params(
@@ -468,7 +449,5 @@ class SpotImages:
             raise Exception("Gripper camera is not available")
         else:
             self._logger.info("Getting Gripper Camera Parameters")
-            response = self._gripper_cam_param_client.get_camera_params(
-                camera_get_param_request
-            )
+            response = self._gripper_cam_param_client.get_camera_params(camera_get_param_request)
             return response

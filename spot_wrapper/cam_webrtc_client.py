@@ -69,9 +69,7 @@ class WebRTCClient:
         server_url = f"https://{self.hostname}:{self.sdp_port}/{self.sdp_filename}"
 
         payload = {"id": offer_id, "sdp": base64.b64encode(sdp_answer).decode("utf8")}
-        r = requests.post(
-            server_url, verify=self.cam_ssl_cert, json=payload, headers=headers
-        )
+        r = requests.post(server_url, verify=self.cam_ssl_cert, json=payload, headers=headers)
         if r.status_code != 200:
             raise ValueError(r)
 
@@ -79,7 +77,7 @@ class WebRTCClient:
         # first get a token
         try:
             token = self.get_bearer_token()
-        except:
+        except Exception:
             token = self.get_bearer_token(mock=True)
 
         offer_id, sdp_offer = self.get_sdp_offer_from_spot_cam(token)
@@ -101,9 +99,7 @@ class WebRTCClient:
             print(f"ICE connection state changed to: {self.pc.iceConnectionState}")
 
             if self.pc.iceConnectionState == "checking":
-                self.send_sdp_answer_to_spot_cam(
-                    token, offer_id, self.pc.localDescription.sdp.encode()
-                )
+                self.send_sdp_answer_to_spot_cam(token, offer_id, self.pc.localDescription.sdp.encode())
 
         @self.pc.on("track")
         def _on_track(track):

@@ -17,9 +17,7 @@ class GeneralizedDecorator:
     def wraps(wrapped: typing.Callable):
         def decorator(func: typing.Callable):
             class wrapper(GeneralizedDecorator):
-                def __call__(
-                    self, *args: typing.Any, **kwargs: typing.Any
-                ) -> typing.Any:
+                def __call__(self, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
                     return func(*args, **kwargs)
 
             return wrapper(wrapped)
@@ -36,9 +34,7 @@ class GeneralizedDecorator:
         raise NotImplementedError()
 
 
-UnaryUnaryHandlerCallable = typing.Callable[
-    [typing.Any, grpc.ServicerContext], typing.Any
-]
+UnaryUnaryHandlerCallable = typing.Callable[[typing.Any, grpc.ServicerContext], typing.Any]
 
 
 def enforce_matching_headers(
@@ -51,12 +47,8 @@ def enforce_matching_headers(
         response = handler(request, context)
         if hasattr(request, "header") and hasattr(response, "header"):
             response.header.request_header.CopyFrom(request.header)
-            response.header.request_received_timestamp.CopyFrom(
-                request.header.request_timestamp
-            )
-            response.header.error.code = (
-                response.header.error.code or CommonError.CODE_OK
-            )
+            response.header.request_received_timestamp.CopyFrom(request.header.request_timestamp)
+            response.header.error.code = response.header.error.code or CommonError.CODE_OK
         return response
 
     return wrapper

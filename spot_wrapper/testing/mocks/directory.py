@@ -28,9 +28,7 @@ class MockDirectoryService(DirectoryServiceServicer):
     DEFAULT_SERVICES = {
         entry.type: entry
         for entry in [
-            ServiceEntry(
-                name="auth", type="bosdyn.api.AuthService", authority="auth.spot.robot"
-            ),
+            ServiceEntry(name="auth", type="bosdyn.api.AuthService", authority="auth.spot.robot"),
             ServiceEntry(
                 name="payload-registration",
                 type="bosdyn.api.RobotIdService",
