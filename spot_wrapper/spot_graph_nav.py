@@ -53,7 +53,7 @@ class SpotGraphNav:
 
     def _init_current_graph_nav_state(self) -> None:
         # Store the most recent knowledge of the state of the robot based on rpc calls.
-        self._current_graph = None
+        self._current_graph: typing.Optional[map_pb2.Graph] = None
         self._current_edges: typing.Dict[str, typing.List[str]] = {}  # maps to_waypoint to list(from_waypoint)
         self._current_waypoint_snapshots = {}  # maps id to waypoint snapshot
         self._current_edge_snapshots = {}  # maps id to edge snapshot
@@ -781,8 +781,8 @@ class SpotGraphNav:
         self, graph: map_pb2.Graph, localization_id: str, logger: logging.Logger
     ) -> typing.Tuple[typing.Dict[str, str], typing.Dict[str, str]]:
         """Update and print waypoint ids and edge ids."""
-        name_to_id = dict()
-        edges = dict()
+        name_to_id: typing.Dict[str, str] = dict()
+        edges: typing.Dict[str, str] = dict()
 
         short_code_to_count = {}
         waypoint_to_timestamp = []
