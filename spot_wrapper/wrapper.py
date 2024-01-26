@@ -117,7 +117,9 @@ class AsyncRobotState(AsyncPeriodicQuery):
         callback: Callback function to call when the results of the query are available
     """
 
-    def __init__(self, client: RobotCommandClient, logger: logging.Logger, rate: float, callback) -> None:
+    def __init__(
+        self, client: RobotCommandClient, logger: logging.Logger, rate: float, callback: typing.Callable
+    ) -> None:
         super(AsyncRobotState, self).__init__("robot-state", client, logger, period_sec=1.0 / max(rate, 1.0))
         self._callback = None
         if rate > 0.0:
@@ -141,7 +143,9 @@ class AsyncMetrics(AsyncPeriodicQuery):
         callback: Callback function to call when the results of the query are available
     """
 
-    def __init__(self, client: RobotCommandClient, logger: logging.Logger, rate: float, callback) -> None:
+    def __init__(
+        self, client: RobotCommandClient, logger: logging.Logger, rate: float, callback: typing.Callable
+    ) -> None:
         super(AsyncMetrics, self).__init__("robot-metrics", client, logger, period_sec=1.0 / max(rate, 1.0))
         self._callback = None
         if rate > 0.0:
@@ -165,7 +169,9 @@ class AsyncLease(AsyncPeriodicQuery):
         callback: Callback function to call when the results of the query are available
     """
 
-    def __init__(self, client: RobotCommandClient, logger: logging.Logger, rate: float, callback) -> None:
+    def __init__(
+        self, client: RobotCommandClient, logger: logging.Logger, rate: float, callback: typing.Callable
+    ) -> None:
         super(AsyncLease, self).__init__("lease", client, logger, period_sec=1.0 / max(rate, 1.0))
         self._callback = None
         if rate > 0.0:
@@ -1336,7 +1342,7 @@ class SpotWrapper:
             manipulation_api_feedback_request=feedback_request
         )
 
-    def toggle_power(self, should_power_on):
+    def toggle_power(self, should_power_on: bool) -> bool:
         """Power the robot on/off dependent on the current power state."""
         is_powered_on = self.check_is_powered_on()
         if not is_powered_on and should_power_on:
@@ -1444,7 +1450,7 @@ class SpotWrapper:
                 response,
             )
 
-    def get_docking_state(self, **kwargs):
+    def get_docking_state(self, **kwargs: typing.Any):
         """Get docking state of robot."""
         state = self._docking_client.get_docking_state(**kwargs)
         return state
@@ -1468,7 +1474,7 @@ class SpotWrapper:
             return False, "Spot is not licensed for choreography", empty
 
     def choreography_log_to_animation_file(
-        self, name: str, fpath: str, has_arm: bool, **kwargs
+        self, name: str, fpath: str, has_arm: bool, **kwargs: typing.Any
     ) -> typing.Tuple[bool, str, str]:
         """save a choreography log to a file as an animation"""
         if self._is_licensed_for_choreography:

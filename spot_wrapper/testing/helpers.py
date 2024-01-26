@@ -14,8 +14,8 @@ class GeneralizedDecorator:
     __annotations__ = {}
 
     @staticmethod
-    def wraps(wrapped: typing.Callable):
-        def decorator(func: typing.Callable):
+    def wraps(wrapped: typing.Callable) -> typing.Callable:
+        def decorator(func: typing.Callable) -> typing.Callable:
             class wrapper(GeneralizedDecorator):
                 def __call__(self, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
                     return func(*args, **kwargs)

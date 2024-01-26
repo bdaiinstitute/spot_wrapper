@@ -105,7 +105,7 @@ class SpotArm:
             timesync_endpoint=self._robot.time_sync.endpoint,
         )
 
-    def get_manipulation_command_feedback(self, cmd_id):
+    def get_manipulation_command_feedback(self, cmd_id: int) -> manipulation_api_pb2.ManipulationApiFeedbackResponse:
         feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(manipulation_cmd_id=cmd_id)
 
         return self._manipulation_api_client.manipulation_api_feedback_command(
@@ -136,7 +136,7 @@ class SpotArm:
 
         return True, "Spot has an arm, is powered on, and standing"
 
-    def wait_for_arm_command_to_complete(self, cmd_id, timeout_sec: typing.Optional[float] = None) -> None:
+    def wait_for_arm_command_to_complete(self, cmd_id: int, timeout_sec: typing.Optional[float] = None) -> None:
         """
         Wait until a command issued to the arm complets. Wrapper around the SDK function for convenience
 
@@ -302,7 +302,8 @@ class SpotArm:
         torque = geometry_pb2.Vec3(x=torques[0], y=torques[1], z=torques[2])
         return geometry_pb2.Wrench(force=force, torque=torque)
 
-    def force_trajectory(self, data) -> typing.Tuple[bool, str]:
+    def force_trajectory(self, data: typing.Any) -> typing.Tuple[bool, str]:
+        # TODO here data is ArmForceTrajectory from spot_msgs ROS package. How to enforce this type?
         try:
             success, msg = self.ensure_arm_power_and_stand()
             if not success:

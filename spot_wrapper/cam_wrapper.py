@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import enum
+import logging
 import math
 import os.path
 import pathlib
@@ -17,7 +18,9 @@ from bosdyn.api import image_pb2
 from bosdyn.api.data_chunk_pb2 import DataChunk
 from bosdyn.api.spot_cam import audio_pb2
 from bosdyn.api.spot_cam.camera_pb2 import Camera
+from bosdyn.api.spot_cam.compositor_pb2 import IrColorMap
 from bosdyn.api.spot_cam.logging_pb2 import Logpoint
+from bosdyn.api.spot_cam.power_pb2 import PowerStatus
 from bosdyn.api.spot_cam.ptz_pb2 import PtzDescription, PtzPosition, PtzVelocity
 from bosdyn.client import Robot, spot_cam
 from bosdyn.client.payload import PayloadClient
@@ -50,7 +53,7 @@ class LightingWrapper:
         FRONT_RIGHT = 2
         REAR_RIGHT = 3
 
-    def __init__(self, robot: Robot, logger) -> None:
+    def __init__(self, robot: Robot, logger: logging.Logger) -> None:
         self.logger = logger
         self.client: LightingClient = robot.ensure_client(LightingClient.default_service_name)
 
@@ -82,11 +85,11 @@ class PowerWrapper:
     Wrapper for power interaction
     """
 
-    def __init__(self, robot: Robot, logger) -> None:
+    def __init__(self, robot: Robot, logger: logging.Logger) -> None:
         self.logger = logger
         self.client: PowerClient = robot.ensure_client(PowerClient.default_service_name)
 
-    def get_power_status(self):
+    def get_power_status(self) -> PowerStatus:
         """
         Get power status for the devices
         """
@@ -134,7 +137,7 @@ class CompositorWrapper:
     Wrapper for compositor interaction
     """
 
-    def __init__(self, robot: Robot, logger) -> None:
+    def __init__(self, robot: Robot, logger: logging.Logger) -> None:
         self.logger = logger
         self.client: CompositorClient = robot.ensure_client(CompositorClient.default_service_name)
 
@@ -175,7 +178,7 @@ class CompositorWrapper:
         """
         return self.client.get_screen()
 
-    def set_ir_colormap(self, colormap, min_temp: float, max_temp: float, auto_scale: bool = True) -> None:
+    def set_ir_colormap(self, colormap: IrColorMap, min_temp: float, max_temp: float, auto_scale: bool = True) -> None:
         """
         Set the colormap used for the IR camera
 
@@ -205,7 +208,7 @@ class HealthWrapper:
     Wrapper for health details
     """
 
-    def __init__(self, robot: Robot, logger) -> None:
+    def __init__(self, robot: Robot, logger: logging.Logger) -> None:
         self.client: HealthClient = robot.ensure_client(HealthClient.default_service_name)
         self.logger = logger
 
@@ -250,7 +253,7 @@ class AudioWrapper:
     Wrapper for audio commands on the camera
     """
 
-    def __init__(self, robot: Robot, logger) -> None:
+    def __init__(self, robot: Robot, logger: logging.Logger) -> None:
         self.client: AudioClient = robot.ensure_client(AudioClient.default_service_name)
         self.logger = logger
 
@@ -334,11 +337,11 @@ class StreamQualityWrapper:
     Wrapper for stream quality commands
     """
 
-    def __init__(self, robot: Robot, logger) -> None:
+    def __init__(self, robot: Robot, logger: logging.Logger) -> None:
         self.client: StreamQualityClient = robot.ensure_client(StreamQualityClient.default_service_name)
         self.logger = logger
 
-    def set_stream_params(self, target_bitrate: int, refresh_interval: int, idr_interval: int, awb) -> None:
+    def set_stream_params(self, target_bitrate: int, refresh_interval: int, idr_interval: int, awb: typing.Any) -> None:
         """
         Set image compression and postprocessing parameters
 
@@ -402,7 +405,7 @@ class MediaLogWrapper:
     Some functionality adapted from https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/spot_cam/media_log.py
     """
 
-    def __init__(self, robot: Robot, logger) -> None:
+    def __init__(self, robot: Robot, logger: logging.Logger) -> None:
         self.client: MediaLogClient = robot.ensure_client(MediaLogClient.default_service_name)
         self.logger = logger
 
@@ -656,7 +659,7 @@ class PTZWrapper:
     Wrapper for controlling the PTZ unit
     """
 
-    def __init__(self, robot: Robot, logger) -> None:
+    def __init__(self, robot: Robot, logger: logging.Logger) -> None:
         self.client: PtzClient = robot.ensure_client(PtzClient.default_service_name)
         self.logger = logger
         self.ptzs = {}
@@ -681,7 +684,7 @@ class PTZWrapper:
 
         return ptzs
 
-    def _get_ptz_description(self, name):
+    def _get_ptz_description(self, name: str) -> PtzDescription:
         """
         Get the bosdyn version of the ptz description
 
@@ -697,7 +700,7 @@ class PTZWrapper:
 
         return self.ptzs[name]
 
-    def _clamp_value_to_limits(self, value, limits: PtzDescription.Limits):
+    def _clamp_value_to_limits(self, value: float, limits: PtzDescription.Limits) -> float:
         """
         Clamp the given value to the specified limits. If the limits are unspecified (i.e. both 0), the value is not
         clamped
@@ -717,7 +720,9 @@ class PTZWrapper:
 
         return max(min(value, limits.max.value), limits.min.value)
 
-    def _clamp_request_to_limits(self, ptz_name, pan, tilt, zoom) -> typing.Tuple[float, float, float]:
+    def _clamp_request_to_limits(
+        self, ptz_name: str, pan: float, tilt: float, zoom: float
+    ) -> typing.Tuple[float, float, float]:
         """
 
         Args:
@@ -734,7 +739,7 @@ class PTZWrapper:
             self._clamp_value_to_limits(zoom, ptz_desc.zoom_limit),
         )
 
-    def get_ptz_position(self, ptz_name) -> PtzPosition:
+    def get_ptz_position(self, ptz_name: str) -> PtzPosition:
         """
         Get the position of the ptz with the given name
 
@@ -746,7 +751,7 @@ class PTZWrapper:
         """
         return self.client.get_ptz_position(PtzDescription(name=ptz_name))
 
-    def set_ptz_position(self, ptz_name, pan, tilt, zoom, blocking=False):
+    def set_ptz_position(self, ptz_name: str, pan: float, tilt: float, zoom: float, blocking: bool = False) -> None:
         """
         Set the position of the specified ptz
 
@@ -771,7 +776,7 @@ class PTZWrapper:
                 current_position = self.client.get_ptz_position(self._get_ptz_description(ptz_name))
                 time.sleep(0.2)
 
-    def get_ptz_velocity(self, ptz_name) -> PtzVelocity:
+    def get_ptz_velocity(self, ptz_name: str) -> PtzVelocity:
         """
         Get the velocity of the ptz with the given name
 
@@ -783,7 +788,7 @@ class PTZWrapper:
         """
         return self.client.get_ptz_velocity(PtzDescription(name=ptz_name))
 
-    def set_ptz_velocity(self, ptz_name, pan, tilt, zoom) -> None:
+    def set_ptz_velocity(self, ptz_name: str, pan: float, tilt: float, zoom: float) -> None:
         """
         Set the velocity of the various axes of the specified ptz
 
@@ -820,10 +825,10 @@ class ImageStreamWrapper:
         self,
         hostname: str,
         robot: Robot,
-        logger,
-        sdp_port=31102,
-        sdp_filename="h264.sdp",
-        cam_ssl_cert_path=None,
+        logger: logging.Logger,
+        sdp_port: int = 31102,
+        sdp_filename: str = "h264.sdp",
+        cam_ssl_cert_path: typing.Optional[str] = None,
     ) -> None:
         """
         Initialise the wrapper
@@ -895,7 +900,9 @@ class ImageStreamWrapper:
 
 
 class SpotCamWrapper:
-    def __init__(self, hostname, username, password, logger, port: typing.Optional[int] = None) -> None:
+    def __init__(
+        self, hostname: str, username: str, password: str, logger: logging.Logger, port: typing.Optional[int] = None
+    ) -> None:
         self._hostname = hostname
         self._username = username
         self._password = password

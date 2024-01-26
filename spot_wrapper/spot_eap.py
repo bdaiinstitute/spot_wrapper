@@ -19,7 +19,7 @@ class AsyncPointCloudService(AsyncPeriodicQuery):
         client: PointCloudClient,
         logger: logging.Logger,
         rate: float,
-        callback: typing.Callable,
+        callback: typing.Optional[typing.Callable],
         point_cloud_requests: typing.List[PointCloudRequest],
     ) -> None:
         """

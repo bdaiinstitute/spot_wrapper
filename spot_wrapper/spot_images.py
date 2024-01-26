@@ -35,7 +35,9 @@ DEPTH_REGISTERED_IMAGE_SOURCES = [
     "back_depth_in_visual_frame",
 ]
 ImageBundle = namedtuple("ImageBundle", ["frontleft", "frontright", "left", "right", "back"])
-ImageWithHandBundle = namedtuple("ImageBundle", ["frontleft", "frontright", "left", "right", "back", "hand"])
+ImageWithHandBundle = namedtuple(
+    "ImageBundle", ["frontleft", "frontright", "left", "right", "back", "hand"]  # type: ignore[name-match]
+)
 
 IMAGE_SOURCES_BY_CAMERA = {
     "frontleft": {
@@ -210,7 +212,7 @@ class SpotImages:
             )
 
         # Build image requests by camera
-        self._image_requests_by_camera = {}
+        self._image_requests_by_camera: typing.Dict[str, dict] = {}
         for camera in IMAGE_SOURCES_BY_CAMERA:
             if camera == "hand" and not self._robot.has_arm():
                 continue

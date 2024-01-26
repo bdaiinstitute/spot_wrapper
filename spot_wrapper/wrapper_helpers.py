@@ -41,7 +41,7 @@ class ClaimAndPowerDecorator:
         """
 
         @functools.wraps(func)
-        def wrapper_try_claim(*args, **kwargs) -> typing.Callable:
+        def wrapper_try_claim(*args: typing.Any, **kwargs: typing.Any) -> typing.Callable:
             # Note that because we are assuming that this decorator is used only on instantiated classes,
             # this function does not take a self arg. The self arg is necessary when using the @ syntax because at
             # that point the class has not yet been instantiated. In this case, the func we receive is already a bound
@@ -57,7 +57,7 @@ class ClaimAndPowerDecorator:
         return wrapper_try_claim
 
     def make_function_take_lease_and_power_on(
-        self, decorated_object, function: typing.Callable, power_on: bool = True
+        self, decorated_object: typing.Any, function: typing.Callable, power_on: bool = True
     ) -> None:
         """
         Decorate a function of an object with this class's decorator. After being decorated, when the function is
@@ -86,7 +86,7 @@ class ClaimAndPowerDecorator:
 
     def decorate_functions(
         self,
-        decorated_object,
+        decorated_object: typing.Any,
         decorated_funcs: typing.List[typing.Callable],
         decorated_funcs_no_power: typing.Optional[typing.List[typing.Callable]] = None,
     ) -> None:

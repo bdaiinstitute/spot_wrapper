@@ -39,6 +39,7 @@ class AsyncWorldObjects(AsyncPeriodicQuery):
             callback_future = self._client.list_world_objects_async()
             callback_future.add_done_callback(self._callback)
             return callback_future
+        return None
 
 
 class SpotWorldObjects:
