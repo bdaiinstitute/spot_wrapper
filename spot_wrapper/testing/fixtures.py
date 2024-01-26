@@ -55,9 +55,7 @@ def fixture(
 
     def decorator(cls: typing.Type[BaseMockSpot]) -> typing.Callable:
         def fixturefunc(monkeypatch, **kwargs) -> typing.Iterator[SpotFixture]:
-            with concurrent.futures.ThreadPoolExecutor(
-                max_workers=max_workers
-            ) as thread_pool:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as thread_pool:
                 server = grpc.server(thread_pool)
                 port = server.add_insecure_port(f"{address}:0")
                 with cls(**kwargs) as mock:
@@ -79,9 +77,7 @@ def fixture(
         if "monkeypatch" not in sig.parameters:
             sig = sig.replace(
                 parameters=(
-                    inspect.Parameter(
-                        "monkeypatch", inspect.Parameter.POSITIONAL_OR_KEYWORD
-                    ),
+                    inspect.Parameter("monkeypatch", inspect.Parameter.POSITIONAL_OR_KEYWORD),
                     *sig.parameters.values(),
                 )
             )

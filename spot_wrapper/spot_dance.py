@@ -1,35 +1,31 @@
 import logging
-import time
-import tempfile
 import os
+import tempfile
+import time
+from typing import List, Tuple, Union
 
+from bosdyn.api.spot.choreography_sequence_pb2 import (
+    Animation,
+    ChoreographySequence,
+    ChoreographyStatusResponse,
+    ExecuteChoreographyResponse,
+    MoveParams,
+    StartRecordingStateResponse,
+    StopRecordingStateResponse,
+    UploadAnimatedMoveResponse,
+)
+from bosdyn.choreography.client.animation_file_to_proto import (
+    convert_animation_file_to_proto,
+)
 from bosdyn.choreography.client.choreography import (
+    AnimationValidationFailedError,
     ChoreographyClient,
 )
 from bosdyn.client import ResponseError
 from bosdyn.client.common import FutureWrapper
 from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.robot import Robot
-from bosdyn.choreography.client.choreography import (
-    ChoreographyClient,
-    AnimationValidationFailedError,
-)
-from bosdyn.choreography.client.animation_file_to_proto import (
-    convert_animation_file_to_proto,
-)
-from bosdyn.api.spot.choreography_sequence_pb2 import (
-    Animation,
-    ChoreographyStatusResponse,
-    ChoreographySequence,
-    ExecuteChoreographyResponse,
-    MoveParams,
-    StartRecordingStateResponse,
-    StopRecordingStateResponse,
-    UploadAnimatedMoveResponse,
-    UploadChoreographyResponse,
-)
 from google.protobuf import text_format
-from typing import Tuple, List, Union
 
 
 class SpotDance:
@@ -43,9 +39,7 @@ class SpotDance:
         self._choreography_client = choreography_client
         self._logger = logger
 
-    def upload_animation(
-        self, animation_name: str, animation_file_content: str
-    ) -> Tuple[bool, str]:
+    def upload_animation(self, animation_name: str, animation_file_content: str) -> Tuple[bool, str]:
         """uploads an animation file"""
         # Load the animation file by saving the content to a temp file
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -66,18 +60,17 @@ class SpotDance:
         result_message = ""
         try:
             self._logger.info(f"Uploading the name {animation.name}")
-            upload_response = self._choreography_client.upload_animated_move(
-                animation, animation.name
-            )
+            upload_response = self._choreography_client.upload_animated_move(animation, animation.name)
             result = upload_response.status == UploadAnimatedMoveResponse.STATUS_OK
             if result:
                 result_message = "Successfully uploaded"
                 if upload_response.warnings:
-                    result_message += (
-                        f" with warnings from validator {upload_response.warnings}"
-                    )
+                    result_message += f" with warnings from validator {upload_response.warnings}"
             else:
-                result_message = f"Failed to upload animation with status {upload_response.status} and warnings: {upload_response.warnings}"
+                result_message = (
+                    f"Failed to upload animation with status {upload_response.status} and warnings:"
+                    f" {upload_response.warnings}"
+                )
         except AnimationValidationFailedError as e:
             result_message = f"Failed to upload animation: {e}"
             if e.response.warnings:
@@ -129,9 +122,7 @@ class SpotDance:
                 response,
             )
 
-    def start_recording_state(
-        self, duration_seconds: float
-    ) -> Tuple[bool, str, StartRecordingStateResponse]:
+    def start_recording_state(self, duration_seconds: float) -> Tuple[bool, str, StartRecordingStateResponse]:
         """start recording robot motion as choreography"""
         try:
             status = self._choreography_client.start_recording_state(duration_seconds)
@@ -162,9 +153,7 @@ class SpotDance:
     ) -> Tuple[bool, str, str]:
         """save a choreography log to a file as an animation"""
         try:
-            file_name = self._choreography_client.choreography_log_to_animation_file(
-                name, fpath, has_arm, **kwargs
-            )
+            file_name = self._choreography_client.choreography_log_to_animation_file(name, fpath, has_arm, **kwargs)
             return True, "success", file_name
         except Exception as e:
             return (
@@ -190,12 +179,8 @@ class SpotDance:
 
         upload_res, upload_msg = self.upload_choreography(template_sequence)
         # Try ro execute regardless of upload success - may have uploaded successfully in the past
-        execute_res, execute_msg = self.execute_choreography_by_name(
-            CHOREO_NAME, start_slice=0
-        )
-        combined_message = (
-            f"Stop upload msg: {upload_msg}\n, Stop execute message: {execute_msg}"
-        )
+        execute_res, execute_msg = self.execute_choreography_by_name(CHOREO_NAME, start_slice=0)
+        combined_message = f"Stop upload msg: {upload_msg}\n, Stop execute message: {execute_msg}"
         return execute_res, combined_message
 
     def execute_choreography_by_name(
@@ -220,24 +205,18 @@ class SpotDance:
                     client_start_time=client_start_time,
                     choreography_starting_slice=start_slice,
                 )
-                result = (
-                    execute_response.status == ExecuteChoreographyResponse.STATUS_OK
-                )
+                result = execute_response.status == ExecuteChoreographyResponse.STATUS_OK
                 msg = "Success" if result else "Failure"
                 return (result, msg)
         except Exception as e:
             error_msg = f"Exception: {e}"
             return (False, error_msg)
 
-    def upload_choreography(
-        self, choreography_sequence: ChoreographySequence
-    ) -> Tuple[bool, str]:
+    def upload_choreography(self, choreography_sequence: ChoreographySequence) -> Tuple[bool, str]:
         """Upload choreography sequence for later playback"""
         try:
-            upload_response = self._choreography_client.upload_choreography(
-                choreography_sequence, non_strict_parsing=True
-            )
-        except UnauthenticatedError as err:
+            self._choreography_client.upload_choreography(choreography_sequence, non_strict_parsing=True)
+        except UnauthenticatedError:
             error_msg = (
                 "The robot license must contain 'choreography' permissions to upload and execute dances. "
                 "Please contact Boston Dynamics Support to get the appropriate license file. "
@@ -268,10 +247,7 @@ class SpotDance:
                 choreography = ChoreographySequence()
                 text_format.Merge(data, choreography)
             except Exception as execp:
-                error_msg = (
-                    "Failed to read choreography from file. Raised exception: "
-                    + str(execp)
-                )
+                error_msg = "Failed to read choreography from file. Raised exception: " + str(execp)
                 return False, error_msg
 
         (result, message) = self.upload_choreography(choreography)
@@ -283,9 +259,7 @@ class SpotDance:
             # Setup common response in case of exception
             result_msg = f"Choreography uploaded with message: {message} \n"
             self._robot.power_on()
-            (result, message) = self.execute_choreography_by_name(
-                choreography.name, start_slice=0, use_async=False
-            )
+            (result, message) = self.execute_choreography_by_name(choreography.name, start_slice=0, use_async=False)
 
             if result:
                 result_msg += "Success: Dance Execution"
@@ -295,9 +269,7 @@ class SpotDance:
             total_choreography_slices = 0
             for move in choreography.moves:
                 total_choreography_slices += move.requested_slices
-                estimated_time_seconds = (
-                    total_choreography_slices / choreography.slices_per_minute * 60.0
-                )
+                estimated_time_seconds = total_choreography_slices / choreography.slices_per_minute * 60.0
             time.sleep(estimated_time_seconds)
             return result, result_msg
         except Exception as e:

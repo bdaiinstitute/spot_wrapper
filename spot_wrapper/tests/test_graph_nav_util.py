@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import pytest
 import logging
 
 from bosdyn.api.graph_nav import map_pb2
@@ -18,14 +17,8 @@ graph_nav_util = MockSpotGraphNav()
 
 class TestGraphNavUtilShortCode:
     def test_id_to_short_code(self):
-        assert (
-            graph_nav_util._id_to_short_code("ebony-pug-mUzxLNq.TkGlVIxga+UKAQ==")
-            == "ep"
-        )
-        assert (
-            graph_nav_util._id_to_short_code("erose-simian-sug9xpxhCxgft7Mtbhr98A==")
-            == "es"
-        )
+        assert graph_nav_util._id_to_short_code("ebony-pug-mUzxLNq.TkGlVIxga+UKAQ==") == "ep"
+        assert graph_nav_util._id_to_short_code("erose-simian-sug9xpxhCxgft7Mtbhr98A==") == "es"
 
 
 class TestGraphNavUtilFindUniqueWaypointId:
@@ -35,26 +28,11 @@ class TestGraphNavUtilFindUniqueWaypointId:
         self.graph = map_pb2.Graph()
         self.name_to_id = {"ABCDE": "Node1"}
         # Test normal short code
-        assert (
-            graph_nav_util._find_unique_waypoint_id(
-                "AC", self.graph, self.name_to_id, self.logger
-            )
-            == "AC"
-        )
+        assert graph_nav_util._find_unique_waypoint_id("AC", self.graph, self.name_to_id, self.logger) == "AC"
         # Test annotation name that is known
-        assert (
-            graph_nav_util._find_unique_waypoint_id(
-                "ABCDE", self.graph, self.name_to_id, self.logger
-            )
-            == "Node1"
-        )
+        assert graph_nav_util._find_unique_waypoint_id("ABCDE", self.graph, self.name_to_id, self.logger) == "Node1"
         # Test annotation name that is unknown
-        assert (
-            graph_nav_util._find_unique_waypoint_id(
-                "ABCDEF", self.graph, self.name_to_id, self.logger
-            )
-            == "ABCDEF"
-        )
+        assert graph_nav_util._find_unique_waypoint_id("ABCDEF", self.graph, self.name_to_id, self.logger) == "ABCDEF"
 
     def test_short_code_with_graph(self):
         # Set up
@@ -64,27 +42,12 @@ class TestGraphNavUtilFindUniqueWaypointId:
 
         # Test short code that is in graph
         self.graph.waypoints.add(id="AB-CD-EF")
-        assert (
-            graph_nav_util._find_unique_waypoint_id(
-                "AC", self.graph, self.name_to_id, self.logger
-            )
-            == "AB-CD-EF"
-        )
+        assert graph_nav_util._find_unique_waypoint_id("AC", self.graph, self.name_to_id, self.logger) == "AB-CD-EF"
         # Test short code that is not in graph
-        assert (
-            graph_nav_util._find_unique_waypoint_id(
-                "AD", self.graph, self.name_to_id, self.logger
-            )
-            == "AD"
-        )
+        assert graph_nav_util._find_unique_waypoint_id("AD", self.graph, self.name_to_id, self.logger) == "AD"
         # Test multiple waypoints with the same short code
         self.graph.waypoints.add(id="AB-CD-EF-1")
-        assert (
-            graph_nav_util._find_unique_waypoint_id(
-                "AC", self.graph, self.name_to_id, self.logger
-            )
-            == "AC"
-        )
+        assert graph_nav_util._find_unique_waypoint_id("AC", self.graph, self.name_to_id, self.logger) == "AC"
 
 
 class TestGraphNavUtilUpdateWaypointsEdges:
@@ -94,9 +57,7 @@ class TestGraphNavUtilUpdateWaypointsEdges:
         # Test empty graph
         self.graph = map_pb2.Graph()
         self.localization_id = ""
-        graph_nav_util._update_waypoints_and_edges(
-            self.graph, self.localization_id, self.logger
-        )
+        graph_nav_util._update_waypoints_and_edges(self.graph, self.localization_id, self.logger)
         assert len(self.graph.waypoints) == 0
         assert len(self.graph.edges) == 0
 
@@ -109,9 +70,7 @@ class TestGraphNavUtilUpdateWaypointsEdges:
         new_waypoint = map_pb2.Waypoint()
         new_waypoint.id = "ABCDE"
         new_waypoint.annotations.name = "Node1"
-        self.graph.waypoints.add(
-            id=new_waypoint.id, annotations=new_waypoint.annotations
-        )
+        self.graph.waypoints.add(id=new_waypoint.id, annotations=new_waypoint.annotations)
         self.name_to_id, self.edges = graph_nav_util._update_waypoints_and_edges(
             self.graph, self.localization_id, self.logger
         )
@@ -130,14 +89,10 @@ class TestGraphNavUtilUpdateWaypointsEdges:
         new_waypoint = map_pb2.Waypoint()
         new_waypoint.id = "ABCDE"
         new_waypoint.annotations.name = "Node1"
-        self.graph.waypoints.add(
-            id=new_waypoint.id, annotations=new_waypoint.annotations
-        )
+        self.graph.waypoints.add(id=new_waypoint.id, annotations=new_waypoint.annotations)
         new_waypoint.id = "DE"
         new_waypoint.annotations.name = "Node2"
-        self.graph.waypoints.add(
-            id=new_waypoint.id, annotations=new_waypoint.annotations
-        )
+        self.graph.waypoints.add(id=new_waypoint.id, annotations=new_waypoint.annotations)
         new_edge = map_pb2.Edge.Id(from_waypoint="ABCDE", to_waypoint="DE")
 
         self.graph.edges.add(id=new_edge)
@@ -161,14 +116,10 @@ class TestGraphNavUtilUpdateWaypointsEdges:
         new_waypoint = map_pb2.Waypoint()
         new_waypoint.id = "ABCDE"
         new_waypoint.annotations.name = "Node1"
-        self.graph.waypoints.add(
-            id=new_waypoint.id, annotations=new_waypoint.annotations
-        )
+        self.graph.waypoints.add(id=new_waypoint.id, annotations=new_waypoint.annotations)
         new_waypoint.id = "DE"
         new_waypoint.annotations.name = "Node2"
-        self.graph.waypoints.add(
-            id=new_waypoint.id, annotations=new_waypoint.annotations
-        )
+        self.graph.waypoints.add(id=new_waypoint.id, annotations=new_waypoint.annotations)
         new_edge = map_pb2.Edge.Id(from_waypoint="ABCDE", to_waypoint="DE")
 
         self.graph.edges.add(id=new_edge)

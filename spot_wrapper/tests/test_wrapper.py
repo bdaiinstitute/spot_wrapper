@@ -35,21 +35,15 @@ class simple_spot(MockSpot):
             manipulator_state = self.robot_state.manipulator_state
             manipulator_state.is_gripper_holding_item = True
 
-    def PowerCommand(
-        self, request: PowerCommandRequest, context: grpc.ServicerContext
-    ) -> PowerCommandResponse:
+    def PowerCommand(self, request: PowerCommandRequest, context: grpc.ServicerContext) -> PowerCommandResponse:
         # Provide custom bosdyn.api.PowerService/PowerCommand implementation.
         response = PowerCommandResponse()
         power_state = self.robot_state.power_state
         if request.request == PowerCommandRequest.Request.REQUEST_ON_MOTORS:
-            power_state.motor_power_state = (
-                PowerState.MotorPowerState.MOTOR_POWER_STATE_ON
-            )
+            power_state.motor_power_state = PowerState.MotorPowerState.MOTOR_POWER_STATE_ON
             response.status = PowerCommandStatus.STATUS_SUCCESS
         elif request.request == PowerCommandRequest.Request.REQUEST_OFF_MOTORS:
-            power_state.motor_power_state = (
-                PowerState.MotorPowerState.MOTOR_POWER_STATE_OFF
-            )
+            power_state.motor_power_state = PowerState.MotorPowerState.MOTOR_POWER_STATE_OFF
             response.status = PowerCommandStatus.STATUS_SUCCESS
         else:
             response.status = PowerCommandStatus.STATUS_INTERNAL_ERROR
@@ -69,9 +63,7 @@ def simple_spot_wrapper(simple_spot: SpotFixture) -> SpotWrapper:
     )
 
 
-def test_wrapper_setup(
-    simple_spot: SpotFixture, simple_spot_wrapper: SpotWrapper
-) -> None:
+def test_wrapper_setup(simple_spot: SpotFixture, simple_spot_wrapper: SpotWrapper) -> None:
     # spot_wrapper.testing.mocks.MockSpot dummy services enable basic usage.
     assert simple_spot_wrapper.is_valid
 

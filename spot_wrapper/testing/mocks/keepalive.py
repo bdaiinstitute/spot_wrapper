@@ -32,9 +32,7 @@ class MockKeepaliveService(KeepaliveServiceServicer):
     def policies(self) -> typing.Iterable[LivePolicy]:
         return self._policies.values()
 
-    def ModifyPolicy(
-        self, request: ModifyPolicyRequest, context: grpc.ServicerContext
-    ) -> ModifyPolicyResponse:
+    def ModifyPolicy(self, request: ModifyPolicyRequest, context: grpc.ServicerContext) -> ModifyPolicyResponse:
         response = ModifyPolicyResponse()
 
         for policy_id in request.policy_ids_to_remove:
@@ -57,9 +55,7 @@ class MockKeepaliveService(KeepaliveServiceServicer):
         response.status = ModifyPolicyResponse.Status.STATUS_OK
         return response
 
-    def CheckIn(
-        self, request: CheckInRequest, context: grpc.ServicerContext
-    ) -> CheckInResponse:
+    def CheckIn(self, request: CheckInRequest, context: grpc.ServicerContext) -> CheckInResponse:
         response = CheckInResponse()
         if request.policy_id not in self._policies:
             response.status = CheckInResponse.Status.STATUS_INVALID_POLICY_ID
@@ -69,9 +65,7 @@ class MockKeepaliveService(KeepaliveServiceServicer):
         response.status = CheckInResponse.Status.STATUS_OK
         return response
 
-    def GetStatus(
-        self, request: GetStatusRequest, context: grpc.ServicerContext
-    ) -> GetStatusResponse:
+    def GetStatus(self, request: GetStatusRequest, context: grpc.ServicerContext) -> GetStatusResponse:
         response = GetStatusResponse()
         response.status.extend(self._policies.values())
         return response

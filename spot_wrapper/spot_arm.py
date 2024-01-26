@@ -2,14 +2,16 @@ import logging
 import time
 import typing
 
-from bosdyn.api import arm_command_pb2
-from bosdyn.api import geometry_pb2
-from bosdyn.api import manipulation_api_pb2
-from bosdyn.api import robot_command_pb2
-from bosdyn.api import synchronized_command_pb2
-from bosdyn.api import trajectory_pb2
+from bosdyn.api import (
+    arm_command_pb2,
+    geometry_pb2,
+    gripper_command_pb2,
+    manipulation_api_pb2,
+    robot_command_pb2,
+    synchronized_command_pb2,
+    trajectory_pb2,
+)
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
-from bosdyn.api import gripper_command_pb2
 from bosdyn.client.robot import Robot
 from bosdyn.client.robot_command import (
     RobotCommandBuilder,
@@ -21,7 +23,7 @@ from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.util import seconds_to_duration
 
-from spot_wrapper.wrapper_helpers import RobotState, ClaimAndPowerDecorator
+from spot_wrapper.wrapper_helpers import ClaimAndPowerDecorator, RobotState
 
 
 class SpotArm:
@@ -104,9 +106,7 @@ class SpotArm:
         )
 
     def get_manipulation_command_feedback(self, cmd_id):
-        feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
-            manipulation_cmd_id=cmd_id
-        )
+        feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(manipulation_cmd_id=cmd_id)
 
         return self._manipulation_api_client.manipulation_api_feedback_command(
             manipulation_api_feedback_request=feedback_request
@@ -145,9 +145,7 @@ class SpotArm:
             timeout_sec: After this time, timeout regardless of what the robot state is
 
         """
-        block_until_arm_arrives(
-            self._robot_command_client, cmd_id=cmd_id, timeout_sec=timeout_sec
-        )
+        block_until_arm_arrives(self._robot_command_client, cmd_id=cmd_id, timeout_sec=timeout_sec)
 
     def arm_stow(self) -> typing.Tuple[bool, str]:
         """
@@ -227,18 +225,10 @@ class SpotArm:
         """Helper function to create a RobotCommand from an ArmJointTrajectory.
         Copy from 'spot-sdk/python/examples/arm_joint_move/arm_joint_move.py'"""
 
-        joint_move_command = arm_command_pb2.ArmJointMoveCommand.Request(
-            trajectory=arm_joint_trajectory
-        )
-        arm_command = arm_command_pb2.ArmCommand.Request(
-            arm_joint_move_command=joint_move_command
-        )
-        sync_arm = synchronized_command_pb2.SynchronizedCommand.Request(
-            arm_command=arm_command
-        )
-        arm_sync_robot_cmd = robot_command_pb2.RobotCommand(
-            synchronized_command=sync_arm
-        )
+        joint_move_command = arm_command_pb2.ArmJointMoveCommand.Request(trajectory=arm_joint_trajectory)
+        arm_command = arm_command_pb2.ArmCommand.Request(arm_joint_move_command=joint_move_command)
+        sync_arm = synchronized_command_pb2.SynchronizedCommand.Request(arm_command=arm_command)
+        arm_sync_robot_cmd = robot_command_pb2.RobotCommand(synchronized_command=sync_arm)
         return RobotCommandBuilder.build_synchro_command(arm_sync_robot_cmd)
 
     def arm_joint_move(self, joint_targets) -> typing.Tuple[bool, str]:
@@ -286,19 +276,15 @@ class SpotArm:
                 self._logger.info(msg)
                 return False, msg
             else:
-                trajectory_point = (
-                    RobotCommandBuilder.create_arm_joint_trajectory_point(
-                        joint_targets[0],
-                        joint_targets[1],
-                        joint_targets[2],
-                        joint_targets[3],
-                        joint_targets[4],
-                        joint_targets[5],
-                    )
+                trajectory_point = RobotCommandBuilder.create_arm_joint_trajectory_point(
+                    joint_targets[0],
+                    joint_targets[1],
+                    joint_targets[2],
+                    joint_targets[3],
+                    joint_targets[4],
+                    joint_targets[5],
                 )
-                arm_joint_trajectory = arm_command_pb2.ArmJointTrajectory(
-                    points=[trajectory_point]
-                )
+                arm_joint_trajectory = arm_command_pb2.ArmJointTrajectory(points=[trajectory_point])
                 arm_command = self.make_arm_trajectory_command(arm_joint_trajectory)
 
                 # Send the request
@@ -325,27 +311,17 @@ class SpotArm:
                 traj_duration = data.duration
 
                 # first point on trajectory
-                wrench0 = self.create_wrench_from_forces_and_torques(
-                    data.forces_pt0, data.torques_pt0
-                )
+                wrench0 = self.create_wrench_from_forces_and_torques(data.forces_pt0, data.torques_pt0)
                 t0 = seconds_to_duration(0)
-                traj_point0 = trajectory_pb2.WrenchTrajectoryPoint(
-                    wrench=wrench0, time_since_reference=t0
-                )
+                traj_point0 = trajectory_pb2.WrenchTrajectoryPoint(wrench=wrench0, time_since_reference=t0)
 
                 # Second point on the trajectory
-                wrench1 = self.create_wrench_from_forces_and_torques(
-                    data.forces_pt1, data.torques_pt1
-                )
+                wrench1 = self.create_wrench_from_forces_and_torques(data.forces_pt1, data.torques_pt1)
                 t1 = seconds_to_duration(traj_duration)
-                traj_point1 = trajectory_pb2.WrenchTrajectoryPoint(
-                    wrench=wrench1, time_since_reference=t1
-                )
+                traj_point1 = trajectory_pb2.WrenchTrajectoryPoint(wrench=wrench1, time_since_reference=t1)
 
                 # Build the trajectory
-                trajectory = trajectory_pb2.WrenchTrajectory(
-                    points=[traj_point0, traj_point1]
-                )
+                trajectory = trajectory_pb2.WrenchTrajectory(points=[traj_point0, traj_point1])
 
                 # Build the trajectory request, putting all axes into force mode
                 arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
@@ -358,17 +334,9 @@ class SpotArm:
                     ry_axis=arm_command_pb2.ArmCartesianCommand.Request.AXIS_MODE_FORCE,
                     rz_axis=arm_command_pb2.ArmCartesianCommand.Request.AXIS_MODE_FORCE,
                 )
-                arm_command = arm_command_pb2.ArmCommand.Request(
-                    arm_cartesian_command=arm_cartesian_command
-                )
-                synchronized_command = (
-                    synchronized_command_pb2.SynchronizedCommand.Request(
-                        arm_command=arm_command
-                    )
-                )
-                robot_command = robot_command_pb2.RobotCommand(
-                    synchronized_command=synchronized_command
-                )
+                arm_command = arm_command_pb2.ArmCommand.Request(arm_cartesian_command=arm_cartesian_command)
+                synchronized_command = synchronized_command_pb2.SynchronizedCommand.Request(arm_command=arm_command)
+                robot_command = robot_command_pb2.RobotCommand(synchronized_command=synchronized_command)
 
                 # Send the request
                 cmd_id = self._robot_command_client.robot_command(robot_command)
@@ -398,9 +366,7 @@ class SpotArm:
                 # Command issue with RobotCommandClient
                 cmd_id = self._robot_command_client.robot_command(command)
                 self._logger.info("Command gripper open sent")
-                self.block_until_gripper_command_completes(
-                    self._robot_command_client, cmd_id
-                )
+                self.block_until_gripper_command_completes(self._robot_command_client, cmd_id)
 
         except Exception as e:
             return False, f"Exception occured while gripper was moving: {e}"
@@ -426,9 +392,7 @@ class SpotArm:
                 # Command issue with RobotCommandClient
                 cmd_id = self._robot_command_client.robot_command(command)
                 self._logger.info("Command gripper close sent")
-                self.block_until_gripper_command_completes(
-                    self._robot_command_client, cmd_id
-                )
+                self.block_until_gripper_command_completes(self._robot_command_client, cmd_id)
 
         except Exception as e:
             return False, f"Exception occured while gripper was moving: {e}"
@@ -463,9 +427,7 @@ class SpotArm:
                 # Command issue with RobotCommandClient
                 cmd_id = self._robot_command_client.robot_command(command)
                 self._logger.info("Command gripper open angle sent")
-                self.block_until_gripper_command_completes(
-                    self._robot_command_client, cmd_id
-                )
+                self.block_until_gripper_command_completes(self._robot_command_client, cmd_id)
 
         except Exception as e:
             return False, f"Exception occured while gripper was moving: {e}"
@@ -510,32 +472,20 @@ class SpotArm:
 
                 # Build the SE(3) pose of the desired hand position in the moving body frame.
                 hand_pose = geometry_pb2.SE3Pose(position=position, rotation=rotation)
-                hand_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(
-                    pose=hand_pose, time_since_reference=duration
-                )
-                hand_trajectory = trajectory_pb2.SE3Trajectory(
-                    points=[hand_pose_traj_point]
-                )
+                hand_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(pose=hand_pose, time_since_reference=duration)
+                hand_trajectory = trajectory_pb2.SE3Trajectory(points=[hand_pose_traj_point])
 
                 arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
                     root_frame_name=data.frame,
                     pose_trajectory_in_task=hand_trajectory,
                     force_remain_near_current_joint_configuration=True,
                 )
-                arm_command = arm_command_pb2.ArmCommand.Request(
-                    arm_cartesian_command=arm_cartesian_command
-                )
-                synchronized_command = (
-                    synchronized_command_pb2.SynchronizedCommand.Request(
-                        arm_command=arm_command
-                    )
-                )
+                arm_command = arm_command_pb2.ArmCommand.Request(arm_cartesian_command=arm_cartesian_command)
+                synchronized_command = synchronized_command_pb2.SynchronizedCommand.Request(arm_command=arm_command)
 
-                robot_command = robot_command_pb2.RobotCommand(
-                    synchronized_command=synchronized_command
-                )
+                robot_command = robot_command_pb2.RobotCommand(synchronized_command=synchronized_command)
 
-                command = RobotCommandBuilder.build_synchro_command(robot_command)
+                RobotCommandBuilder.build_synchro_command(robot_command)
 
                 # Send the request
                 cmd_id = self._robot_command_client.robot_command(robot_command)
@@ -574,9 +524,7 @@ class SpotArm:
 
         while timeout_sec is None or now < end_time:
             feedback_resp = robot_command_client.robot_command_feedback(cmd_id)
-            gripper_state = (
-                feedback_resp.feedback.gripper_command_feedback.claw_gripper_feedback.status
-            )
+            gripper_state = feedback_resp.feedback.gripper_command_feedback.claw_gripper_feedback.status
 
             if gripper_state in [
                 gripper_command_pb2.ClawGripperCommand.Feedback.STATUS_AT_GOAL,
@@ -585,10 +533,7 @@ class SpotArm:
                 # If the gripper is commanded to close, it is successful either if it reaches the goal, or if it is
                 # applying a force. Applying a force stops the command and puts it into force control mode.
                 return True
-            if (
-                gripper_state
-                == gripper_command_pb2.ClawGripperCommand.Feedback.STATUS_UNKNOWN
-            ):
+            if gripper_state == gripper_command_pb2.ClawGripperCommand.Feedback.STATUS_UNKNOWN:
                 return False
 
             time.sleep(0.1)
@@ -619,9 +564,7 @@ class SpotArm:
             now = time.time()
 
         while timeout_sec is None or now < end_time:
-            feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
-                manipulation_cmd_id=cmd_id
-            )
+            feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(manipulation_cmd_id=cmd_id)
 
             # Send the request
             response = manipulation_client.manipulation_api_feedback_command(
@@ -638,9 +581,7 @@ class SpotArm:
             now = time.time()
         return False
 
-    def grasp_3d(
-        self, frame: str, object_rt_frame: typing.List[float]
-    ) -> typing.Tuple[bool, str]:
+    def grasp_3d(self, frame: str, object_rt_frame: typing.List[float]) -> typing.Tuple[bool, str]:
         """
         Attempt to grasp an object
 
@@ -653,24 +594,18 @@ class SpotArm:
         """
         try:
             frm = str(frame)
-            pos = geometry_pb2.Vec3(
-                x=object_rt_frame[0], y=object_rt_frame[1], z=object_rt_frame[2]
-            )
+            pos = geometry_pb2.Vec3(x=object_rt_frame[0], y=object_rt_frame[1], z=object_rt_frame[2])
 
             grasp = manipulation_api_pb2.PickObject(frame_name=frm, object_rt_frame=pos)
 
             # Ask the robot to pick up the object
-            grasp_request = manipulation_api_pb2.ManipulationApiRequest(
-                pick_object=grasp
-            )
+            grasp_request = manipulation_api_pb2.ManipulationApiRequest(pick_object=grasp)
             # Send the request
             cmd_response = self._manipulation_api_client.manipulation_api_command(
                 manipulation_api_request=grasp_request
             )
 
-            success = self.block_until_manipulation_completes(
-                self._manipulation_api_client, cmd_response.cmd_id
-            )
+            success = self.block_until_manipulation_completes(self._manipulation_api_client, cmd_response.cmd_id)
 
             if success:
                 msg = "Grasped successfully"
