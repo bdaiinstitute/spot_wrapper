@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import logging
+import typing
 
 from bosdyn.api.graph_nav import map_pb2
 
@@ -26,7 +27,7 @@ class TestGraphNavUtilFindUniqueWaypointId:
         # Set up
         self.logger = logging.Logger("test_graph_nav_util", level=logging.INFO)
         self.graph = map_pb2.Graph()
-        self.name_to_id = {"ABCDE": "Node1"}
+        self.name_to_id: typing.Dict[str, typing.Optional[str]] = {"ABCDE": "Node1"}
         # Test normal short code
         assert graph_nav_util._find_unique_waypoint_id("AC", self.graph, self.name_to_id, self.logger) == "AC"
         # Test annotation name that is known

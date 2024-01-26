@@ -438,6 +438,7 @@ class SpotArm:
         return True, "Opened gripper successfully"
 
     def hand_pose(self, data) -> typing.Tuple[bool, str]:
+        # TODO what is the type of data? Is it a ROS message type?
         """
         Set the pose of the hand
 

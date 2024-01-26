@@ -18,7 +18,7 @@ from bosdyn.api import image_pb2
 from bosdyn.api.data_chunk_pb2 import DataChunk
 from bosdyn.api.spot_cam import audio_pb2
 from bosdyn.api.spot_cam.camera_pb2 import Camera
-from bosdyn.api.spot_cam.compositor_pb2 import IrColorMap
+from bosdyn.api.spot_cam.compositor_pb2 import GetVisibleCamerasResponse, IrColorMap
 from bosdyn.api.spot_cam.logging_pb2 import Logpoint
 from bosdyn.api.spot_cam.power_pb2 import PowerStatus
 from bosdyn.api.spot_cam.ptz_pb2 import PtzDescription, PtzPosition, PtzVelocity
@@ -151,7 +151,7 @@ class CompositorWrapper:
         """
         return [screen.name for screen in self.client.list_screens()]
 
-    def get_visible_cameras(self):
+    def get_visible_cameras(self) -> GetVisibleCamerasResponse:
         """
         Get the camera data for the camera currently visible on the stream
 
@@ -232,7 +232,7 @@ class HealthWrapper:
             degradations.append((degradation.type, degradation.description))
         return events, degradations
 
-    def get_temperature(self) -> typing.Tuple[str, float]:
+    def get_temperature(self) -> typing.List[typing.Tuple[str, float]]:
         """
         Get temperatures of various components of the camera
 

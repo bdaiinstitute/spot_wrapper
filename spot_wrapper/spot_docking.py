@@ -68,7 +68,7 @@ class SpotDocking:
         except Exception as e:
             return False, f"Exception while trying to undock: {e}"
 
-    def get_docking_state(self, **kwargs) -> docking_pb2.DockState:
+    def get_docking_state(self, **kwargs: typing.Any) -> docking_pb2.DockState:
         """Get docking state of robot."""
         state = self._docking_client.get_docking_state(**kwargs)
         return state

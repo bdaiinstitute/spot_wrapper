@@ -55,11 +55,13 @@ class SpotGraphNav:
         # Store the most recent knowledge of the state of the robot based on rpc calls.
         self._current_graph: typing.Optional[map_pb2.Graph] = None
         self._current_edges: typing.Dict[str, typing.List[str]] = {}  # maps to_waypoint to list(from_waypoint)
-        self._current_waypoint_snapshots = {}  # maps id to waypoint snapshot
-        self._current_edge_snapshots = {}  # maps id to edge snapshot
-        self._current_annotation_name_to_wp_id = {}
-        self._current_anchored_world_objects = {}  # maps object id to a (wo, waypoint, fiducial)
-        self._current_anchors = {}  # maps anchor id to anchor
+        self._current_waypoint_snapshots: typing.Dict[str, map_pb2.WaypointSnapshot] = {}  # map id to waypoint snapshot
+        self._current_edge_snapshots: typing.Dict[str, map_pb2.EdgeSnapshot] = {}  # maps id to edge snapshot
+        self._current_annotation_name_to_wp_id: typing.Dict[str, typing.Optional[str]] = {}  # TODO what does this map?
+        self._current_anchored_world_objects: typing.Dict[str, typing.Tuple] = (
+            {}
+        )  # maps object id to a (wo, waypoint, fiducial) TODO what exactly are these types
+        self._current_anchors: typing.Dict[str, map_pb2.Anchor] = {}  # maps anchor id to anchor
 
     def list_graph(self) -> typing.List[str]:
         """List waypoint ids of graph_nav
@@ -390,7 +392,9 @@ class SpotGraphNav:
             f.write(data)
             f.close()
 
-    def _list_graph_waypoint_and_edge_ids(self, *args: typing.Any):
+    def _list_graph_waypoint_and_edge_ids(
+        self, *args: typing.Any
+    ) -> typing.Tuple[typing.Dict[str, typing.Optional[str]], typing.Dict[str, typing.List[str]]]:
         """List the waypoint ids and edge ids of the graph currently on the robot."""
 
         # Download current graph
@@ -559,15 +563,17 @@ class SpotGraphNav:
         Note that each waypoint must have an edge between them, aka be adjacent.
         """
         for i in range(len(waypoint_ids)):
-            waypoint_ids[i] = self._find_unique_waypoint_id(
+            unique_id = self._find_unique_waypoint_id(
                 waypoint_ids[i],
                 self._current_graph,
                 self._current_annotation_name_to_wp_id,
                 self._logger,
             )
-            if not waypoint_ids[i]:
+            if not unique_id:
                 self._logger.error("navigate_route: Failed to find the unique waypoint id.")
                 return False, "Failed to find the unique waypoint id."
+            else:
+                waypoint_ids[i] = unique_id
 
         edge_ids_list = []
         # Attempt to find edges in the current graph that match the ordered waypoint pairs.
@@ -748,7 +754,7 @@ class SpotGraphNav:
         self,
         short_code: str,
         graph: map_pb2.Graph,
-        name_to_id: typing.Dict[str, str],
+        name_to_id: typing.Dict[str, typing.Optional[str]],
         logger: logging.Logger,
     ) -> typing.Optional[str]:
         """Convert either a 2 letter short code or an annotation name into the associated unique id."""
@@ -761,8 +767,8 @@ class SpotGraphNav:
                     return name_to_id[short_code]
                 else:
                     logger.error(
-                        "The waypoint name %s is used for multiple different unique waypoints. Please use"
-                        + "the waypoint id." % (short_code)
+                        "The waypoint name {0} is used for multiple different unique waypoints. Please use the"
+                        " waypoint id.".format(short_code)
                     )
                     return None
             # Also not an waypoint annotation name, so we will operate under the assumption that it is a
@@ -779,12 +785,12 @@ class SpotGraphNav:
 
     def _update_waypoints_and_edges(
         self, graph: map_pb2.Graph, localization_id: str, logger: logging.Logger
-    ) -> typing.Tuple[typing.Dict[str, str], typing.Dict[str, str]]:
+    ) -> typing.Tuple[typing.Dict[str, typing.Optional[str]], typing.Dict[str, typing.List[str]]]:
         """Update and print waypoint ids and edge ids."""
-        name_to_id: typing.Dict[str, str] = dict()
-        edges: typing.Dict[str, str] = dict()
+        name_to_id: typing.Dict[str, typing.Optional[str]] = dict()
+        edges: typing.Dict[str, typing.List[str]] = dict()
 
-        short_code_to_count = {}
+        short_code_to_count: typing.Dict[str, int] = {}
         waypoint_to_timestamp = []
         for waypoint in graph.waypoints:
             # Determine the timestamp that this waypoint was created at.
@@ -799,9 +805,10 @@ class SpotGraphNav:
 
             # Determine how many waypoints have the same short code.
             short_code = self._id_to_short_code(waypoint.id)
-            if short_code not in short_code_to_count:
-                short_code_to_count[short_code] = 0
-            short_code_to_count[short_code] += 1
+            if short_code:
+                if short_code not in short_code_to_count:
+                    short_code_to_count[short_code] = 0
+                short_code_to_count[short_code] += 1
 
             # Add the annotation name/id into the current dictionary.
             waypoint_name = waypoint.annotations.name

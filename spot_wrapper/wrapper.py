@@ -14,6 +14,7 @@ from bosdyn.api import (
     robot_state_pb2,
     world_object_pb2,
 )
+from bosdyn.api.docking import docking_pb2
 from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
 from bosdyn.api.spot.choreography_sequence_pb2 import (
     Animation,
@@ -21,7 +22,6 @@ from bosdyn.api.spot.choreography_sequence_pb2 import (
     ChoreographyStatusResponse,
     StartRecordingStateResponse,
     StopRecordingStateResponse,
-    UploadChoreographyResponse,
 )
 from bosdyn.choreography.client.choreography import (
     ChoreographyClient,
@@ -1039,7 +1039,7 @@ class SpotWrapper:
         command_proto: robot_command_pb2.RobotCommand,
         end_time_secs: typing.Optional[float] = None,
         timesync_endpoint: typing.Optional[TimeSyncEndpoint] = None,
-    ) -> typing.Tuple[bool, str, typing.Optional[str]]:
+    ) -> typing.Tuple[bool, str, typing.Optional[int]]:
         """Generic blocking function for sending commands to robots.
 
         Args:
@@ -1066,7 +1066,7 @@ class SpotWrapper:
         self,
         request_proto: manipulation_api_pb2.ManipulationApiRequest,
         end_time_secs: typing.Optional[float] = None,
-        timesync_endpoint: TimeSyncEndpoint = None,
+        timesync_endpoint: typing.Optional[TimeSyncEndpoint] = None,
     ) -> typing.Tuple[bool, str, typing.Optional[str]]:
         """Generic function for sending requests to the manipulation api of a robot.
 
@@ -1344,7 +1344,7 @@ class SpotWrapper:
 
     def robot_command(
         self, robot_command: robot_command_pb2.RobotCommand
-    ) -> typing.Tuple[bool, str, typing.Optional[str]]:
+    ) -> typing.Tuple[bool, str, typing.Optional[int]]:
         end_time = time.time() + MAX_COMMAND_DURATION
         return self._robot_command(
             robot_command,
@@ -1362,10 +1362,10 @@ class SpotWrapper:
             timesync_endpoint=self._robot.time_sync.endpoint,
         )
 
-    def get_robot_command_feedback(self, cmd_id: int) -> robot_command_pb2.RobotCommandFeedbackResponse:
+    def get_robot_command_feedback(self, cmd_id: int) -> robot_command_pb2.RobotCommandFeedback:
         return self._robot_command_client.robot_command_feedback(cmd_id)
 
-    def get_manipulation_command_feedback(self, cmd_id):
+    def get_manipulation_command_feedback(self, cmd_id: int) -> manipulation_api_pb2.ManipulationApiFeedbackResponse:
         feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(manipulation_cmd_id=cmd_id)
 
         return self._manipulation_api_client.manipulation_api_feedback_command(
@@ -1432,9 +1432,7 @@ class SpotWrapper:
         else:
             return False, "Spot is not licensed for choreography"
 
-    def upload_choreography(
-        self, choreography_sequence: ChoreographySequence
-    ) -> typing.Tuple[bool, str, UploadChoreographyResponse]:
+    def upload_choreography(self, choreography_sequence: ChoreographySequence) -> typing.Tuple[bool, str]:
         """Upload choreography sequence for later playback"""
         if self._is_licensed_for_choreography:
             return self._spot_dance.upload_choreography(choreography_sequence)
@@ -1480,7 +1478,7 @@ class SpotWrapper:
                 response,
             )
 
-    def get_docking_state(self, **kwargs: typing.Any):
+    def get_docking_state(self, **kwargs: typing.Any) -> docking_pb2.DockState:
         """Get docking state of robot."""
         state = self._docking_client.get_docking_state(**kwargs)
         return state

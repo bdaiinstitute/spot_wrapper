@@ -2,8 +2,9 @@ import logging
 import os
 import tempfile
 import time
-from typing import List, Tuple, Union
+from typing import Any, List, Tuple, Union
 
+# TODO [mypy] imports are not getting resolved by linter causing style errors
 from bosdyn.api.spot.choreography_sequence_pb2 import (
     Animation,
     ChoreographySequence,
@@ -149,7 +150,7 @@ class SpotDance:
             )
 
     def choreography_log_to_animation_file(
-        self, name: str, fpath: str, has_arm: bool, **kwargs
+        self, name: str, fpath: str, has_arm: bool, **kwargs: Any
     ) -> Tuple[bool, str, str]:
         """save a choreography log to a file as an animation"""
         try:

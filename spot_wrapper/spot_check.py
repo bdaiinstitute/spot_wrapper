@@ -100,7 +100,7 @@ class SpotCheck:
 
         return resp
 
-    def _spot_check_cmd(self, command: spot_check_pb2.SpotCheckCommandRequest):
+    def _spot_check_cmd(self, command: spot_check_pb2.SpotCheckCommandRequest) -> None:
         """Send a Spot Check command"""
         start_time_seconds, start_time_ns = int(time.time()), int(time.time_ns() % 1e9)
         req = spot_check_pb2.SpotCheckCommandRequest(

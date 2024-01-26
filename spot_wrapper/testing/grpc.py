@@ -148,13 +148,13 @@ class AutoServicer(object):
         for add in collect_servicer_add_functions(self.__class__):
             add(self, server)
 
-    def __enter__(self):
+    def __enter__(self) -> typing.Any:
         return self
 
-    def __exit__(self, *exc) -> None:
+    def __exit__(self, *exc: typing.Any) -> None:
         self.shutdown()
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """
         Shutdown what needs to be shutdown.
 

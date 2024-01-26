@@ -54,7 +54,7 @@ def fixture(
     """
 
     def decorator(cls: typing.Type[BaseMockSpot]) -> typing.Callable:
-        def fixturefunc(monkeypatch, **kwargs) -> typing.Iterator[SpotFixture]:
+        def fixturefunc(monkeypatch: typing.Any, **kwargs: typing.Any) -> typing.Iterator[SpotFixture]:
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as thread_pool:
                 server = grpc.server(thread_pool)
                 port = server.add_insecure_port(f"{address}:0")
@@ -64,7 +64,9 @@ def fixture(
                     try:
                         with monkeypatch.context() as m:
 
-                            def mock_secure_channel(target, _, *args, **kwargs):
+                            def mock_secure_channel(
+                                target: typing.Any, _: typing.Any, *args: typing.Any, **kwargs: typing.Any
+                            ) -> typing.Any:
                                 return grpc.insecure_channel(target, *args, **kwargs)
 
                             m.setattr(grpc, "secure_channel", mock_secure_channel)
