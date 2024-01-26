@@ -5,6 +5,7 @@ import typing
 
 import bosdyn.client.auth
 from bosdyn.api import (
+    basic_command_pb2,
     lease_pb2,
     manipulation_api_pb2,
     point_cloud_pb2,
@@ -54,24 +55,21 @@ from bosdyn.client.spot_check import SpotCheckClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
 from bosdyn.geometry import EulerZXY
-
-from .spot_dance import SpotDance
-
-SPOT_CLIENT_NAME = "ros_spot"
-MAX_COMMAND_DURATION = 1e5
-VELODYNE_SERVICE_NAME = "velodyne-point-cloud"
-
-from bosdyn.api import basic_command_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from .spot_arm import SpotArm
 from .spot_check import SpotCheck
+from .spot_dance import SpotDance
 from .spot_docking import SpotDocking
 from .spot_eap import SpotEAP
 from .spot_graph_nav import SpotGraphNav
 from .spot_images import SpotImages
 from .spot_world_objects import SpotWorldObjects
 from .wrapper_helpers import ClaimAndPowerDecorator, RobotCommandData, RobotState
+
+SPOT_CLIENT_NAME = "ros_spot"
+MAX_COMMAND_DURATION = 1e5
+VELODYNE_SERVICE_NAME = "velodyne-point-cloud"
 
 
 def robotToLocalTime(timestamp: Timestamp, robot: Robot) -> Timestamp:
@@ -109,7 +107,8 @@ class MissingSpotArm(Exception):
 
 
 class AsyncRobotState(AsyncPeriodicQuery):
-    """Class to get robot state at regular intervals.  get_robot_state_async query sent to the robot at every tick.  Callback registered to defined callback function.
+    """Class to get robot state at regular intervals.  get_robot_state_async query sent to the robot at every tick.
+    Callback registered to defined callback function.
 
     Attributes:
         client: The Client to a service on the robot
@@ -132,7 +131,8 @@ class AsyncRobotState(AsyncPeriodicQuery):
 
 
 class AsyncMetrics(AsyncPeriodicQuery):
-    """Class to get robot metrics at regular intervals.  get_robot_metrics_async query sent to the robot at every tick.  Callback registered to defined callback function.
+    """Class to get robot metrics at regular intervals.  get_robot_metrics_async query sent to the robot at every tick.
+    Callback registered to defined callback function.
 
     Attributes:
         client: The Client to a service on the robot
@@ -155,7 +155,8 @@ class AsyncMetrics(AsyncPeriodicQuery):
 
 
 class AsyncLease(AsyncPeriodicQuery):
-    """Class to get lease state at regular intervals.  list_leases_async query sent to the robot at every tick.  Callback registered to defined callback function.
+    """Class to get lease state at regular intervals.  list_leases_async query sent to the robot at every tick.
+    Callback registered to defined callback function.
 
     Attributes:
         client: The Client to a service on the robot
@@ -349,8 +350,10 @@ class SpotWrapper:
             start_estop: If true, the wrapper will be an estop endpoint
             estop_timeout: Timeout for the estop in seconds. The SDK will check in with the wrapper at a rate of
                            estop_timeout/3 and if there is no communication the robot will execute a gentle stop.
-            rates: Dictionary of rates to apply when retrieving various data from the robot # TODO this should be an object to be unambiguous
-            callbacks: Dictionary of callbacks which should be called when certain data is retrieved # TODO this should be an object to be unambiguous
+            rates: Dictionary of rates to apply when retrieving various data from the robot
+                   # TODO this should be an object to be unambiguous
+            callbacks: Dictionary of callbacks which should be called when certain data is retrieved
+                       # TODO this should be an object to be unambiguous
             use_take_lease: Use take instead of acquire to get leases. This will forcefully take the lease from any
                             other lease owner.
             get_lease_on_action: If true, attempt to acquire a lease when performing an action which requires a
@@ -947,7 +950,8 @@ class SpotWrapper:
         """Forces the robot into eStop state.
 
         Args:
-            severe: Default True - If true, will cut motor power immediately.  If false, will try to settle the robot on the ground first
+            severe: Default True - If true, will cut motor power immediately.  If false, will try to settle the robot
+            on the ground first
         """
         try:
             if severe:
@@ -1180,7 +1184,8 @@ class SpotWrapper:
         """
         # Don't bother trying to power on if we are already powered on
         if not self.check_is_powered_on():
-            # If we are requested to start the estop, we have to acquire it when powering on. Ignore if estop is already acquired.
+            # If we are requested to start the estop, we have to acquire it when powering on.
+            # Ignore if estop is already acquired.
             if self._start_estop and self._estop_keepalive is None:
                 self.resetEStop()
             try:
@@ -1216,7 +1221,8 @@ class SpotWrapper:
             v_x: Velocity in the X direction in meters
             v_y: Velocity in the Y direction in meters
             v_rot: Angular velocity around the Z axis in radians
-            cmd_duration: (optional) Time-to-live for the command in seconds.  Default is 125ms (assuming 10Hz command rate).
+            cmd_duration: (optional) Time-to-live for the command in seconds.  Default is 125ms (assuming 10Hz command
+                          rate).
 
         Returns:
             Tuple of bool success and a string message

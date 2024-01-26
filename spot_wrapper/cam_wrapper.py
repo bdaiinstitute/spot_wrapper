@@ -534,7 +534,8 @@ class MediaLogWrapper:
             path: Save the data to this directory
             base_filename: Use this filename as the base name for the image file
             raw: If true, retrieve raw data rather than processed data. Useful for IR images?
-            camera: If set, add the name of the camera to the output filename. The logpoint doesn't store this information
+            camera: If set, add the name of the camera to the output filename. The logpoint doesn't store this
+                    information
             use_rgb24: If set, save the ptz image in .rgb24 format without compression. By default it is saved to png
 
         Returns:
@@ -754,8 +755,8 @@ class PTZWrapper:
             pan: Set the pan to this value in degrees
             tilt: Set the tilt to this value in degrees
             zoom: Set the zoom to this zoom level
-            blocking: If true, block for 3 seconds or until the ptz is within 1 degree of the requested pan and tilt values, and
-                      0.5 zoom levels of the requested zoom level
+            blocking: If true, block for 3 seconds or until the ptz is within 1 degree of the requested pan and tilt
+                      values, and 0.5 zoom levels of the requested zoom level
         """
         pan, tilt, zoom = self._clamp_request_to_limits(ptz_name, pan, tilt, zoom)
         self.client.set_ptz_position(self._get_ptz_description(ptz_name), pan, tilt, zoom)

@@ -207,7 +207,8 @@ class SpotGraphNav:
 
     def upload_graph(self, upload_path: str) -> typing.Tuple[bool, str]:
         """Upload the specified graph and snapshots from local to a robot.
-        While this method, if there are snapshots already in the robot, they will be loaded from the robot's disk without uploading.
+        While this method, if there are snapshots already in the robot, they will be loaded from the robot's disk
+        without uploading.
         Graph and snapshots to be uploaded should be placed like
         Directory specified with upload_path arg
           |
@@ -248,7 +249,9 @@ class SpotGraphNav:
                 f"Got an error during downloading graph and snapshots from the robot: {e}",
             )
 
-    ## Copied from https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/graph_nav_command_line/recording_command_line.py and https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/graph_nav_command_line/graph_nav_command_line.py with minor modifications
+    # Copied from https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/graph_nav_command_line/recording_command_line.py
+    # and https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/graph_nav_command_line/graph_nav_command_line.py
+    # with minor modifications
     # Copyright (c) 2020 Boston Dynamics, Inc.  All rights reserved.
     #
     # Downloading, reproducing, distributing or otherwise using the SDK Software
@@ -674,7 +677,9 @@ class SpotGraphNav:
             return False, "Unknown error during map processing."
 
     def _optimize_anchoring(self, *args):
-        """Call anchoring optimization on the server, producing a globally optimal reference frame for waypoints to be expressed in."""
+        """Call anchoring optimization on the server, producing a globally optimal reference frame for waypoints to be
+        expressed in.
+        """
         response: map_processing_pb2.ProcessAnchoringResponse = self._map_processing_client.process_anchoring(
             params=map_processing_pb2.ProcessAnchoringRequest.Params(),
             modify_anchoring_on_server=True,
@@ -784,9 +789,10 @@ class SpotGraphNav:
             timestamp = -1.0
             try:
                 timestamp = waypoint.annotations.creation_time.seconds + waypoint.annotations.creation_time.nanos / 1e9
-            except:
+            except Exception as e:
                 # Must be operating on an older graph nav map, since the creation_time is not
                 # available within the waypoint annotations message.
+                logger.info(f"Unable process waypoint, ignoring. Exception: {e}")
                 pass
             waypoint_to_timestamp.append((waypoint.id, timestamp, waypoint.annotations.name))
 

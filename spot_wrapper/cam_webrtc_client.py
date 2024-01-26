@@ -77,7 +77,8 @@ class WebRTCClient:
         # first get a token
         try:
             token = self.get_bearer_token()
-        except:
+        except Exception as e:
+            print(f"Could not get bearer token, mocking instead. Exception: {e}")
             token = self.get_bearer_token(mock=True)
 
         offer_id, sdp_offer = self.get_sdp_offer_from_spot_cam(token)
