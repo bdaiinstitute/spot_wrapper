@@ -26,3 +26,4 @@ This repository enforces `ruff` and `black` linting. To verify that your code wi
 pre-commit install
 pre-commit run --all-files
 ```
+The [Google Style Guide](https://google.github.io/styleguide/) is followed for default formatting. 
