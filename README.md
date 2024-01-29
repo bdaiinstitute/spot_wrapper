@@ -19,3 +19,10 @@ To update requirements.txt, use
 ```commandline
 pipreqs . --force
 ```
+
+# Contributing
+This repository enforces `ruff` and `black` linting. To verify that your code will pass inspection, install `pre-commit` and run:
+```bash
+pre-commit install
+pre-commit run --all-files
+```
