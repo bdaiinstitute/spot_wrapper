@@ -4,11 +4,11 @@ import typing
 
 from bosdyn.api import header_pb2
 from bosdyn.client import robot_command
-from bosdyn.client.lease import LeaseClient, LeaseWallet, Lease
+from bosdyn.client.lease import Lease, LeaseClient, LeaseWallet
 from bosdyn.client.robot import Robot
-from bosdyn.client.spot_check import SpotCheckClient, run_spot_check
-from bosdyn.client.spot_check import spot_check_pb2
+from bosdyn.client.spot_check import SpotCheckClient, run_spot_check, spot_check_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
+
 from spot_wrapper.wrapper_helpers import RobotState
 
 
@@ -44,9 +44,7 @@ class SpotCheck:
         self._lease = self._lease_wallet.get_lease()
         return self._lease
 
-    def _feedback_error_check(
-        self, resp: spot_check_pb2.SpotCheckFeedbackResponse
-    ) -> typing.Tuple[bool, str]:
+    def _feedback_error_check(self, resp: spot_check_pb2.SpotCheckFeedbackResponse) -> typing.Tuple[bool, str]:
         """Check for errors in the feedback response"""
 
         # Save results from Spot Check
@@ -55,7 +53,9 @@ class SpotCheck:
         errorcode_mapping = {
             spot_check_pb2.SpotCheckFeedbackResponse.ERROR_UNEXPECTED_POWER_CHANGE: "Unexpected power change",
             spot_check_pb2.SpotCheckFeedbackResponse.ERROR_INIT_IMU_CHECK: "Robot body is not flat on the ground",
-            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_INIT_NOT_SITTING: "Robot body is not close to a sitting pose",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_INIT_NOT_SITTING: (
+                "Robot body is not close to a sitting pose"
+            ),
             spot_check_pb2.SpotCheckFeedbackResponse.ERROR_LOADCELL_TIMEOUT: "Timeout during loadcell calibration",
             spot_check_pb2.SpotCheckFeedbackResponse.ERROR_POWER_ON_FAILURE: "Error enabling motor power",
             spot_check_pb2.SpotCheckFeedbackResponse.ERROR_ENDSTOP_TIMEOUT: "Timeout during endstop calibration",
@@ -64,7 +64,9 @@ class SpotCheck:
             spot_check_pb2.SpotCheckFeedbackResponse.ERROR_GROUND_CHECK: "Flat ground check failed",
             spot_check_pb2.SpotCheckFeedbackResponse.ERROR_POWER_OFF_FAILURE: "Robot failed to power off",
             spot_check_pb2.SpotCheckFeedbackResponse.ERROR_REVERT_FAILURE: "Robot failed to revert calibration",
-            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_FGKC_FAILURE: "Robot failed to do flat ground kinematic calibration",
+            spot_check_pb2.SpotCheckFeedbackResponse.ERROR_FGKC_FAILURE: (
+                "Robot failed to do flat ground kinematic calibration"
+            ),
             spot_check_pb2.SpotCheckFeedbackResponse.ERROR_GRIPPER_CAL_TIMEOUT: "Timeout during gripper calibration",
             spot_check_pb2.SpotCheckFeedbackResponse.ERROR_ARM_CHECK_COLLISION: "Arm motion would cause collisions",
             spot_check_pb2.SpotCheckFeedbackResponse.ERROR_ARM_CHECK_TIMEOUT: "Timeout during arm joint check",
@@ -87,16 +89,12 @@ class SpotCheck:
         start_time_seconds, start_time_ns = int(time.time()), int(time.time_ns() % 1e9)
         req = spot_check_pb2.SpotCheckFeedbackRequest(
             header=header_pb2.RequestHeader(
-                request_timestamp=Timestamp(
-                    seconds=start_time_seconds, nanos=start_time_ns
-                ),
+                request_timestamp=Timestamp(seconds=start_time_seconds, nanos=start_time_ns),
                 client_name="spot-check",
                 disable_rpc_logging=False,
             )
         )
-        resp: spot_check_pb2.SpotCheckFeedbackResponse = (
-            self._spot_check_client.spot_check_feedback(req)
-        )
+        resp: spot_check_pb2.SpotCheckFeedbackResponse = self._spot_check_client.spot_check_feedback(req)
 
         self._spot_check_resp = resp
 
@@ -107,9 +105,7 @@ class SpotCheck:
         start_time_seconds, start_time_ns = int(time.time()), int(time.time_ns() % 1e9)
         req = spot_check_pb2.SpotCheckCommandRequest(
             header=header_pb2.RequestHeader(
-                request_timestamp=Timestamp(
-                    seconds=start_time_seconds, nanos=start_time_ns
-                ),
+                request_timestamp=Timestamp(seconds=start_time_seconds, nanos=start_time_ns),
                 client_name="spot-check",
                 disable_rpc_logging=False,
             ),
@@ -163,9 +159,7 @@ class SpotCheck:
         try:
             self._robot.power_on()
             if not self._robot_state.is_sitting:
-                robot_command.blocking_sit(
-                    command_client=self._robot_command_client, timeout_sec=10
-                )
+                robot_command.blocking_sit(command_client=self._robot_command_client, timeout_sec=10)
                 self._logger.info("Spot is sitting")
             else:
                 self._logger.info("Spot is already sitting")
@@ -206,9 +200,7 @@ class SpotCheck:
             # Make sure we're powered on and sitting
             self._robot.power_on()
             if not self._robot_state.is_sitting:
-                robot_command.blocking_sit(
-                    command_client=self._robot_command_client, timeout_sec=10
-                )
+                robot_command.blocking_sit(command_client=self._robot_command_client, timeout_sec=10)
                 self._logger.info("Spot is sitting")
             else:
                 self._logger.info("Spot is already sitting")
@@ -229,9 +221,7 @@ class SpotCheck:
             return success, status
 
         except Exception as e:
-            self._logger.error(
-                "Exception thrown during blocking spot check: {}".format(e)
-            )
+            self._logger.error("Exception thrown during blocking spot check: {}".format(e))
             return False, str(e)
 
     def get_feedback(self) -> spot_check_pb2.SpotCheckFeedbackResponse:

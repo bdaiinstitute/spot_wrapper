@@ -18,9 +18,7 @@ class MockLicenseService(LicenseServiceServicer):
     It provides a license that never expires for all features.
     """
 
-    def GetLicenseInfo(
-        self, request: GetLicenseInfoRequest, context: grpc.ServicerContext
-    ) -> GetLicenseInfoResponse:
+    def GetLicenseInfo(self, request: GetLicenseInfoRequest, context: grpc.ServicerContext) -> GetLicenseInfoResponse:
         response = GetLicenseInfoResponse()
         response.license.status = LicenseInfo.Status.STATUS_VALID
         response.license.id = "0123210"

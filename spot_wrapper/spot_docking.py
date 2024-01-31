@@ -7,9 +7,9 @@ from bosdyn.client.docking import DockingClient, blocking_dock_robot, blocking_u
 from bosdyn.client.robot import Robot
 
 from spot_wrapper.wrapper_helpers import (
-    RobotState,
-    RobotCommandData,
     ClaimAndPowerDecorator,
+    RobotCommandData,
+    RobotState,
 )
 
 
@@ -37,9 +37,7 @@ class SpotDocking:
         self._claim_and_power_decorator = claim_and_power_decorator
         # Decorate the functions so that they take the lease. Dock function needs to power on because it might have
         # to move the robot, the undock
-        self._claim_and_power_decorator.decorate_functions(
-            self, decorated_funcs=[self.dock, self.undock]
-        )
+        self._claim_and_power_decorator.decorate_functions(self, decorated_funcs=[self.dock, self.undock])
 
     def dock(self, dock_id: int) -> typing.Tuple[bool, str]:
         """Dock the robot to the docking station with fiducial ID [dock_id]."""
@@ -47,9 +45,7 @@ class SpotDocking:
             # Make sure we're powered on and standing
             self._robot.power_on()
             if not self._robot_state.is_standing:
-                robot_command.blocking_stand(
-                    command_client=self._robot_command_client, timeout_sec=10
-                )
+                robot_command.blocking_stand(command_client=self._robot_command_client, timeout_sec=10)
                 self._logger.info("Spot is standing")
             else:
                 self._logger.info("Spot is already standing")

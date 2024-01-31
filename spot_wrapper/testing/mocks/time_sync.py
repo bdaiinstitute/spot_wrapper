@@ -16,9 +16,7 @@ class MockTimeSyncService(TimeSyncServiceServicer):
     Always perfect clock synchronization.
     """
 
-    def TimeSyncUpdate(
-        self, request: TimeSyncUpdateRequest, context: grpc.ServicerContext
-    ) -> TimeSyncUpdateResponse:
+    def TimeSyncUpdate(self, request: TimeSyncUpdateRequest, context: grpc.ServicerContext) -> TimeSyncUpdateResponse:
         response = TimeSyncUpdateResponse()
         response.state.status = TimeSyncState.STATUS_OK
         response.state.best_estimate.clock_skew.seconds = 0

@@ -4,13 +4,10 @@ import os
 import time
 import typing
 
-from bosdyn.api.graph_nav import graph_nav_pb2
-from bosdyn.api.graph_nav import map_pb2
-from bosdyn.api.graph_nav import map_processing_pb2
-from bosdyn.api.graph_nav import nav_pb2
+from bosdyn.api.graph_nav import graph_nav_pb2, map_pb2, map_processing_pb2, nav_pb2
 from bosdyn.client.frame_helpers import get_odom_tform_body
 from bosdyn.client.graph_nav import GraphNavClient
-from bosdyn.client.lease import LeaseClient, LeaseWallet, LeaseKeepAlive, Lease
+from bosdyn.client.lease import Lease, LeaseClient, LeaseKeepAlive, LeaseWallet
 from bosdyn.client.map_processing import MapProcessingServiceClient
 from bosdyn.client.robot import Robot
 from bosdyn.client.robot_state import RobotStateClient
@@ -61,9 +58,7 @@ class SpotGraphNav:
         self._current_waypoint_snapshots = {}  # maps id to waypoint snapshot
         self._current_edge_snapshots = {}  # maps id to edge snapshot
         self._current_annotation_name_to_wp_id = {}
-        self._current_anchored_world_objects = (
-            {}
-        )  # maps object id to a (wo, waypoint, fiducial)
+        self._current_anchored_world_objects = {}  # maps object id to a (wo, waypoint, fiducial)
         self._current_anchors = {}  # maps anchor id to anchor
 
     def list_graph(self) -> typing.List[str]:
@@ -73,12 +68,7 @@ class SpotGraphNav:
         """
         ids, eds = self._list_graph_waypoint_and_edge_ids()
 
-        return [
-            v
-            for k, v in sorted(
-                ids.items(), key=lambda id: int(id[0].replace("waypoint_", ""))
-            )
-        ]
+        return [v for k, v in sorted(ids.items(), key=lambda id: int(id[0].replace("waypoint_", "")))]
 
     def navigate_initial_localization(
         self,
@@ -112,9 +102,7 @@ class SpotGraphNav:
             self._upload_graph_and_snapshots(upload_filepath)
         else:
             self._download_current_graph()
-            self._logger.info(
-                "Re-using existing graph on robot. Check that the correct graph is loaded!"
-            )
+            self._logger.info("Re-using existing graph on robot. Check that the correct graph is loaded!")
         if initial_localization_fiducial:
             self.set_initial_localization_fiducial()
         if initial_localization_waypoint:
@@ -152,9 +140,7 @@ class SpotGraphNav:
         self._download_full_graph()
         return self.list_graph()
 
-    def navigation_close_loops(
-        self, close_fiducial_loops: bool, close_odometry_loops: bool
-    ) -> typing.Tuple[bool, str]:
+    def navigation_close_loops(self, close_fiducial_loops: bool, close_odometry_loops: bool) -> typing.Tuple[bool, str]:
         return self._auto_close_loops(close_fiducial_loops, close_odometry_loops)
 
     def optmize_anchoring(self) -> typing.Tuple[bool, str]:
@@ -171,9 +157,7 @@ class SpotGraphNav:
             f.write(data)
             f.close()
 
-    def _download_graph_and_snapshots(
-        self, download_path: str
-    ) -> typing.Tuple[bool, str]:
+    def _download_graph_and_snapshots(self, download_path: str) -> typing.Tuple[bool, str]:
         """Download the graph and snapshots from the robot.
         Args:
             download_path (str): Directory where graph and snapshots are downloaded from robot.
@@ -184,19 +168,13 @@ class SpotGraphNav:
         if graph is None:
             return False, "Failed to download the graph."
         graph_bytes = graph.SerializeToString()
-        self._write_bytes_while_download(
-            os.path.join(download_path, "graph"), graph_bytes
-        )
+        self._write_bytes_while_download(os.path.join(download_path, "graph"), graph_bytes)
         # Download the waypoint and edge snapshots.
         for waypoint in graph.waypoints:
             try:
-                waypoint_snapshot = self._graph_nav_client.download_waypoint_snapshot(
-                    waypoint.snapshot_id
-                )
+                waypoint_snapshot = self._graph_nav_client.download_waypoint_snapshot(waypoint.snapshot_id)
             except Exception:
-                self._logger.warning(
-                    "Failed to download waypoint snapshot: %s", waypoint.snapshot_id
-                )
+                self._logger.warning("Failed to download waypoint snapshot: %s", waypoint.snapshot_id)
                 continue
             self._write_bytes_while_download(
                 os.path.join(download_path, "waypoint_snapshots", waypoint.snapshot_id),
@@ -204,13 +182,9 @@ class SpotGraphNav:
             )
         for edge in graph.edges:
             try:
-                edge_snapshot = self._graph_nav_client.download_edge_snapshot(
-                    edge.snapshot_id
-                )
+                edge_snapshot = self._graph_nav_client.download_edge_snapshot(edge.snapshot_id)
             except Exception:
-                self._logger.warning(
-                    "Failed to download edge snapshot: %s", edge.snapshot_id
-                )
+                self._logger.warning("Failed to download edge snapshot: %s", edge.snapshot_id)
                 continue
             self._write_bytes_while_download(
                 os.path.join(download_path, "edge_snapshots", edge.snapshot_id),
@@ -233,7 +207,8 @@ class SpotGraphNav:
 
     def upload_graph(self, upload_path: str) -> typing.Tuple[bool, str]:
         """Upload the specified graph and snapshots from local to a robot.
-        While this method, if there are snapshots already in the robot, they will be loaded from the robot's disk without uploading.
+        While this method, if there are snapshots already in the robot, they will be loaded from the robot's disk
+        without uploading.
         Graph and snapshots to be uploaded should be placed like
         Directory specified with upload_path arg
           |
@@ -266,9 +241,7 @@ class SpotGraphNav:
         Returns: (bool, str) tuple indicating whether the command was successfully sent, and a message
         """
         try:
-            success, message = self._download_graph_and_snapshots(
-                download_path=download_path
-            )
+            success, message = self._download_graph_and_snapshots(download_path=download_path)
             return success, message
         except Exception as e:
             return (
@@ -276,7 +249,9 @@ class SpotGraphNav:
                 f"Got an error during downloading graph and snapshots from the robot: {e}",
             )
 
-    ## Copied from https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/graph_nav_command_line/recording_command_line.py and https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/graph_nav_command_line/graph_nav_command_line.py with minor modifications
+    # Copied from https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/graph_nav_command_line/recording_command_line.py
+    # and https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/graph_nav_command_line/graph_nav_command_line.py
+    # with minor modifications
     # Copyright (c) 2020 Boston Dynamics, Inc.  All rights reserved.
     #
     # Downloading, reproducing, distributing or otherwise using the SDK Software
@@ -286,19 +261,13 @@ class SpotGraphNav:
         """Get the current localization and state of the robot."""
         state = self._graph_nav_client.get_localization_state()
         self._logger.info(f"Got localization: \n{str(state.localization)}")
-        odom_tform_body = get_odom_tform_body(
-            state.robot_kinematics.transforms_snapshot
-        )
-        self._logger.info(
-            f"Got robot state in kinematic odometry frame: \n{str(odom_tform_body)}"
-        )
+        odom_tform_body = get_odom_tform_body(state.robot_kinematics.transforms_snapshot)
+        self._logger.info(f"Got robot state in kinematic odometry frame: \n{str(odom_tform_body)}")
 
     def set_initial_localization_fiducial(self, *args):
         """Trigger localization when near a fiducial."""
         robot_state = self._robot_state_client.get_robot_state()
-        current_odom_tform_body = get_odom_tform_body(
-            robot_state.kinematic_state.transforms_snapshot
-        ).to_proto()
+        current_odom_tform_body = get_odom_tform_body(robot_state.kinematic_state.transforms_snapshot).to_proto()
         # Create an empty instance for initial localization since we are asking it to localize
         # based on the nearest fiducial.
         localization = nav_pb2.Localization()
@@ -325,9 +294,7 @@ class SpotGraphNav:
             return
 
         robot_state = self._robot_state_client.get_robot_state()
-        current_odom_tform_body = get_odom_tform_body(
-            robot_state.kinematic_state.transforms_snapshot
-        ).to_proto()
+        current_odom_tform_body = get_odom_tform_body(robot_state.kinematic_state.transforms_snapshot).to_proto()
         # Create an initial localization to the specified waypoint as the identity.
         localization = nav_pb2.Localization()
         localization.waypoint_id = destination_waypoint
@@ -357,9 +324,7 @@ class SpotGraphNav:
             return
         self._write_full_graph(graph)
         self._logger.info(
-            "Graph downloaded with {} waypoints and {} edges".format(
-                len(graph.waypoints), len(graph.edges)
-            )
+            "Graph downloaded with {} waypoints and {} edges".format(len(graph.waypoints), len(graph.edges))
         )
         # Download the waypoint and edge snapshots.
         self._download_and_write_waypoint_snapshots(graph.waypoints)
@@ -377,14 +342,10 @@ class SpotGraphNav:
             if len(waypoint.snapshot_id) == 0:
                 continue
             try:
-                waypoint_snapshot = self._graph_nav_client.download_waypoint_snapshot(
-                    waypoint.snapshot_id
-                )
+                waypoint_snapshot = self._graph_nav_client.download_waypoint_snapshot(waypoint.snapshot_id)
             except Exception:
                 # Failure in downloading waypoint snapshot. Continue to next snapshot.
-                self._logger.error(
-                    "Failed to download waypoint snapshot: " + waypoint.snapshot_id
-                )
+                self._logger.error("Failed to download waypoint snapshot: " + waypoint.snapshot_id)
                 continue
             self._write_bytes(
                 self._download_filepath + "/waypoint_snapshots",
@@ -407,14 +368,10 @@ class SpotGraphNav:
                 continue
             num_to_download += 1
             try:
-                edge_snapshot = self._graph_nav_client.download_edge_snapshot(
-                    edge.snapshot_id
-                )
+                edge_snapshot = self._graph_nav_client.download_edge_snapshot(edge.snapshot_id)
             except Exception:
                 # Failure in downloading edge snapshot. Continue to next snapshot.
-                self._logger.error(
-                    "Failed to download edge snapshot: " + edge.snapshot_id
-                )
+                self._logger.error("Failed to download edge snapshot: " + edge.snapshot_id)
                 continue
             self._write_bytes(
                 self._download_filepath + "/edge_snapshots",
@@ -423,9 +380,7 @@ class SpotGraphNav:
             )
             num_edge_snapshots_downloaded += 1
             self._logger.info(
-                "Downloaded {} of the total {} edge snapshots.".format(
-                    num_edge_snapshots_downloaded, num_to_download
-                )
+                "Downloaded {} of the total {} edge snapshots.".format(num_edge_snapshots_downloaded, num_to_download)
             )
 
     def _write_bytes(self, filepath: str, filename: str, data):
@@ -441,9 +396,7 @@ class SpotGraphNav:
         # Download current graph
         graph = self._download_current_graph()
 
-        localization_id = (
-            self._graph_nav_client.get_localization_state().localization.waypoint_id
-        )
+        localization_id = self._graph_nav_client.get_localization_state().localization.waypoint_id
 
         # Update and print waypoints and edges
         (
@@ -470,17 +423,13 @@ class SpotGraphNav:
             # Load the waypoint snapshots from disk.
             if len(waypoint.snapshot_id) == 0:
                 continue
-            waypoint_filepath = os.path.join(
-                upload_filepath, "waypoint_snapshots", waypoint.snapshot_id
-            )
+            waypoint_filepath = os.path.join(upload_filepath, "waypoint_snapshots", waypoint.snapshot_id)
             if not os.path.exists(waypoint_filepath):
                 continue
             with open(waypoint_filepath, "rb") as snapshot_file:
                 waypoint_snapshot = map_pb2.WaypointSnapshot()
                 waypoint_snapshot.ParseFromString(snapshot_file.read())
-                self._current_waypoint_snapshots[
-                    waypoint_snapshot.id
-                ] = waypoint_snapshot
+                self._current_waypoint_snapshots[waypoint_snapshot.id] = waypoint_snapshot
 
                 for fiducial in waypoint_snapshot.objects:
                     if not fiducial.HasField("apriltag_properties"):
@@ -502,9 +451,7 @@ class SpotGraphNav:
             # Load the edge snapshots from disk.
             if len(edge.snapshot_id) == 0:
                 continue
-            edge_filepath = os.path.join(
-                upload_filepath, "edge_snapshots", edge.snapshot_id
-            )
+            edge_filepath = os.path.join(upload_filepath, "edge_snapshots", edge.snapshot_id)
             if not os.path.exists(edge_filepath):
                 continue
             with open(edge_filepath, "rb") as snapshot_file:
@@ -522,13 +469,9 @@ class SpotGraphNav:
             )
             return
 
-        response = self._graph_nav_client.upload_graph(
-            lease=self._lease.lease_proto, graph=self._current_graph
-        )
+        response = self._graph_nav_client.upload_graph(lease=self._lease.lease_proto, graph=self._current_graph)
         # Upload the snapshots to the robot.
-        for index, waypoint_snapshot_id in enumerate(
-            response.unknown_waypoint_snapshot_ids
-        ):
+        for index, waypoint_snapshot_id in enumerate(response.unknown_waypoint_snapshot_ids):
             waypoint_snapshot = self._current_waypoint_snapshots[waypoint_snapshot_id]
             self._graph_nav_client.upload_waypoint_snapshot(waypoint_snapshot)
             self._logger.info(
@@ -568,9 +511,7 @@ class SpotGraphNav:
             self._logger,
         )
         if not destination_waypoint:
-            self._logger.error(
-                "Failed to find the appropriate unique waypoint id for the navigation command."
-            )
+            self._logger.error("Failed to find the appropriate unique waypoint id for the navigation command.")
             return (
                 False,
                 "Failed to find the appropriate unique waypoint id for the navigation command.",
@@ -587,9 +528,7 @@ class SpotGraphNav:
         while not is_finished:
             # Issue the navigation command about twice a second such that it is easy to terminate the
             # navigation command (with estop or killing the program).
-            nav_to_cmd_id = self._graph_nav_client.navigate_to(
-                destination_waypoint, 1.0, leases=[sublease.lease_proto]
-            )
+            nav_to_cmd_id = self._graph_nav_client.navigate_to(destination_waypoint, 1.0, leases=[sublease.lease_proto])
             time.sleep(0.5)  # Sleep for half a second to allow for command execution.
             # Poll the robot for feedback to determine if the navigation command is complete.
             is_finished = self._check_success(nav_to_cmd_id)
@@ -598,10 +537,7 @@ class SpotGraphNav:
         self._lease_keepalive = LeaseKeepAlive(self._lease_client)
 
         status = self._graph_nav_client.navigation_feedback(nav_to_cmd_id)
-        if (
-            status.status
-            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_REACHED_GOAL
-        ):
+        if status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_REACHED_GOAL:
             return True, "Successfully completed the navigation commands!"
         elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_LOST:
             return (
@@ -613,17 +549,12 @@ class SpotGraphNav:
                 False,
                 "Robot got stuck when navigating the route, the robot will now sit down.",
             )
-        elif (
-            status.status
-            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_ROBOT_IMPAIRED
-        ):
+        elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_ROBOT_IMPAIRED:
             return False, "Robot is impaired."
         else:
             return False, "Navigation command is not complete yet."
 
-    def _navigate_route(
-        self, waypoint_ids: typing.List[str]
-    ) -> typing.Tuple[bool, str]:
+    def _navigate_route(self, waypoint_ids: typing.List[str]) -> typing.Tuple[bool, str]:
         """Navigate through a specific route of waypoints.
         Note that each waypoint must have an edge between them, aka be adjacent.
         """
@@ -635,9 +566,7 @@ class SpotGraphNav:
                 self._logger,
             )
             if not waypoint_ids[i]:
-                self._logger.error(
-                    "navigate_route: Failed to find the unique waypoint id."
-                )
+                self._logger.error("navigate_route: Failed to find the unique waypoint id.")
                 return False, "Failed to find the unique waypoint id."
 
         edge_ids_list = []
@@ -650,9 +579,7 @@ class SpotGraphNav:
             if edge_id is not None:
                 edge_ids_list.append(edge_id)
             else:
-                self._logger.error(
-                    f"Failed to find an edge between waypoints: {start_wp} and {end_wp}"
-                )
+                self._logger.error(f"Failed to find an edge between waypoints: {start_wp} and {end_wp}")
                 return (
                     False,
                     f"Failed to find an edge between waypoints: {start_wp} and {end_wp}",
@@ -694,26 +621,16 @@ class SpotGraphNav:
             # No command, so we have not status to check.
             return False
         status = self._graph_nav_client.navigation_feedback(command_id)
-        if (
-            status.status
-            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_REACHED_GOAL
-        ):
+        if status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_REACHED_GOAL:
             # Successfully completed the navigation commands!
             return True
         elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_LOST:
-            self._logger.error(
-                "Robot got lost when navigating the route, the robot will now sit down."
-            )
+            self._logger.error("Robot got lost when navigating the route, the robot will now sit down.")
             return True
         elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_STUCK:
-            self._logger.error(
-                "Robot got stuck when navigating the route, the robot will now sit down."
-            )
+            self._logger.error("Robot got stuck when navigating the route, the robot will now sit down.")
             return True
-        elif (
-            status.status
-            == graph_nav_pb2.NavigationFeedbackResponse.STATUS_ROBOT_IMPAIRED
-        ):
+        elif status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_ROBOT_IMPAIRED:
             self._logger.error("Robot is impaired.")
             return True
         else:
@@ -732,69 +649,44 @@ class SpotGraphNav:
             for edge_from_id in current_edges[edge_to_id]:
                 if (waypoint1 == edge_to_id) and (waypoint2 == edge_from_id):
                     # This edge matches the pair of waypoints! Add it the edge list and continue.
-                    return map_pb2.Edge.Id(
-                        from_waypoint=waypoint2, to_waypoint=waypoint1
-                    )
+                    return map_pb2.Edge.Id(from_waypoint=waypoint2, to_waypoint=waypoint1)
                 elif (waypoint2 == edge_to_id) and (waypoint1 == edge_from_id):
                     # This edge matches the pair of waypoints! Add it the edge list and continue.
-                    return map_pb2.Edge.Id(
-                        from_waypoint=waypoint1, to_waypoint=waypoint2
-                    )
+                    return map_pb2.Edge.Id(from_waypoint=waypoint1, to_waypoint=waypoint2)
         return None
 
-    def _auto_close_loops(
-        self, close_fiducial_loops: bool, close_odometry_loops: bool, *args
-    ):
+    def _auto_close_loops(self, close_fiducial_loops: bool, close_odometry_loops: bool, *args):
         """Automatically find and close all loops in the graph."""
-        response: map_processing_pb2.ProcessTopologyResponse = (
-            self._map_processing_client.process_topology(
-                params=map_processing_pb2.ProcessTopologyRequest.Params(
-                    do_fiducial_loop_closure=wrappers_pb2.BoolValue(
-                        value=close_fiducial_loops
-                    ),
-                    do_odometry_loop_closure=wrappers_pb2.BoolValue(
-                        value=close_odometry_loops
-                    ),
-                ),
-                modify_map_on_server=True,
-            )
+        response: map_processing_pb2.ProcessTopologyResponse = self._map_processing_client.process_topology(
+            params=map_processing_pb2.ProcessTopologyRequest.Params(
+                do_fiducial_loop_closure=wrappers_pb2.BoolValue(value=close_fiducial_loops),
+                do_odometry_loop_closure=wrappers_pb2.BoolValue(value=close_odometry_loops),
+            ),
+            modify_map_on_server=True,
         )
-        self._logger.info(
-            "Created {} new edge(s).".format(len(response.new_subgraph.edges))
-        )
+        self._logger.info("Created {} new edge(s).".format(len(response.new_subgraph.edges)))
         if response.status == map_processing_pb2.ProcessTopologyResponse.STATUS_OK:
             return True, "Successfully closed loops."
-        elif (
-            response.status
-            == map_processing_pb2.ProcessTopologyResponse.STATUS_MISSING_WAYPOINT_SNAPSHOTS
-        ):
+        elif response.status == map_processing_pb2.ProcessTopologyResponse.STATUS_MISSING_WAYPOINT_SNAPSHOTS:
             return False, "Missing waypoint snapshots."
-        elif (
-            response.status
-            == map_processing_pb2.ProcessTopologyResponse.STATUS_INVALID_GRAPH
-        ):
+        elif response.status == map_processing_pb2.ProcessTopologyResponse.STATUS_INVALID_GRAPH:
             return False, "Invalid graph."
-        elif (
-            response.status
-            == map_processing_pb2.ProcessTopologyResponse.STATUS_MAP_MODIFIED_DURING_PROCESSING
-        ):
+        elif response.status == map_processing_pb2.ProcessTopologyResponse.STATUS_MAP_MODIFIED_DURING_PROCESSING:
             return False, "Map modified during processing."
         else:
             return False, "Unknown error during map processing."
 
     def _optimize_anchoring(self, *args):
-        """Call anchoring optimization on the server, producing a globally optimal reference frame for waypoints to be expressed in."""
-        response: map_processing_pb2.ProcessAnchoringResponse = (
-            self._map_processing_client.process_anchoring(
-                params=map_processing_pb2.ProcessAnchoringRequest.Params(),
-                modify_anchoring_on_server=True,
-                stream_intermediate_results=False,
-            )
+        """Call anchoring optimization on the server, producing a globally optimal reference frame for waypoints to be
+        expressed in.
+        """
+        response: map_processing_pb2.ProcessAnchoringResponse = self._map_processing_client.process_anchoring(
+            params=map_processing_pb2.ProcessAnchoringRequest.Params(),
+            modify_anchoring_on_server=True,
+            stream_intermediate_results=False,
         )
         if response.status == map_processing_pb2.ProcessAnchoringResponse.STATUS_OK:
-            self._logger.info(
-                "Optimized anchoring after {} iteration(s).".format(response.iteration)
-            )
+            self._logger.info("Optimized anchoring after {} iteration(s).".format(response.iteration))
             return True, "Successfully optimized anchoring."
         else:
             self._logger.error("Error optimizing {}".format(response))
@@ -896,17 +788,13 @@ class SpotGraphNav:
             # Determine the timestamp that this waypoint was created at.
             timestamp = -1.0
             try:
-                timestamp = (
-                    waypoint.annotations.creation_time.seconds
-                    + waypoint.annotations.creation_time.nanos / 1e9
-                )
-            except:
+                timestamp = waypoint.annotations.creation_time.seconds + waypoint.annotations.creation_time.nanos / 1e9
+            except Exception as e:
                 # Must be operating on an older graph nav map, since the creation_time is not
                 # available within the waypoint annotations message.
+                logger.info(f"Unable process waypoint, ignoring. Exception: {e}")
                 pass
-            waypoint_to_timestamp.append(
-                (waypoint.id, timestamp, waypoint.annotations.name)
-            )
+            waypoint_to_timestamp.append((waypoint.id, timestamp, waypoint.annotations.name))
 
             # Determine how many waypoints have the same short code.
             short_code = self._id_to_short_code(waypoint.id)
@@ -928,17 +816,13 @@ class SpotGraphNav:
 
         # Sort the set of waypoints by their creation timestamp. If the creation timestamp is unavailable,
         # fallback to sorting by annotation name.
-        waypoint_to_timestamp = sorted(
-            waypoint_to_timestamp, key=lambda x: (x[1], x[2])
-        )
+        waypoint_to_timestamp = sorted(waypoint_to_timestamp, key=lambda x: (x[1], x[2]))
 
         # Print out the waypoints name, id, and short code in a ordered sorted by the timestamp from
         # when the waypoint was created.
         logger.info("%d waypoints:" % len(graph.waypoints))
         for waypoint in waypoint_to_timestamp:
-            self._pretty_print_waypoints(
-                waypoint[0], waypoint[2], short_code_to_count, localization_id, logger
-            )
+            self._pretty_print_waypoints(waypoint[0], waypoint[2], short_code_to_count, localization_id, logger)
 
         for edge in graph.edges:
             if edge.id.to_waypoint in edges:
@@ -946,8 +830,6 @@ class SpotGraphNav:
                     edges[edge.id.to_waypoint].append(edge.id.from_waypoint)
             else:
                 edges[edge.id.to_waypoint] = [edge.id.from_waypoint]
-            logger.info(
-                f"(Edge) from waypoint id: {edge.id.from_waypoint} and to waypoint id: {edge.id.to_waypoint}"
-            )
+            logger.info(f"(Edge) from waypoint id: {edge.id.from_waypoint} and to waypoint id: {edge.id.to_waypoint}")
 
         return name_to_id, edges

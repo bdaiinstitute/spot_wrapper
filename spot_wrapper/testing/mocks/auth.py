@@ -8,9 +8,7 @@ from bosdyn.api.auth_service_pb2_grpc import AuthServiceServicer
 class MockAuthService(AuthServiceServicer):
     """A mock Spot authentication service."""
 
-    def GetAuthToken(
-        self, request: GetAuthTokenRequest, context: grpc.ServicerContext
-    ) -> GetAuthTokenResponse:
+    def GetAuthToken(self, request: GetAuthTokenRequest, context: grpc.ServicerContext) -> GetAuthTokenResponse:
         response = GetAuthTokenResponse()
         response.status = GetAuthTokenResponse.Status.STATUS_OK
         response.token = "mock-token"

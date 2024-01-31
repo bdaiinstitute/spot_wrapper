@@ -55,18 +55,14 @@ class MockLeaseService(LeaseServiceServicer):
             self._leasable_resources[resource.resource] = leasable_resource
         self._latest_lease: typing.Optional[Lease] = None
 
-    def AcquireLease(
-        self, request: AcquireLeaseRequest, context: grpc.ServicerContext
-    ) -> AcquireLeaseResponse:
+    def AcquireLease(self, request: AcquireLeaseRequest, context: grpc.ServicerContext) -> AcquireLeaseResponse:
         response = AcquireLeaseResponse()
         if request.resource not in self._leasable_resources:
             response.status = AcquireLeaseResponse.Status.STATUS_INVALID_RESOURCE
             return response
         leasable_resource = self._leasable_resources[request.resource]
         if not leasable_resource.is_stale:
-            response.status = (
-                AcquireLeaseResponse.Status.STATUS_RESOURCE_ALREADY_CLAIMED
-            )
+            response.status = AcquireLeaseResponse.Status.STATUS_RESOURCE_ALREADY_CLAIMED
             response.lease_owner.CopyFrom(leasable_resource.lease_owner)
             return response
         leasable_resource.lease.client_names.append(request.header.client_name)
@@ -80,9 +76,7 @@ class MockLeaseService(LeaseServiceServicer):
         response.status = AcquireLeaseResponse.Status.STATUS_OK
         return response
 
-    def TakeLease(
-        self, request: TakeLeaseRequest, context: grpc.ServicerContext
-    ) -> TakeLeaseResponse:
+    def TakeLease(self, request: TakeLeaseRequest, context: grpc.ServicerContext) -> TakeLeaseResponse:
         response = TakeLeaseResponse()
         if request.resource not in self._leasable_resources:
             response.status = TakeLeaseResponse.Status.STATUS_INVALID_RESOURCE
@@ -99,9 +93,7 @@ class MockLeaseService(LeaseServiceServicer):
         response.status = TakeLeaseResponse.Status.STATUS_OK
         return response
 
-    def ReturnLease(
-        self, request: ReturnLeaseRequest, context: grpc.ServicerContext
-    ) -> ReturnLeaseResponse:
+    def ReturnLease(self, request: ReturnLeaseRequest, context: grpc.ServicerContext) -> ReturnLeaseResponse:
         response = ReturnLeaseResponse()
         if request.lease.resource not in self._leasable_resources:
             response.status = ReturnLeaseResponse.Status.STATUS_INVALID_RESOURCE
@@ -115,25 +107,19 @@ class MockLeaseService(LeaseServiceServicer):
         response.status = ReturnLeaseResponse.Status.STATUS_OK
         return response
 
-    def ListLeases(
-        self, request: ListLeasesRequest, context: grpc.ServicerContext
-    ) -> ListLeasesResponse:
+    def ListLeases(self, request: ListLeasesRequest, context: grpc.ServicerContext) -> ListLeasesResponse:
         response = ListLeasesResponse()
         response.resources.extend(self._leasable_resources.values())
         response.resource_tree.CopyFrom(self._resource_tree)
         return response
 
-    def RetainLease(
-        self, request: RetainLeaseRequest, context: grpc.ServicerContext
-    ) -> RetainLeaseResponse:
+    def RetainLease(self, request: RetainLeaseRequest, context: grpc.ServicerContext) -> RetainLeaseResponse:
         response = RetainLeaseResponse()
         response.lease_use_result.attempted_lease.CopyFrom(request.lease)
         if self._latest_lease is not None:
             response.lease_use_result.latest_known_lease.CopyFrom(self._latest_lease)
         if request.lease.resource not in self._leasable_resources:
-            response.lease_use_result.status = (
-                LeaseUseResult.Status.STATUS_INVALID_LEASE
-            )
+            response.lease_use_result.status = LeaseUseResult.Status.STATUS_INVALID_LEASE
             return response
         leasable_resource = self._leasable_resources[request.lease.resource]
         if leasable_resource.is_stale:

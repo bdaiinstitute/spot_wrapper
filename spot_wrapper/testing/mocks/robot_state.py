@@ -41,16 +41,12 @@ class MockRobotStateService(RobotStateServiceServicer):
         self.robot_metrics = RobotMetrics()
         self.hardware_configuration = HardwareConfiguration()
 
-    def GetRobotState(
-        self, request: RobotStateRequest, context: grpc.ServicerContext
-    ) -> RobotStateResponse:
+    def GetRobotState(self, request: RobotStateRequest, context: grpc.ServicerContext) -> RobotStateResponse:
         response = RobotStateResponse()
         response.robot_state.CopyFrom(self.robot_state)
         return response
 
-    def GetRobotMetrics(
-        self, request: RobotMetricsRequest, context: grpc.ServicerContext
-    ) -> RobotMetricsResponse:
+    def GetRobotMetrics(self, request: RobotMetricsRequest, context: grpc.ServicerContext) -> RobotMetricsResponse:
         response = RobotMetricsResponse()
         response.robot_metrics.CopyFrom(self.robot_metrics)
         return response

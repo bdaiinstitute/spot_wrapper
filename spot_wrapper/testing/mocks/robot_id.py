@@ -8,9 +8,7 @@ from bosdyn.api.robot_id_service_pb2_grpc import RobotIdServiceServicer
 class MockRobotIdService(RobotIdServiceServicer):
     """A mock Spot robot id service."""
 
-    def GetRobotId(
-        self, request: RobotIdRequest, context: grpc.ServicerContext
-    ) -> RobotIdResponse:
+    def GetRobotId(self, request: RobotIdRequest, context: grpc.ServicerContext) -> RobotIdResponse:
         response = RobotIdResponse()
         response.robot_id.serial_number = "1234567890"
         response.robot_id.species = "mock-spot"

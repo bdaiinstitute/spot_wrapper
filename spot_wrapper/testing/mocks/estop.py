@@ -44,21 +44,15 @@ class MockEStopService(EstopServiceServicer):
     ) -> RegisterEstopEndpointResponse:
         response = RegisterEstopEndpointResponse()
         response.request.CopyFrom(request)
-        estop_configurations = {
-            config.unique_id: config for config in self.estop_configurations
-        }
+        estop_configurations = {config.unique_id: config for config in self.estop_configurations}
         if request.target_config_id not in estop_configurations:
-            response.status = (
-                RegisterEstopEndpointResponse.Status.STATUS_CONFIG_MISMATCH
-            )
+            response.status = RegisterEstopEndpointResponse.Status.STATUS_CONFIG_MISMATCH
             return response
         estop_configuration = estop_configurations[request.target_config_id]
         if request.target_endpoint.unique_id:
             estop_endpoints = {ep.unique_id: ep for ep in estop_configuration.endpoints}
             if request.target_endpoint.unique_id not in estop_endpoints:
-                response.status = (
-                    RegisterEstopEndpointResponse.Status.STATUS_ENDPOINT_MISMATCH
-                )
+                response.status = RegisterEstopEndpointResponse.Status.STATUS_ENDPOINT_MISMATCH
                 return response
             estop_endpoint = estop_endpoints[request.target_endpoint.unique_id]
         else:
@@ -76,40 +70,23 @@ class MockEStopService(EstopServiceServicer):
     ) -> DeregisterEstopEndpointResponse:
         response = DeregisterEstopEndpointResponse()
         response.request.CopyFrom(request)
-        estop_configurations = {
-            config.unique_id: config for config in self.estop_configurations
-        }
+        estop_configurations = {config.unique_id: config for config in self.estop_configurations}
         if request.target_config_id not in estop_configurations:
-            response.status = (
-                RegisterEstopEndpointResponse.Status.STATUS_CONFIG_MISMATCH
-            )
+            response.status = RegisterEstopEndpointResponse.Status.STATUS_CONFIG_MISMATCH
             return response
         estop_configuration = estop_configurations[request.target_config_id]
-        estop_endpoint_indices = {
-            ep.unique_id: index
-            for index, ep in enumerate(estop_configuration.endpoints)
-        }
+        estop_endpoint_indices = {ep.unique_id: index for index, ep in enumerate(estop_configuration.endpoints)}
         if request.target_endpoint.unique_id not in estop_endpoint_indices:
-            response.status = (
-                RegisterEstopEndpointResponse.Status.STATUS_ENDPOINT_MISMATCH
-            )
+            response.status = RegisterEstopEndpointResponse.Status.STATUS_ENDPOINT_MISMATCH
             return response
-        del estop_configuration.endpoints[
-            estop_endpoint_indices[request.target_endpoint.unique_id]
-        ]
+        del estop_configuration.endpoints[estop_endpoint_indices[request.target_endpoint.unique_id]]
         response.status = DeregisterEstopEndpointResponse.Status.STATUS_SUCCESS
         return response
 
-    def EstopCheckIn(
-        self, request: EstopCheckInRequest, context: grpc.ServicerContext
-    ) -> EstopCheckInResponse:
+    def EstopCheckIn(self, request: EstopCheckInRequest, context: grpc.ServicerContext) -> EstopCheckInResponse:
         response = EstopCheckInResponse()
         response.request.CopyFrom(request)
-        estop_endpoints = {
-            ep.unique_id: ep
-            for cfg in self.estop_configurations
-            for ep in cfg.endpoints
-        }
+        estop_endpoints = {ep.unique_id: ep for cfg in self.estop_configurations for ep in cfg.endpoints}
         if request.endpoint.unique_id not in estop_endpoints:
             response.status = EstopCheckInResponse.Status.STATUS_ENDPOINT_UNKNOWN
             return response
@@ -117,38 +94,28 @@ class MockEStopService(EstopServiceServicer):
         response.challenge = (request.challenge or 1) + 1
         return response
 
-    def GetEstopConfig(
-        self, request: GetEstopConfigRequest, context: grpc.ServicerContext
-    ) -> GetEstopConfigResponse:
+    def GetEstopConfig(self, request: GetEstopConfigRequest, context: grpc.ServicerContext) -> GetEstopConfigResponse:
         response = GetEstopConfigResponse()
         response.request.CopyFrom(request)
         if not request.target_config_id:
             response.active_config.CopyFrom(self.active_estop_configuration)
             return response
-        estop_configurations = {
-            config.unique_id: config for config in self.estop_configurations
-        }
+        estop_configurations = {config.unique_id: config for config in self.estop_configurations}
         if request.target_config_id not in estop_configurations:
             response.header.error.code = CommonError.CODE_INVALID_REQUEST
             return response
         response.active_config.CopyFrom(estop_configurations[request.target_config_id])
         return response
 
-    def SetEstopConfig(
-        self, request: SetEstopConfigRequest, context: grpc.ServicerContext
-    ) -> SetEstopConfigResponse:
+    def SetEstopConfig(self, request: SetEstopConfigRequest, context: grpc.ServicerContext) -> SetEstopConfigResponse:
         response = SetEstopConfigResponse()
         response.request.CopyFrom(request)
         if request.target_config_id:
-            estop_configurations = {
-                config.unique_id: config for config in self.estop_configurations
-            }
+            estop_configurations = {config.unique_id: config for config in self.estop_configurations}
             if request.target_config_id not in estop_configurations:
                 response.status = SetEstopConfigResponse.Status.STATUS_INVALID_ID
                 return response
-            self.active_estop_configuration = estop_configurations[
-                request.target_config_id
-            ]
+            self.active_estop_configuration = estop_configurations[request.target_config_id]
         else:
             self.active_estop_configuration = EstopConfig()
             self.active_estop_configuration.unique_id = next(self._config_id_generator)

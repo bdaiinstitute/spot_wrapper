@@ -48,9 +48,7 @@ class GenericRpcHandlerAccumulator:
             if hasattr(handler, "_method_handlers"):
                 yield from handler._method_handlers.items()
 
-    def add_generic_rpc_handlers(
-        self, handlers: typing.Iterable[grpc.GenericRpcHandler]
-    ) -> None:
+    def add_generic_rpc_handlers(self, handlers: typing.Iterable[grpc.GenericRpcHandler]) -> None:
         """Implements `grpc.Server.add_generic_rcp_handlers`."""
         self.handlers.extend(handlers)
 
@@ -107,28 +105,20 @@ class AutoServicer(object):
                     unqualified_name = handler.stream_stream.__name__
                     underlying_callable = handler.stream_stream
                     if self.autospec and not implemented(underlying_callable):
-                        underlying_callable = DeferredStreamRpcHandler(
-                            underlying_callable
-                        )
+                        underlying_callable = DeferredStreamRpcHandler(underlying_callable)
                         self.needs_shutdown.append(underlying_callable)
                     if self.autotrack:
-                        underlying_callable = TrackingStreamStreamRpcHandler(
-                            underlying_callable
-                        )
+                        underlying_callable = TrackingStreamStreamRpcHandler(underlying_callable)
                     if underlying_callable is not handler.stream_stream:
                         setattr(self, unqualified_name, underlying_callable)
                 else:
                     unqualified_name = handler.unary_stream.__name__
                     underlying_callable = handler.unary_stream
                     if self.autospec and not implemented(underlying_callable):
-                        underlying_callable = DeferredStreamRpcHandler(
-                            underlying_callable
-                        )
+                        underlying_callable = DeferredStreamRpcHandler(underlying_callable)
                         self.needs_shutdown.append(underlying_callable)
                     if self.autotrack:
-                        underlying_callable = TrackingUnaryStreamRpcHandler(
-                            underlying_callable
-                        )
+                        underlying_callable = TrackingUnaryStreamRpcHandler(underlying_callable)
                     if underlying_callable is not handler.unary_stream:
                         setattr(self, unqualified_name, underlying_callable)
             else:
@@ -136,28 +126,20 @@ class AutoServicer(object):
                     unqualified_name = handler.stream_unary.__name__
                     underlying_callable = handler.stream_unary
                     if self.autospec and not implemented(underlying_callable):
-                        underlying_callable = DeferredUnaryRpcHandler(
-                            underlying_callable
-                        )
+                        underlying_callable = DeferredUnaryRpcHandler(underlying_callable)
                         self.needs_shutdown.append(underlying_callable)
                     if self.autotrack:
-                        underlying_callable = TrackingStreamUnaryRpcHandler(
-                            underlying_callable
-                        )
+                        underlying_callable = TrackingStreamUnaryRpcHandler(underlying_callable)
                     if underlying_callable is not handler.stream_unary:
                         setattr(self, unqualified_name, underlying_callable)
                 else:
                     unqualified_name = handler.unary_unary.__name__
                     underlying_callable = handler.unary_unary
                     if self.autospec and not implemented(underlying_callable):
-                        underlying_callable = DeferredUnaryRpcHandler(
-                            underlying_callable
-                        )
+                        underlying_callable = DeferredUnaryRpcHandler(underlying_callable)
                         self.needs_shutdown.append(underlying_callable)
                     if self.autotrack:
-                        underlying_callable = TrackingUnaryUnaryRpcHandler(
-                            underlying_callable
-                        )
+                        underlying_callable = TrackingUnaryUnaryRpcHandler(underlying_callable)
                     if underlying_callable is not handler.unary_unary:
                         setattr(self, unqualified_name, underlying_callable)
 
@@ -190,9 +172,7 @@ class TrackingUnaryUnaryRpcHandler(GeneralizedDecorator):
         self.requests: typing.List = []
         self.num_calls = 0
 
-    def __call__(
-        self, request: typing.Any, context: grpc.ServicerContext
-    ) -> typing.Any:
+    def __call__(self, request: typing.Any, context: grpc.ServicerContext) -> typing.Any:
         try:
             self.requests.append(request)
             return self.__wrapped__(request, context)
@@ -208,9 +188,7 @@ class TrackingStreamUnaryRpcHandler(GeneralizedDecorator):
         self.requests: typing.List = []
         self.num_calls = 0
 
-    def __call__(
-        self, request_iterator: typing.Iterator, context: grpc.ServicerContext
-    ) -> typing.Any:
+    def __call__(self, request_iterator: typing.Iterator, context: grpc.ServicerContext) -> typing.Any:
         try:
             request = list(request_iterator)
             self.requests.append(request)
@@ -228,9 +206,7 @@ class TrackingUnaryStreamRpcHandler(GeneralizedDecorator):
         self.requests: typing.List = []
         self.num_calls = 0
 
-    def __call__(
-        self, request: typing.Any, context: grpc.ServicerContext
-    ) -> typing.Iterator:
+    def __call__(self, request: typing.Any, context: grpc.ServicerContext) -> typing.Iterator:
         try:
             self.requests.append(request)
             yield from self.__wrapped__(request, context)
@@ -246,9 +222,7 @@ class TrackingStreamStreamRpcHandler(GeneralizedDecorator):
         self.requests: typing.List = []
         self.num_calls = 0
 
-    def __call__(
-        self, request_iterator: typing.Iterator, context: grpc.ServicerContext
-    ) -> typing.Iterator:
+    def __call__(self, request_iterator: typing.Iterator, context: grpc.ServicerContext) -> typing.Iterator:
         try:
             request = list(request_iterator)
             self.requests.append(request)
@@ -335,9 +309,7 @@ class DeferredRpcHandler(GeneralizedDecorator):
                 self._completed = True
                 self._completion.notify_all()
 
-        def fails(
-            self, code: grpc.StatusCode, details: typing.Optional[str] = None
-        ) -> None:
+        def fails(self, code: grpc.StatusCode, details: typing.Optional[str] = None) -> None:
             """Fails the call by setting an error `code` and optional `details`."""
             with self._completion:
                 if self._completed:
@@ -371,9 +343,7 @@ class DeferredRpcHandler(GeneralizedDecorator):
             """Specifies the next call will succeed with the given `response`."""
             self._changequeue.put(lambda call: call.returns(response))
 
-        def fails(
-            self, code: grpc.StatusCode, details: typing.Optional[str] = None
-        ) -> None:
+        def fails(self, code: grpc.StatusCode, details: typing.Optional[str] = None) -> None:
             """Specifies the next call will fail with given error `code` and `details`."""
             self._changequeue.put(lambda call: call.fails(code, details))
 
@@ -387,9 +357,7 @@ class DeferredRpcHandler(GeneralizedDecorator):
         while not self._callqueue.empty():
             call = self._callqueue.get_nowait()
             if "PYTEST_CURRENT_TEST" in os.environ:
-                logging.warning(
-                    f"{self.__name__} call not served, dropped during shutdown"
-                )
+                logging.warning(f"{self.__name__} call not served, dropped during shutdown")
             call.fails(grpc.StatusCode.ABORTED, "call dropped")
 
     @property
@@ -397,9 +365,7 @@ class DeferredRpcHandler(GeneralizedDecorator):
         """Whether a call is waiting to be served."""
         return not self._callqueue.empty()
 
-    def serve(
-        self, timeout: typing.Optional[float] = None
-    ) -> typing.Optional["DeferredRpcHandler.Call"]:
+    def serve(self, timeout: typing.Optional[float] = None) -> typing.Optional["DeferredRpcHandler.Call"]:
         """
         Serve the next pending call, if any.
 
@@ -424,9 +390,7 @@ class DeferredRpcHandler(GeneralizedDecorator):
 class DeferredUnaryRpcHandler(DeferredRpcHandler):
     """A gRPC any-unary handler that decouples invocation and computation execution paths."""
 
-    def __call__(
-        self, request: typing.Any, context: grpc.ServicerContext
-    ) -> typing.Any:
+    def __call__(self, request: typing.Any, context: grpc.ServicerContext) -> typing.Any:
         call = DeferredRpcHandler.Call(request, context)
         if not self._future.materialize(call):
             self._callqueue.put(call)
@@ -439,9 +403,7 @@ class DeferredUnaryRpcHandler(DeferredRpcHandler):
 class DeferredStreamRpcHandler(DeferredRpcHandler):
     """A gRPC any-stream handler that decouples invocation and computation execution paths."""
 
-    def __call__(
-        self, request: typing.Any, context: grpc.ServicerContext
-    ) -> typing.Any:
+    def __call__(self, request: typing.Any, context: grpc.ServicerContext) -> typing.Any:
         call = DeferredRpcHandler.Call(request, context)
         if not self._future.materialize(call):
             self._callqueue.put(call)

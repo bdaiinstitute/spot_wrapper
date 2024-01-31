@@ -44,9 +44,7 @@ class AsyncPointCloudService(AsyncPeriodicQuery):
             raise TypeError("Point cloud requests must be a list.")
 
         if self._callback is not None and len(self._point_cloud_requests) > 0:
-            callback_future = self._client.get_point_cloud_async(
-                self._point_cloud_requests
-            )
+            callback_future = self._client.get_point_cloud_async(self._point_cloud_requests)
             callback_future.add_done_callback(self._callback)
             return callback_future
 
