@@ -1,6 +1,6 @@
 bosdyn-core==3.3.2
-bosdyn_choreography_client==3.3.2
-bosdyn_choreography_protos==3.3.2
+bosdyn-choreography-client==3.3.2
+bosdyn-choreography-protos==3.3.2
 bosdyn-client==3.3.2
 bosdyn-mission==3.3.2
 bosdyn-api==3.3.2
