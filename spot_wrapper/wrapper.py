@@ -784,6 +784,10 @@ class SpotWrapper:
     def world_objects(self) -> world_object_pb2.ListWorldObjectResponse:
         """Return most recent proto from _world_objects_task"""
         return self.spot_world_objects.async_task.proto
+    
+    # @property
+    def mutate_world_object(self, mutate_request: world_object_pb2.MutateWorldObjectRequest) -> world_object_pb2.MutateWorldObjectResponse:
+        return self._spot_world_objects.client_mutate_world_object(mutate_request)
 
     @property
     def point_clouds(self) -> typing.List[point_cloud_pb2.PointCloudResponse]:
