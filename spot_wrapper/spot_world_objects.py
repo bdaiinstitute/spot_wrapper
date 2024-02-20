@@ -98,5 +98,5 @@ class SpotWorldObjects:
         """
         return self._world_objects_client.list_world_objects(object_types, time_start_point)
 
-    def mutate_world_object(self, request: MutateWorldObjectRequest) -> MutateWorldObjectResponse:
+    def mutate_world_objects(self, request: MutateWorldObjectRequest) -> MutateWorldObjectResponse:
         return self._world_objects_client.mutate_world_objects(request)

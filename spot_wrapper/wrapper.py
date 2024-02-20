@@ -1478,7 +1478,7 @@ class SpotWrapper:
         else:
             return False, "Spot is not licensed for choreography", ""
 
-    def mutate_world_object(
+    def mutate_world_objects(
         self, mutate_request: world_object_pb2.MutateWorldObjectRequest
     ) -> world_object_pb2.MutateWorldObjectResponse:
-        return self._spot_world_objects.mutate_world_object(mutate_request)
+        return self._spot_world_objects.mutate_world_objects(mutate_request)
