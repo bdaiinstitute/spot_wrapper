@@ -1477,3 +1477,8 @@ class SpotWrapper:
             return self._spot_dance.choreography_log_to_animation_file(name, fpath, has_arm, **kwargs)
         else:
             return False, "Spot is not licensed for choreography", ""
+
+    def mutate_world_objects(
+        self, mutate_request: world_object_pb2.MutateWorldObjectRequest
+    ) -> world_object_pb2.MutateWorldObjectResponse:
+        return self._spot_world_objects.mutate_world_objects(mutate_request)
