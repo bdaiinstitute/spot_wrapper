@@ -1,12 +1,15 @@
 # Copyright (c) 2023 Boston Dynamics AI Institute LLC. See LICENSE file for more info.
 
+import collections.abc
 import inspect
 import logging
+import math
 import os
 import queue
 import sys
 import threading
 import typing
+from abc import ABC, abstractmethod
 
 import grpc
 
@@ -323,29 +326,132 @@ class DeferredRpcHandler(GeneralizedDecorator):
         """
         A window to future gRPC calls.
 
-        This helper class stores call resolutions in a FIFO queue,
-        for the handler to apply on future calls.
+        This helper class stores call outcomes in a FIFO queue,
+        for the handler to resolve future calls.
         """
 
+        class Outcome(ABC):
+            """A generic outcome for future calls."""
+
+            def __init__(self) -> None:
+                self._num_repeats: typing.Optional[typing.Union[int, float]] = None
+                self._num_uses: int = 0
+
+            @property
+            def num_repeats(self) -> typing.Optional[typing.Union[int, float]]:
+                """Returns the number of times this outcome will be used."""
+                return self._num_repeats
+
+            @property
+            def num_uses(self) -> int:
+                """Returns the number of times this outcome has been used."""
+                return self._num_uses
+
+            @abstractmethod
+            def do_resolve(self, call: "DeferredRpcHandler.Call") -> None:
+                pass
+
+            def resolve(self, call: "DeferredRpcHandler.Call") -> bool:
+                """Resolves the given `call` using this outcome."""
+                num_repeats = float(self._num_repeats or 0)
+                if self._num_uses >= num_repeats:
+                    return False
+                self.do_resolve(call)
+                self._num_uses += 1
+                return True
+
+            def repeatedly(self, times: int) -> None:
+                """States that this outcome can be used repeatedly, a finite number of `times`."""
+                assert times > 0
+                if self._num_repeats is not None:
+                    raise RuntimeError("Outcome repetition already specified")
+                self._num_repeats = times
+
+            def forever(self) -> None:
+                """States that this outcome can be used repeatedly, forever."""
+                if self._num_repeats is not None:
+                    raise RuntimeError("Outcome repetition already specified")
+                self._num_repeats = math.inf
+
+        class Response(Outcome):
+            """A successful response outcome for future calls."""
+
+            def __init__(self, response: typing.Any) -> None:
+                super().__init__()
+                self._response = response
+
+            def do_resolve(self, call: "DeferredRpcHandler.Call") -> None:
+                call.returns(self._response)
+
+            def _maybe_raise_for_streamed_responses(self):
+                if isinstance(self._response, collections.abc.Iterable):
+                    if not isinstance(self._response, collections.abc.Sized):
+                        raise RuntimeError("Cannot repeat an streamed response, specify it as a sized collection")
+
+            def repeatedly(self, times: int) -> None:
+                self._maybe_raise_for_streamed_responses()
+                super().repeatedly(times)
+
+            def forever(self) -> None:
+                self._maybe_raise_for_streamed_responses()
+                super().forever()
+
+        class Failure(Outcome):
+            """A failure outcome for future calls."""
+
+            def __init__(self, code: grpc.StatusCode, details: typing.Optional[str] = None) -> None:
+                super().__init__()
+                self._code = code
+                self._details = details
+
+            def do_resolve(self, call: "DeferredRpcHandler.Call") -> None:
+                call.fails(self._code, self._details)
+
         def __init__(self) -> None:
-            self._changequeue: queue.SimpleQueue = queue.SimpleQueue()
+            self._lock: threading.Lock = threading.Lock()
+            self._queue: collections.deque = collections.deque()
 
         def materialize(self, call: "DeferredRpcHandler.Call") -> bool:
             """Makes `call` the next call, applying the oldest resolution specified."""
-            try:
-                change = self._changequeue.get_nowait()
-                change(call)
-                return True
-            except queue.Empty:
+            with self._lock:
+                while len(self._queue) > 0:
+                    outcome = self._queue[0]
+                    if outcome.resolve(call):
+                        return True
+                    self._queue.popleft()
                 return False
 
-        def returns(self, response: typing.Any) -> None:
-            """Specifies the next call will succeed with the given `response`."""
-            self._changequeue.put(lambda call: call.returns(response))
+        def _raise_when_future_is_predetermined(self) -> None:
+            if len(self._queue) > 0:
+                pending_outcome = self._queue[-1]
+                if pending_outcome.num_repeats and not math.isfinite(pending_outcome.num_repeats):
+                    raise RuntimeError("Future is predetermined, cannot specify response (did you use forever())")
 
-        def fails(self, code: grpc.StatusCode, details: typing.Optional[str] = None) -> None:
-            """Specifies the next call will fail with given error `code` and `details`."""
-            self._changequeue.put(lambda call: call.fails(code, details))
+        def returns(self, response: typing.Any) -> "DeferredRpcHandler.Future.Outcome":
+            """
+            Specifies the next call will succeed with the given `response`.
+
+            It returns a future outcome that can inspected and repeated as need be.
+            """
+            with self._lock:
+                self._raise_when_future_is_predetermined()
+                outcome = DeferredRpcHandler.Future.Response(response)
+                self._queue.append(outcome)
+                return outcome
+
+        def fails(
+            self, code: grpc.StatusCode, details: typing.Optional[str] = None
+        ) -> "DeferredRpcHandler.Future.Outcome":
+            """
+            Specifies the next call will fail with given error `code` and `details`.
+
+            It returns a future outcome that can inspected and repeated as need be.
+            """
+            with self._lock:
+                self._raise_when_future_is_predetermined()
+                outcome = DeferredRpcHandler.Future.Failure(code, details)
+                self._queue.append(outcome)
+                return outcome
 
     def __init__(self, handler: typing.Callable) -> None:
         super().__init__(handler)

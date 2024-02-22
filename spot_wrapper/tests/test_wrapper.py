@@ -76,17 +76,19 @@ def test_wrapper_setup(simple_spot: SpotFixture, simple_spot_wrapper: SpotWrappe
     if simple_spot_wrapper.has_arm():
         # bosdyn.api.ManipulationApiService/ManipulationApi implementation
         # is mocked (as spot_wrapper.testing.mocks.MockSpot is automatically
-        # specified), so we provide a response in advance.
+        # specified), so here we provide the same response for every future
+        # request in advance.
         request = ManipulationApiRequest()
         request.pick_object.frame_name = "gripper"
         request.pick_object.object_rt_frame.x = 1.0
 
         response = ManipulationApiResponse()
         response.manipulation_cmd_id = 1
-        simple_spot.api.ManipulationApi.future.returns(response)
+        simple_spot.api.ManipulationApi.future.returns(response).forever()
 
-        ok, message, command_id = simple_spot_wrapper.manipulation_command(request)
-        assert ok and response.manipulation_cmd_id == command_id, message
+        for _ in range(5):
+            ok, message, command_id = simple_spot_wrapper.manipulation_command(request)
+            assert ok and response.manipulation_cmd_id == command_id, message
 
     # Power toggling relies on a combination of
     assert not simple_spot_wrapper.check_is_powered_on()
@@ -94,10 +96,12 @@ def test_wrapper_setup(simple_spot: SpotFixture, simple_spot_wrapper: SpotWrappe
 
     # bosdyn.api.RobotCommandService/RobotCommand implementation
     # is mocked (as spot_wrapper.testing.mocks.MockSpot is
-    # automatically specified), so we provide a response in
-    # advance.
+    # automatically specified), so here we provide a response in
+    # advance for each command.
     response = RobotCommandResponse()
     response.status = RobotCommandResponse.Status.STATUS_OK
-    simple_spot.api.RobotCommand.future.returns(response)
+    simple_spot.api.RobotCommand.future.returns(response).repeatedly(2)
     ok, message = simple_spot_wrapper.sit()
+    assert ok, message
+    ok, message = simple_spot_wrapper.stand()
     assert ok, message
