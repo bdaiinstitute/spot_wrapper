@@ -1,7 +1,6 @@
 # Copyright (c) 2023 Boston Dynamics AI Institute LLC. See LICENSE file for more info.
 
 import logging
-
 from typing import Iterator
 
 import grpc
