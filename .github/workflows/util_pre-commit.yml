@@ -10,11 +10,25 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || ''}}
+  cancel-in-progress: true
+
 jobs:
   pre-commit:
+    strategy:
+      matrix:
+        config:
+        - { python: "3.8" }
+        - { python: "3.9" }
+        - { python: "3.10" }
     name: util_pre-commit
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-python@v3
-    - uses: pre-commit/action@v3.0.0
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.config.python }}
+    
+    - uses: pre-commit/action@v3.0.1
