@@ -353,7 +353,7 @@ class DeferredRpcHandler(GeneralizedDecorator):
 
             def resolve(self, call: "DeferredRpcHandler.Call") -> bool:
                 """Resolves the given `call` using this outcome."""
-                num_repeats = float(self._num_repeats or 0)
+                num_repeats = float(self._num_repeats or 1)
                 if self._num_uses >= num_repeats:
                     return False
                 self.do_resolve(call)

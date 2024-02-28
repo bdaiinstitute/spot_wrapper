@@ -2,6 +2,8 @@
 
 import logging
 
+from typing import Iterator
+
 import grpc
 import pytest
 from bosdyn.api.manipulation_api_pb2 import (
@@ -51,9 +53,9 @@ class simple_spot(MockSpot):
 
 
 @pytest.fixture
-def simple_spot_wrapper(simple_spot: SpotFixture) -> SpotWrapper:
+def simple_spot_wrapper(simple_spot: SpotFixture) -> Iterator[SpotWrapper]:
     # Use fixture address and port for wrapper.
-    return SpotWrapper(
+    spot_wrapper = SpotWrapper(
         username="spot",
         password="spot",
         hostname=simple_spot.address,
@@ -61,47 +63,60 @@ def simple_spot_wrapper(simple_spot: SpotFixture) -> SpotWrapper:
         robot_name=simple_spot.api.name,
         logger=logging.getLogger("spot"),
     )
-
-
-def test_wrapper_setup(simple_spot: SpotFixture, simple_spot_wrapper: SpotWrapper) -> None:
-    # spot_wrapper.testing.mocks.MockSpot dummy services enable basic usage.
-    assert simple_spot_wrapper.is_valid
-
-    ok, message = simple_spot_wrapper.claim()
+    ok, message = spot_wrapper.claim()
     assert ok, message
+    try:
+        yield spot_wrapper
+    finally:
+        ok, message = spot_wrapper.release()
+        assert ok, message
 
+
+def test_spot_wrapper_setup(simple_spot: SpotFixture, simple_spot_wrapper: SpotWrapper) -> None:
+    assert simple_spot_wrapper.is_valid
     assert simple_spot_wrapper.id is not None
     assert simple_spot_wrapper.id.nickname == simple_spot.api.name
 
+
+def test_spot_wrapper_powering(simple_spot: SpotFixture, simple_spot_wrapper: SpotWrapper) -> None:
+    assert not simple_spot_wrapper.check_is_powered_on()
+    assert simple_spot_wrapper.toggle_power(True)
+    assert simple_spot_wrapper.check_is_powered_on()
+
+    power_state = simple_spot.api.robot_state.power_state
+    assert power_state.motor_power_state == PowerState.MotorPowerState.MOTOR_POWER_STATE_ON
+
+
+def test_spot_wrapper_commands(simple_spot: SpotFixture, simple_spot_wrapper: SpotWrapper) -> None:
     if simple_spot_wrapper.has_arm():
-        # bosdyn.api.ManipulationApiService/ManipulationApi implementation
-        # is mocked (as spot_wrapper.testing.mocks.MockSpot is automatically
-        # specified), so here we provide the same response for every future
-        # request in advance.
+        # bosdyn.api.ManipulationApiService/ManipulationApi implementation is mocked
+        # (as spot_wrapper.testing.mocks.MockSpot is automatically specified), so here
+        # we provide a response in advance.
         request = ManipulationApiRequest()
         request.pick_object.frame_name = "gripper"
         request.pick_object.object_rt_frame.x = 1.0
 
         response = ManipulationApiResponse()
         response.manipulation_cmd_id = 1
-        simple_spot.api.ManipulationApi.future.returns(response).forever()
+        simple_spot.api.ManipulationApi.future.returns(response)
 
-        for _ in range(5):
-            ok, message, command_id = simple_spot_wrapper.manipulation_command(request)
-            assert ok and response.manipulation_cmd_id == command_id, message
+        ok, message, command_id = simple_spot_wrapper.manipulation_command(request)
+        assert ok and response.manipulation_cmd_id == command_id, message
 
-    # Power toggling relies on a combination of
-    assert not simple_spot_wrapper.check_is_powered_on()
-    assert simple_spot_wrapper.toggle_power(True)
-
-    # bosdyn.api.RobotCommandService/RobotCommand implementation
-    # is mocked (as spot_wrapper.testing.mocks.MockSpot is
-    # automatically specified), so here we provide a response in
-    # advance for each command.
+    # bosdyn.api.RobotCommandService/RobotCommand implementation is mocked
+    # (as spot_wrapper.testing.mocks.MockSpot is automatically specified),
+    # so here we provide the same response for every future command.
     response = RobotCommandResponse()
     response.status = RobotCommandResponse.Status.STATUS_OK
     simple_spot.api.RobotCommand.future.returns(response).repeatedly(2)
+    response = RobotCommandResponse()
+    response.status = RobotCommandResponse.Status.STATUS_BEHAVIOR_FAULT
+    simple_spot.api.RobotCommand.future.returns(response).forever()
+    ok, message = simple_spot_wrapper.self_right()
+    assert ok, message
     ok, message = simple_spot_wrapper.sit()
     assert ok, message
-    ok, message = simple_spot_wrapper.stand()
-    assert ok, message
+    ok, _ = simple_spot_wrapper.stand()
+    assert not ok
+    ok, _ = simple_spot_wrapper.sit()
+    assert not ok
