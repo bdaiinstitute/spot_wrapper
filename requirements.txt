@@ -1,5 +1,6 @@
 bosdyn-core==4.0.0
 bosdyn-choreography-client==4.0.0
+bosdyn-choreography-protos==4.0.0
 bosdyn-client==4.0.0
 bosdyn-mission==4.0.0
 bosdyn-api==4.0.0
