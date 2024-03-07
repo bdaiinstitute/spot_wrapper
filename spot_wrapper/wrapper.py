@@ -996,13 +996,18 @@ class SpotWrapper:
 
     def getLease(self) -> typing.Optional[Lease]:
         """Get a lease for the robot and keep the lease alive automatically."""
-        if not self._lease:
-            if self._use_take_lease:
-                self._lease = self._lease_client.take()
-            else:
-                self._lease = self._lease_client.acquire()
-
+        if self._use_take_lease:
+            lease = self._lease_client.take()
+        else:
+            lease = self._lease_client.acquire()
+        have_new_lease = (self._lease is None and lease is not None) or (
+            str(lease.lease_proto) != str(self._lease.lease_proto)
+        )
+        if have_new_lease:
+            if self._lease_keepalive is not None:
+                self._lease_keepalive.shutdown()
             self._lease_keepalive = LeaseKeepAlive(self._lease_client)
+            self._lease = lease
         return self._lease
 
     def releaseLease(self) -> None:
