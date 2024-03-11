@@ -1004,6 +1004,7 @@ class SpotWrapper:
 
     def disconnect(self) -> None:
         """Release control of robot as gracefully as posssible."""
+        self.stop()
         if self._robot.time_sync:
             self._robot.time_sync.stop()
         self.releaseLease()
