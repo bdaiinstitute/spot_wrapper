@@ -1,5 +1,12 @@
 # Spot Wrapper
 
+![Python](https://img.shields.io/badge/python-3.8|3.9|3.10-blue)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![CI](https://github.com/bdaiinstitute/spot_wrapper/workflows/CI/badge.svg)](https://github.com/bdaiinstitute/spot_wrapper/actions)
+[![Coverage Status](https://coveralls.io/repos/github/bdaiinstitute/spot_wrapper/badge.svg?branch=main)](https://coveralls.io/github/bdaiinstitute/spot_wrapper?branch=main)
+[![LICENSE](https://img.shields.io/badge/license-MIT-purple)](LICENSE)
+
 This Python package is a wrapper around the [Boston Dynamics Spot SDK](https://dev.bostondynamics.com), intended as a united point of entry to the SDK for use with the [spot_ros](https://github.com/heuristicus/spot_ros) and [spot_ros2](https://github.com/bdaiinstitute/spot_ros2) packages.
 
 # Installation
