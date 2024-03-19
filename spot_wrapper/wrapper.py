@@ -944,6 +944,8 @@ class SpotWrapper:
         """Get keepalive for eStop"""
         self._estop_endpoint = EstopEndpoint(self._estop_client, SPOT_CLIENT_NAME, self._estop_timeout)
         self._estop_endpoint.force_simple_setup()  # Set this endpoint as the robot's sole estop.
+        if self._estop_keepalive:
+            self._estop_keepalive.shutdown()
         self._estop_keepalive = EstopKeepAlive(self._estop_endpoint)
 
     def assertEStop(self, severe: bool = True) -> typing.Tuple[bool, str]:
@@ -975,21 +977,44 @@ class SpotWrapper:
         """Stop eStop keepalive"""
         if self._estop_keepalive:
             self._estop_keepalive.stop()
+            self._estop_keepalive.shutdown()
             self._estop_keepalive = None
             self._estop_endpoint = None
 
-    def getLease(self) -> None:
+    def takeLease(self) -> typing.Tuple[bool, typing.Optional[Lease]]:
+        """Take lease for the robot, which may have been taken already."""
+        lease = self._lease_client.take()
+        have_new_lease = (self._lease is None and lease is not None) or (
+            str(lease.lease_proto) != str(self._lease.lease_proto)
+        )
+        if have_new_lease:
+            if self._lease_keepalive is not None:
+                self._lease_keepalive.shutdown()
+            self._lease_keepalive = LeaseKeepAlive(self._lease_client)
+            self._lease = lease
+        return have_new_lease, self._lease
+
+    def getLease(self) -> typing.Optional[Lease]:
         """Get a lease for the robot and keep the lease alive automatically."""
         if self._use_take_lease:
-            self._lease = self._lease_client.take()
+            lease = self._lease_client.take()
         else:
-            self._lease = self._lease_client.acquire()
-
-        self._lease_keepalive = LeaseKeepAlive(self._lease_client)
+            lease = self._lease_client.acquire()
+        have_new_lease = (self._lease is None and lease is not None) or (
+            str(lease.lease_proto) != str(self._lease.lease_proto)
+        )
+        if have_new_lease:
+            if self._lease_keepalive is not None:
+                self._lease_keepalive.shutdown()
+            self._lease_keepalive = LeaseKeepAlive(self._lease_client)
+            self._lease = lease
+        return self._lease
 
     def releaseLease(self) -> None:
         """Return the lease on the body."""
         if self._lease:
+            self._lease_keepalive.shutdown()
+            self._lease_keepalive = None
             self._lease_client.return_lease(self._lease)
             self._lease = None
 
