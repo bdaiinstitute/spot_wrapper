@@ -1039,7 +1039,7 @@ class SpotWrapper:
         command_proto: robot_command_pb2.RobotCommand,
         end_time_secs: typing.Optional[float] = None,
         timesync_endpoint: typing.Optional[TimeSyncEndpoint] = None,
-    ) -> typing.Tuple[bool, str, typing.Optional[str]]:
+    ) -> typing.Tuple[bool, str, typing.Optional[int]]:
         """Generic blocking function for sending commands to robots.
 
         Args:
@@ -1337,8 +1337,10 @@ class SpotWrapper:
             self.last_trajectory_command = response[2]
         return response[0], response[1]
 
-    def robot_command(self, robot_command: robot_command_pb2.RobotCommand) -> typing.Tuple[bool, str]:
-        end_time = time.time() + MAX_COMMAND_DURATION
+    def robot_command(
+        self, robot_command: robot_command_pb2.RobotCommand, duration: float = MAX_COMMAND_DURATION
+    ) -> typing.Tuple[bool, str, typing.Optional[int]]:
+        end_time = time.time() + duration
         return self._robot_command(
             robot_command,
             end_time_secs=end_time,
