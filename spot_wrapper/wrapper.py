@@ -1004,7 +1004,6 @@ class SpotWrapper:
 
     def disconnect(self) -> None:
         """Release control of robot as gracefully as posssible."""
-        self.stop()
         if self._robot.time_sync:
             self._robot.time_sync.stop()
         self.releaseLease()
@@ -1035,7 +1034,7 @@ class SpotWrapper:
             )
             return True, "Success", command_id
         except Exception as e:
-            self._logger.error(f"Unable to execute robot command: {e}")
+            self._logger.error(f"Unable to execute robot command: {e} \n {str(command_proto)}")
             return False, str(e), None
 
     def _manipulation_request(self, request_proto, end_time_secs=None, timesync_endpoint=None):
