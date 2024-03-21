@@ -1059,7 +1059,7 @@ class SpotWrapper:
             )
             return True, "Success", command_id
         except Exception as e:
-            self._logger.error(f"Unable to execute robot command: {e}")
+            self._logger.error(f"Unable to execute robot command: {e} \n {str(command_proto)}")
             return False, str(e), None
 
     def _manipulation_request(self, request_proto, end_time_secs=None, timesync_endpoint=None):
