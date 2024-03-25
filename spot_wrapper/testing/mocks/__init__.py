@@ -94,6 +94,7 @@ from spot_wrapper.testing.mocks.license import MockLicenseService
 from spot_wrapper.testing.mocks.payload_registration import (
     MockPayloadRegistrationService,
 )
+from spot_wrapper.testing.mocks.power import MockPowerService
 from spot_wrapper.testing.mocks.robot_id import MockRobotIdService
 from spot_wrapper.testing.mocks.robot_state import MockRobotStateService
 from spot_wrapper.testing.mocks.time_sync import MockTimeSyncService
@@ -185,6 +186,7 @@ class MockSpot(
     MockLeaseService,
     MockLicenseService,
     MockPayloadRegistrationService,
+    MockPowerService,
     MockRobotIdService,
     MockRobotStateService,
     MockTimeSyncService,
