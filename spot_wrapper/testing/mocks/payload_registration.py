@@ -30,6 +30,10 @@ class MockPayloadRegistrationService(PayloadRegistrationServiceServicer):
         super().__init__(**kwargs)
         self._payloads: typing.Dict[str, Payload] = {}
 
+    @property
+    def payloads(self) -> typing.Iterable[Payload]:
+        return list(self._payloads.values())
+
     def RegisterPayload(
         self, request: RegisterPayloadRequest, context: grpc.ServicerContext
     ) -> RegisterPayloadResponse:
