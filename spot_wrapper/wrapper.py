@@ -911,6 +911,9 @@ class SpotWrapper:
 
     def claim(self) -> typing.Tuple[bool, str]:
         """Get a lease for the robot, a handle on the estop endpoint, and the ID of the robot."""
+        if not self._valid:
+            return False, "Wrapper is not valid"
+
         if self.lease is not None:
             for resource in self.lease:
                 if resource.resource == "all-leases" and SPOT_CLIENT_NAME in resource.lease_owner.client_name:
@@ -1029,6 +1032,7 @@ class SpotWrapper:
 
     def disconnect(self) -> None:
         """Release control of robot as gracefully as posssible."""
+        self._valid = False
         if self._robot.time_sync:
             self._robot.time_sync.stop()
         self.releaseLease()
