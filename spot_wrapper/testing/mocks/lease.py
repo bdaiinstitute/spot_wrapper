@@ -55,6 +55,10 @@ class MockLeaseService(LeaseServiceServicer):
             self._leasable_resources[resource.resource] = leasable_resource
         self._latest_lease: typing.Optional[Lease] = None
 
+    @property
+    def leasable_resources(self) -> typing.Iterable[LeaseResource]:
+        return list(self._leasable_resources.values())
+
     def AcquireLease(self, request: AcquireLeaseRequest, context: grpc.ServicerContext) -> AcquireLeaseResponse:
         response = AcquireLeaseResponse()
         if request.resource not in self._leasable_resources:
