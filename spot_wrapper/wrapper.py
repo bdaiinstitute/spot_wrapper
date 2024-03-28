@@ -1410,13 +1410,13 @@ class SpotWrapper:
         else:
             return False, "Spot is not licensed for choreography"
 
-    def execute_dance(self, data: typing.Union[ChoreographySequence, str]) -> typing.Tuple[bool, str]:
+    def execute_dance(self, data: typing.Union[ChoreographySequence, str], start_slice: int) -> typing.Tuple[bool, str]:
         """Upload and execute dance. Data can be passed as
         - ChoreographySequence: proto passed directly to function
         - str: file contents of a .csq read directly from disk
         """
         if self._is_licensed_for_choreography:
-            return self._spot_dance.execute_dance(data)
+            return self._spot_dance.execute_dance(data, start_slice)
         else:
             return False, "Spot is not licensed for choreography"
 

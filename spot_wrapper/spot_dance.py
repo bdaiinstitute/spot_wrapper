@@ -230,7 +230,7 @@ class SpotDance:
 
         return True, "Success"
 
-    def execute_dance(self, data: Union[ChoreographySequence, str]) -> Tuple[bool, str]:
+    def execute_dance(self, data: Union[ChoreographySequence, str], start_slice: int) -> Tuple[bool, str]:
         """Upload and execute dance. Data can be passed as
         - ChoreographySequence: proto passed directly to function
         - str: file contents of a .csq read directly from disk
@@ -259,7 +259,9 @@ class SpotDance:
             # Setup common response in case of exception
             result_msg = f"Choreography uploaded with message: {message} \n"
             self._robot.power_on()
-            (result, message) = self.execute_choreography_by_name(choreography.name, start_slice=0, use_async=False)
+            (result, message) = self.execute_choreography_by_name(
+                choreography.name, start_slice=start_slice, use_async=False
+            )
 
             if result:
                 result_msg += "Success: Dance Execution"
