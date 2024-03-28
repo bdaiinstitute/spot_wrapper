@@ -11,6 +11,7 @@ from bosdyn.api.estop_pb2 import (
     EstopCheckInResponse,
     EstopConfig,
     EstopStopLevel,
+    EstopSystemStatus,
     GetEstopConfigRequest,
     GetEstopConfigResponse,
     GetEstopSystemStatusRequest,
@@ -38,6 +39,8 @@ class MockEStopService(EstopServiceServicer):
         self.active_estop_configuration = EstopConfig()
         self.active_estop_configuration.unique_id = next(self._config_id_generator)
         self.estop_configurations = [self.active_estop_configuration]
+        self.estop_status = EstopSystemStatus()
+        self.estop_status.stop_level = EstopStopLevel.ESTOP_LEVEL_NONE
 
     def RegisterEstopEndpoint(
         self, request: RegisterEstopEndpointRequest, context: grpc.ServicerContext
@@ -58,6 +61,9 @@ class MockEStopService(EstopServiceServicer):
         else:
             estop_endpoint = estop_configuration.endpoints.add()
             estop_endpoint.unique_id = next(self._endpoint_id_generator)
+            endpoint_status = self.estop_status.endpoints.add()
+            endpoint_status.endpoint.CopyFrom(estop_endpoint)
+            endpoint_status.stop_level = EstopStopLevel.ESTOP_LEVEL_NONE
         unique_id = estop_endpoint.unique_id
         estop_endpoint.CopyFrom(request.new_endpoint)
         estop_endpoint.unique_id = unique_id
@@ -80,18 +86,33 @@ class MockEStopService(EstopServiceServicer):
             response.status = RegisterEstopEndpointResponse.Status.STATUS_ENDPOINT_MISMATCH
             return response
         del estop_configuration.endpoints[estop_endpoint_indices[request.target_endpoint.unique_id]]
+        del self.estop_status.endpoints[estop_endpoint_indices[request.target_endpoint.unique_id]]
+        self.estop_status.stop_level = min(ep.stop_level for ep in self.estop_status.endpoints)
         response.status = DeregisterEstopEndpointResponse.Status.STATUS_SUCCESS
         return response
 
     def EstopCheckIn(self, request: EstopCheckInRequest, context: grpc.ServicerContext) -> EstopCheckInResponse:
         response = EstopCheckInResponse()
         response.request.CopyFrom(request)
+        response.challenge = (request.challenge or 1) + 1
         estop_endpoints = {ep.unique_id: ep for cfg in self.estop_configurations for ep in cfg.endpoints}
         if request.endpoint.unique_id not in estop_endpoints:
             response.status = EstopCheckInResponse.Status.STATUS_ENDPOINT_UNKNOWN
             return response
+        endpoint_status = next(
+            (
+                endpoint_status
+                for endpoint_status in self.estop_status.endpoints
+                if endpoint_status.endpoint.unique_id == request.endpoint.unique_id
+            ),
+            None,
+        )
+        if endpoint_status is None:
+            response.status = EstopCheckInResponse.Status.STATUS_ENDPOINT_UNKNOWN
+            return response
         response.status = EstopCheckInResponse.Status.STATUS_OK
-        response.challenge = (request.challenge or 1) + 1
+        endpoint_status.stop_level = request.stop_level
+        self.estop_status.stop_level = min(ep.stop_level for ep in self.estop_status.endpoints)
         return response
 
     def GetEstopConfig(self, request: GetEstopConfigRequest, context: grpc.ServicerContext) -> GetEstopConfigResponse:
@@ -129,10 +150,5 @@ class MockEStopService(EstopServiceServicer):
         self, request: GetEstopSystemStatusRequest, context: grpc.ServicerContext
     ) -> GetEstopSystemStatusResponse:
         response = GetEstopSystemStatusResponse()
-        for cfg in self.estop_configurations:
-            for ep in cfg.endpoints:
-                endpoint_with_status = response.status.endpoints.add()
-                endpoint_with_status.endpoint.CopyFrom(ep)
-                endpoint_with_status.stop_level = EstopStopLevel.ESTOP_LEVEL_NONE
-        response.status.stop_level = EstopStopLevel.ESTOP_LEVEL_NONE
+        response.status.CopyFrom(self.estop_status)
         return response
