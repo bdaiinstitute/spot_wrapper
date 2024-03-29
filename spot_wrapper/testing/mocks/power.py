@@ -1,5 +1,7 @@
 # Copyright (c) 2024 Boston Dynamics AI Institute LLC. See LICENSE file for more info.
 
+from typing import Any
+
 import grpc
 from bosdyn.api.power_pb2 import (
     FanPowerCommandFeedbackRequest,
@@ -20,6 +22,10 @@ from spot_wrapper.testing.mocks.robot_state import MockRobotStateService
 
 class MockPowerService(PowerServiceServicer, MockRobotStateService):
     """A mock Spot power service."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.robot_state.power_state.motor_power_state = PowerState.MotorPowerState.MOTOR_POWER_STATE_OFF
 
     def PowerCommand(self, request: PowerCommandRequest, context: grpc.ServicerContext) -> PowerCommandResponse:
         response = PowerCommandResponse()
