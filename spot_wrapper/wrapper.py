@@ -596,8 +596,8 @@ class SpotWrapper:
         """
         Initializes the spot camera wrapper
         """
-        spot_cam_wrapper = SpotCamWrapper(self._hostname, self._username, self._password, self._robot, cam_logger)
         self.authenticate(self._robot, self._username, self._password, cam_logger)
+        spot_cam_wrapper = SpotCamWrapper(self._hostname, self._username, self._password, cam_logger, self._robot)
         return spot_cam_wrapper
 
     def decorate_functions(self):
