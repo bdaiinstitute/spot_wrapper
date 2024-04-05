@@ -893,14 +893,14 @@ class ImageStreamWrapper:
 
 
 class SpotCamWrapper:
-    def __init__(self, hostname, username, password, logger, robot, port: typing.Optional[int] = None):
+    def __init__(self, hostname, username, password, logger, robot, sdk, port: typing.Optional[int] = None):
         self._hostname = hostname
         self._username = username
         self._password = password
         self._logger = logger
 
         # Create robot object and authenticate.
-        self.sdk = bosdyn.client.create_standard_sdk("Spot CAM Client")
+        self.sdk = sdk
         spot_cam.register_all_service_clients(self.sdk)
 
         self.robot = robot
