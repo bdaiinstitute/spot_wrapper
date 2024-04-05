@@ -65,6 +65,7 @@ from .spot_eap import SpotEAP
 from .spot_graph_nav import SpotGraphNav
 from .spot_images import SpotImages
 from .spot_world_objects import SpotWorldObjects
+from .cam_wrapper import SpotCamWrapper
 from .wrapper_helpers import ClaimAndPowerDecorator, RobotCommandData, RobotState
 
 SPOT_CLIENT_NAME = "ros_spot"
@@ -590,6 +591,14 @@ class SpotWrapper:
 
         self._robot_id = None
         self._lease = None
+    
+    def init_camera_wrapper(self, cam_logger) -> SpotCamWrapper:
+        """
+        Initializes the spot camera wrapper
+        """
+        spot_cam_wrapper = SpotCamWrapper(self._hostname, self._username, self._password, self._robot, cam_logger)
+        self.authenticate(self._robot, self._username, self._password, cam_logger)
+        return spot_cam_wrapper
 
     def decorate_functions(self):
         """

@@ -32,7 +32,7 @@ from bosdyn.client.spot_cam.streamquality import StreamQualityClient
 from PIL import Image
 
 from spot_wrapper.cam_webrtc_client import WebRTCClient
-from spot_wrapper.wrapper import SpotWrapper
+# from spot_wrapper.wrapper import SpotWrapper
 
 
 class LightingWrapper:
@@ -491,11 +491,9 @@ class MediaLogWrapper:
         filename: str,
         extension: str,
         camera: typing.Optional[SpotCamCamera] = None,
-    ) -> str:
+        ) -> str:
         """
         Build a filename from a base name. Returns files of the form basefilename_cameraname_iso_date
-
-
         Args:
             logpoint: Build a filename for this logpoint
             filename: Base filename to use
@@ -895,7 +893,7 @@ class ImageStreamWrapper:
 
 
 class SpotCamWrapper:
-    def __init__(self, hostname, username, password, logger, port: typing.Optional[int] = None):
+    def __init__(self, hostname, username, password, robot, logger, port: typing.Optional[int] = None):
         self._hostname = hostname
         self._username = username
         self._password = password
@@ -905,10 +903,9 @@ class SpotCamWrapper:
         self.sdk = bosdyn.client.create_standard_sdk("Spot CAM Client")
         spot_cam.register_all_service_clients(self.sdk)
 
-        self.robot = self.sdk.create_robot(self._hostname)
+        self.robot = robot
         if port is not None:
             self.robot.update_secure_channel_port(port)
-        SpotWrapper.authenticate(self.robot, self._username, self._password, self._logger)
 
         self.payload_client: PayloadClient = self.robot.ensure_client(PayloadClient.default_service_name)
         self.payload_details = None
