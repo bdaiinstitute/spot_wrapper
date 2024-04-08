@@ -893,15 +893,15 @@ class ImageStreamWrapper:
 
 
 class SpotCamWrapper:
-    def __init__(self, hostname, username, password, logger, robot, sdk, port: typing.Optional[int] = None):
+    def __init__(self, hostname, username, password, logger, robot, port: typing.Optional[int] = None):
         self._hostname = hostname
         self._username = username
         self._password = password
         self._logger = logger
 
         # Create robot object and authenticate.
-        self.sdk = sdk
-        spot_cam.register_all_service_clients(self.sdk)
+        # self.sdk = sdk
+        # spot_cam.register_all_service_clients(self.sdk)
 
         self.robot = robot
         if port is not None:
@@ -920,15 +920,18 @@ class SpotCamWrapper:
                 "admin interface"
             )
 
-        self.lighting = LightingWrapper(self.robot, self._logger)
-        self.power = PowerWrapper(self.robot, self._logger)
-        self.compositor = CompositorWrapper(self.robot, self._logger)
-        self.image = ImageStreamWrapper(self._hostname, self.robot, self._logger)
-        self.health = HealthWrapper(self.robot, self._logger)
-        self.audio = AudioWrapper(self.robot, self._logger)
-        self.stream_quality = StreamQualityWrapper(self.robot, self._logger)
-        self.media_log = MediaLogWrapper(self.robot, self._logger)
-        self.ptz = PTZWrapper(self.robot, self._logger)
+        try:
+            self.lighting = LightingWrapper(self.robot, self._logger)
+            self.power = PowerWrapper(self.robot, self._logger)
+            self.compositor = CompositorWrapper(self.robot, self._logger)
+            self.image = ImageStreamWrapper(self._hostname, self.robot, self._logger)
+            self.health = HealthWrapper(self.robot, self._logger)
+            self.audio = AudioWrapper(self.robot, self._logger)
+            self.stream_quality = StreamQualityWrapper(self.robot, self._logger)
+            self.media_log = MediaLogWrapper(self.robot, self._logger)
+            self.ptz = PTZWrapper(self.robot, self._logger)
+        except Exception as e:
+            self._logger.warn(f"Error setting up spot cam wrapper components: {str(e)}")
 
         self._logger.info("Finished setting up spot cam wrapper components")
 

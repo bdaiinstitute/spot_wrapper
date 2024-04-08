@@ -54,6 +54,7 @@ from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.spot_check import SpotCheckClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
+from bosdyn.client import spot_cam
 from bosdyn.geometry import EulerZXY
 from google.protobuf.timestamp_pb2 import Timestamp
 
@@ -597,8 +598,9 @@ class SpotWrapper:
         Initializes the spot camera wrapper
         """
         self.authenticate(self._robot, self._username, self._password, cam_logger)
+        spot_cam.register_all_service_clients(self._sdk)
         spot_cam_wrapper = SpotCamWrapper(self._hostname, self._username, self._password, cam_logger, 
-                                          self._robot, self._sdk)
+                                          self._robot)
         return spot_cam_wrapper
 
     def decorate_functions(self):
