@@ -3,12 +3,16 @@
 import concurrent.futures
 import dataclasses
 import functools
-import inspect
+import pathlib
 import typing
 
 import grpc
 import pytest
 
+from spot_wrapper.testing.credentials import (
+    DEFAULT_TESTING_CERTIFICATES,
+    SpotSSLCertificates,
+)
 from spot_wrapper.testing.mocks import BaseMockSpot
 
 
@@ -25,6 +29,7 @@ class SpotFixture:
 
     address: str
     port: int
+    certificate_path: pathlib.Path
     api: BaseMockSpot
 
 
@@ -33,6 +38,7 @@ def fixture(
     *,
     address: str = "127.0.0.1",
     max_workers: int = 10,
+    certificates: SpotSSLCertificates = DEFAULT_TESTING_CERTIFICATES,
     **kwargs: typing.Any,
 ) -> typing.Callable:
     """
@@ -54,35 +60,29 @@ def fixture(
     """
 
     def decorator(cls: typing.Type[BaseMockSpot]) -> typing.Callable:
-        def fixturefunc(monkeypatch, **kwargs) -> typing.Iterator[SpotFixture]:
+        def fixturefunc(**kwargs) -> typing.Iterator[SpotFixture]:
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as thread_pool:
                 server = grpc.server(thread_pool)
-                port = server.add_insecure_port(f"{address}:0")
+                robot_certificate_key = certificates.robot_certificate_key_path.read_bytes()
+                server_credentials = grpc.ssl_server_credentials([
+                    (robot_certificate_key, certificate_path.read_bytes())
+                    for certificate_path in certificates.robot_certificate_paths
+                ])
+                port = server.add_secure_port(f"{address}:0", server_credentials)
                 with cls(**kwargs) as mock:
                     mock.add_to(server)
                     server.start()
                     try:
-                        with monkeypatch.context() as m:
-
-                            def mock_secure_channel(target, _, *args, **kwargs):
-                                return grpc.insecure_channel(target, *args, **kwargs)
-
-                            m.setattr(grpc, "secure_channel", mock_secure_channel)
-                            yield SpotFixture(address=address, port=port, api=mock)
+                        yield SpotFixture(
+                            address=address,
+                            port=port,
+                            api=mock,
+                            certificate_path=certificates.root_certificate_path,
+                        )
                     finally:
                         server.stop(grace=None)
 
         functools.update_wrapper(fixturefunc, cls)
-        sig = inspect.signature(fixturefunc)
-        if "monkeypatch" not in sig.parameters:
-            sig = sig.replace(
-                parameters=(
-                    inspect.Parameter("monkeypatch", inspect.Parameter.POSITIONAL_OR_KEYWORD),
-                    *sig.parameters.values(),
-                )
-            )
-            fixturefunc.__signature__ = sig  # noqa
-
         return pytest.fixture(fixturefunc, **kwargs)
 
     if cls is None:
