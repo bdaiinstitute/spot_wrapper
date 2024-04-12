@@ -500,6 +500,50 @@ class SpotArm:
 
         return True, "Moved arm successfully"
 
+    def handle_arm_velocity(
+        self, arm_velocity_command: arm_command_pb2.ArmVelocityCommand.Request, cmd_duration: float = 0.15
+    ) -> typing.Tuple[bool, str]:
+        """
+        Set the velocity of the arm TCP
+
+        Args:
+            arm_velocity_command: Protobuf message to set the arm velocity
+            cmd_duration: (optional) Time-to-live for the command in seconds.
+
+        Returns:
+            Boolean success, string message
+        """
+
+        try:
+            success, msg = self.ensure_arm_power_and_stand()
+            if not success:
+                self._logger.info(msg)
+                return False, msg
+            else:
+                end_time = self._robot.time_sync.robot_timestamp_from_local_secs(time.time() + cmd_duration)
+
+                arm_velocity_command2 = arm_command_pb2.ArmVelocityCommand.Request(
+                    cylindrical_velocity=arm_velocity_command.cylindrical_velocity,
+                    angular_velocity_of_hand_rt_odom_in_hand=arm_velocity_command.angular_velocity_of_hand_rt_odom_in_hand,
+                    cartesian_velocity=arm_velocity_command.cartesian_velocity,
+                    end_time=end_time,
+                )
+
+                robot_command = robot_command_pb2.RobotCommand()
+                robot_command.synchronized_command.arm_command.arm_velocity_command.CopyFrom(arm_velocity_command2)
+
+                self._robot_command_client.robot_command(
+                    command=robot_command, end_time_secs=time.time() + cmd_duration
+                )
+
+        except Exception as e:
+            print(e)
+            return (
+                False,
+                f"An error occured while trying to move arm\n Exception: {e}",
+            )
+        return True, "Moved arm successfully"
+
     @staticmethod
     def block_until_gripper_command_completes(
         robot_command_client: RobotCommandClient,
