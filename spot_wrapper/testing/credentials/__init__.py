@@ -15,20 +15,17 @@ class SpotSSLCertificates:
 
 
 DEFAULT_TESTING_CERTIFICATES = SpotSSLCertificates(
-    robot_certificate_key_path=pathlib.Path(pkg_resources.resource_filename(
-        "spot_wrapper.testing.credentials", "robot.pem"
-    )),
+    robot_certificate_key_path=pathlib.Path(
+        pkg_resources.resource_filename("spot_wrapper.testing.credentials", "robot.pem")
+    ),
     robot_certificate_paths=[
-        pathlib.Path(pkg_resources.resource_filename(
-            "spot_wrapper.testing.credentials", certificate_filename
-        )) for certificate_filename in (
+        pathlib.Path(pkg_resources.resource_filename("spot_wrapper.testing.credentials", certificate_filename))
+        for certificate_filename in (
             "api.spot.robot.crt",
             "auth.spot.robot.crt",
             "id.spot.robot.crt",
             "payload-registration.spot.robot.crt",
         )
     ],
-    root_certificate_path=pathlib.Path(pkg_resources.resource_filename(
-        "spot_wrapper.testing.credentials", "ca.crt"
-    )),
+    root_certificate_path=pathlib.Path(pkg_resources.resource_filename("spot_wrapper.testing.credentials", "ca.crt")),
 )

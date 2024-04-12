@@ -64,10 +64,12 @@ def fixture(
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as thread_pool:
                 server = grpc.server(thread_pool)
                 robot_certificate_key = certificates.robot_certificate_key_path.read_bytes()
-                server_credentials = grpc.ssl_server_credentials([
-                    (robot_certificate_key, certificate_path.read_bytes())
-                    for certificate_path in certificates.robot_certificate_paths
-                ])
+                server_credentials = grpc.ssl_server_credentials(
+                    [
+                        (robot_certificate_key, certificate_path.read_bytes())
+                        for certificate_path in certificates.robot_certificate_paths
+                    ]
+                )
                 port = server.add_secure_port(f"{address}:0", server_credentials)
                 with cls(**kwargs) as mock:
                     mock.add_to(server)
