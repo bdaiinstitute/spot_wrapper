@@ -60,6 +60,7 @@ def simple_spot_wrapper(simple_spot: SpotFixture) -> Iterator[SpotWrapper]:
         hostname=simple_spot.address,
         port=simple_spot.port,
         robot_name=simple_spot.api.name,
+        cert_resource_glob=str(simple_spot.certificate_path),
         logger=logging.getLogger("spot"),
     )
     ok, message = spot_wrapper.claim()

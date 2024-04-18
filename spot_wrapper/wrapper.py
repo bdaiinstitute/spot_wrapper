@@ -340,6 +340,7 @@ class SpotWrapper:
         continually_try_stand: bool = True,
         rgb_cameras: bool = True,
         payload_credentials_file: str = None,
+        cert_resource_glob: typing.Optional[str] = None,
     ) -> None:
         """
         Args:
@@ -391,7 +392,7 @@ class SpotWrapper:
         self._command_data = RobotCommandData()
 
         try:
-            self._sdk = create_standard_sdk(SPOT_CLIENT_NAME)
+            self._sdk = create_standard_sdk(SPOT_CLIENT_NAME, cert_resource_glob=cert_resource_glob)
         except Exception as e:
             self._logger.error("Error creating SDK object: %s", e)
             self._valid = False
