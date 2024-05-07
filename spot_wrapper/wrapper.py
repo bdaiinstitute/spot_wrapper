@@ -54,6 +54,7 @@ from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.spot_check import SpotCheckClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
+from bosdyn.mission.client import MissionClient
 from bosdyn.geometry import EulerZXY
 from bosdyn.mission.client import MissionClient
 from google.protobuf.timestamp_pb2 import Timestamp
