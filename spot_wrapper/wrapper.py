@@ -54,6 +54,7 @@ from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.spot_check import SpotCheckClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
+from bosdyn.mission.client import MissionClient
 from bosdyn.geometry import EulerZXY
 from google.protobuf.timestamp_pb2 import Timestamp
 
@@ -437,6 +438,7 @@ class SpotWrapper:
                 self._estop_client = self._robot.ensure_client(EstopClient.default_service_name)
                 self._docking_client = self._robot.ensure_client(DockingClient.default_service_name)
                 self._spot_check_client = self._robot.ensure_client(SpotCheckClient.default_service_name)
+                self._mission_client = self._robot.ensure_client(MissionClient.default_service_name)
                 self._license_client = self._robot.ensure_client(LicenseClient.default_service_name)
                 if self._robot.has_arm():
                     self._gripper_cam_param_client = self._robot.ensure_client(

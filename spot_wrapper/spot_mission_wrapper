@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+import logging
+import time
+import typing
+
+from bosdyn.api import header_pb2
+from bosdyn.client import robot_command
+from bosdyn.client.lease import Lease, LeaseClient, LeaseWallet
+from bosdyn.client.robot import Robot
+from bosdyn.client.spot_check import SpotCheckClient, run_spot_check, spot_check_pb2
+from google.protobuf.timestamp_pb2 import Timestamp
+
+from bosdyn.mission.client import MissionClient
+
+from spot_wrapper.wrapper_helpers import RobotState
+
+
+class SpotMission:
+    """
+    Allow access to mission functionality through the SDK
+    """
+
+    def __init__(
+        self,
+        robot: Robot,
+        logger: logging.Logger,
+        robot_state: RobotState,
+        mission_client: MissionClient,
+        robot_command_client: robot_command.RobotCommandClient,
+        lease_client: LeaseClient,
+    ) -> None:
+        self._robot = robot
+        self._logger = logger
+        self._mission_client: MissionClient = mission_client
+        self._robot_command_client = robot_command_client
+        self._lease_client = lease_client
+        self._robot_state = robot_state
+        self._spot_check_resp = None
+        self._lease = None
+        self._lease_wallet: LeaseWallet = self._lease_client.lease_wallet
+
+    def _get_lease(self) -> Lease:
+        self._lease = self._lease_wallet.get_lease()
+        return self._lease
+
+    def _load_mission(self, root, leases=[]):
+        """Load a mission"""
+        return
+    
+    def _play_mission(self, pause_time_secs, leases=[], settings=None,):
+        """Play loaded mission"""
+        return
+    
+    def _get_mission_state(self, upper_tick_bound=None, lower_tick_bound=None, past_ticks=None):
+        """Get the state of the current mission"""
+        return
+    
+    def _pause_mission(self):
+        """Pause mission"""
+        return
+    
+    def _restart_mission(self, pause_time_secs, leases=[], settings=None):
+        """Restart mission after pause"""
+        return
+    
+    def _stop_mission(self):
+        """Stop the current mission"""
+        return
+
+
+    def _spot_check_cmd(self, command: spot_check_pb2.SpotCheckCommandRequest):
+        """Send a Spot Check command"""
+        start_time_seconds, start_time_ns = int(time.time()), int(time.time_ns() % 1e9)
+        req = spot_check_pb2.SpotCheckCommandRequest(
+            header=header_pb2.RequestHeader(
+                request_timestamp=Timestamp(seconds=start_time_seconds, nanos=start_time_ns),
+                client_name="spot-check",
+                disable_rpc_logging=False,
+            ),
+            lease=self._get_lease().lease_proto,
+            command=command,
+        )
+        self._spot_check_client.spot_check_command(req)
+
+    def stop_check(self) -> typing.Tuple[bool, str]:
+        """Stop the Spot Check
+        Note: This may cause the robot to enter a FaultState. Use only in emergencies.
+        """
+        self._spot_check_cmd(spot_check_pb2.SpotCheckCommandRequest.COMMAND_ABORT)
+
+        # Get feedback
+        resp = self._req_feedback()
+
+        # Check for errors
+        success, status = self._feedback_error_check(resp)
+
+        if success:
+            status = "Successfully stopped Spot Check"
+            self._logger.info(status)
+        else:
+            self._logger.error("Failed to stop Spot Check")
+
+        return success, status
+
+    def revert_calibration(self) -> typing.Tuple[bool, str]:
+        """Revert calibration for Spot Check"""
+        self._spot_check_cmd(spot_check_pb2.SpotCheckCommandRequest.COMMAND_REVERT_CAL)
+
+        # Get feedback
+        resp = self._req_feedback()
+
+        # Check for errors
+        success, status = self._feedback_error_check(resp)
+
+        if success:
+            status = "Successfully reverted calibration"
+            self._logger.info(status)
+        else:
+            status = "Failed to revert calibration"
+            self._logger.error(status)
+
+        return success, status
+
+    def start_check(self) -> typing.Tuple[bool, str]:
+        """Start the Spot Check"""
+        # Make sure we're powered on and sitting
+        try:
+            self._robot.power_on()
+            if not self._robot_state.is_sitting:
+                robot_command.blocking_sit(command_client=self._robot_command_client, timeout_sec=10)
+                self._logger.info("Spot is sitting")
+            else:
+                self._logger.info("Spot is already sitting")
+
+            self._spot_check_cmd(spot_check_pb2.SpotCheckCommandRequest.COMMAND_START)
+
+            # Get feedback
+            resp = self._req_feedback()
+
+            # Check for errors
+            success, status = self._feedback_error_check(resp)
+
+            if success:
+                status = "Successfully started Spot Check"
+                self._logger.info(status)
+            else:
+                self._logger.error("Failed to start Spot Check")
+            return success, status
+
+        except Exception as e:
+            return False, f"Exception running start_check from spot check: {str(e)}"
+
+    def blocking_check(
+        self,
+        timeout_sec: int = 360,
+        update_freq: float = 0.25,
+        verbose: bool = False,
+    ) -> typing.Tuple[bool, str]:
+        """Check the robot
+        Args:
+            timeout_sec: Timeout for the blocking check
+            update_freq: Frequency to update the check
+            verbose: Whether to print the check status
+        Returns:
+            Tuple of (success, message)
+        """
+        try:
+            # Make sure we're powered on and sitting
+            self._robot.power_on()
+            if not self._robot_state.is_sitting:
+                robot_command.blocking_sit(command_client=self._robot_command_client, timeout_sec=10)
+                self._logger.info("Spot is sitting")
+            else:
+                self._logger.info("Spot is already sitting")
+
+            # Check the robot and block for timeout_sec
+            self._logger.info("Blocking Spot Check is starting!")
+            resp: spot_check_pb2.SpotCheckFeedbackResponse = run_spot_check(
+                self._spot_check_client,
+                self._get_lease(),
+                timeout_sec,
+                update_freq,
+                verbose,
+            )
+
+            self._logger.info("Blocking Spot Check ran successfully!")
+            success, status = self._feedback_error_check(resp)
+
+            return success, status
+
+        except Exception as e:
+            self._logger.error("Exception thrown during blocking spot check: {}".format(e))
+            return False, str(e)
+
+    def get_feedback(self) -> spot_check_pb2.SpotCheckFeedbackResponse:
+        """Get feedback from Spot Check"""
+        resp = self._req_feedback()
+        return resp[0], "Got only feedback from Spot Check"
