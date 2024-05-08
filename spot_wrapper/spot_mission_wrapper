@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 import logging
 import time
-import typing
+from typing import Optional
 
-from bosdyn.api import header_pb2
 from bosdyn.client import robot_command
 from bosdyn.client.lease import Lease, LeaseClient, LeaseWallet
 from bosdyn.client.robot import Robot
-from bosdyn.client.spot_check import SpotCheckClient, run_spot_check, spot_check_pb2
-from google.protobuf.timestamp_pb2 import Timestamp
 
-from bosdyn.mission.client import MissionClient
-
+from bosdyn.mission.client import (
+    MissionClient, 
+    CompilationError, 
+    ValidationError, 
+    NoMissionError, 
+    NoMissionPlayingError
+)
+from bosdyn.client import RpcError
 from spot_wrapper.wrapper_helpers import RobotState
 
 
@@ -43,156 +46,143 @@ class SpotMission:
         self._lease = self._lease_wallet.get_lease()
         return self._lease
 
-    def _load_mission(self, root, leases=[]):
-        """Load a mission"""
-        return
+    def _load_mission(self, root, leases=[], data_chunk_byte_size: Optional[int]=None):
+        """Load a mission
+        Args:
+            root: Root node in a mission.
+            leases: All leases necessary to initialize a mission.
+            data_chunk_byte_size: Optional max size of each streamed message
+        Raises:
+            RpcError: Problem communicating with the robot.
+            bosdyn.mission.client.CompilationError: The mission failed to compile.
+            bosdyn.mission.client.ValidationError: The mission failed to validate.
+        """
+        if data_chunk_byte_size:
+            return self._load_mission_as_chunks(root, leases, data_chunk_byte_size)
+        try:
+            resp = self._mission_client.load_mission_async(root, leases)
+        except RpcError:
+            resp = (False, "Could not communicate with the robot")
+        except CompilationError as e:
+            resp = (False, f"The mission failed to compile: {e}")
+        except ValidationError as e:
+            resp = (False, f"The mission could not be validated: {e}")
+        return resp
+
+    
+    def _load_mission_as_chunks(self, root, leases=[], data_chunk_byte_size=1000 * 1000):
+        """Load a mission onto the robot.
+        Args:
+            root: Root node in a mission.
+            leases: All leases necessary to initialize a mission.
+            data_chunk_byte_size: max size of each streamed message
+        Raises:
+            RpcError: Problem communicating with the robot.
+            bosdyn.mission.client.CompilationError: The mission failed to compile.
+            bosdyn.mission.client.ValidationError: The mission failed to validate.
+        """
+        try:
+            resp = self._mission_client.load_mission_as_chunks2(root, leases, data_chunk_byte_size)
+        except RpcError:
+            resp = (False, "Could not communicate with the robot")
+        except CompilationError as e:
+            resp = (False, f"The mission failed to compile: {e}")
+        except ValidationError as e:
+            resp = (False, f"The mission could not be validated: {e}")
+        return resp
+    
+    def get_mission_info(self):
+        """Get static information about the loaded mission.
+
+        Raises:
+            RpcError: Problem communicating with the robot.
+        """
+        try:
+            return self._mission_client.get_info() 
+        except RpcError:
+            return False, "Could not communicate with the robot"
     
     def _play_mission(self, pause_time_secs, leases=[], settings=None,):
-        """Play loaded mission"""
-        return
+        """Play loaded mission
+        Args:
+          pause_time_secs: Absolute time when the mission should pause execution. Subsequent RPCs
+              will override this value, so you can use this to say "if you don't hear from me again,
+              stop running the mission at this time."
+          leases: Leases the mission service will need to use. Unlike other clients, these MUST
+              be specified.
+        Raises:
+            RpcError: Problem communicating with the robot.
+            NoMissionError: No mission Loaded.
+        """
+        try:
+            resp = self._mission_client.play_mission_async(pause_time_secs, leases, settings)
+        except RpcError:
+            resp = (False, "Could not communicate with the robot")
+        except NoMissionError:
+            resp = (False, "No mission loaded")
+        return resp
     
     def _get_mission_state(self, upper_tick_bound=None, lower_tick_bound=None, past_ticks=None):
-        """Get the state of the current mission"""
-        return
+        """Get the state of the current playing mission
+        Raises:
+            RpcError: Problem communicating with the robot.
+            NoMissionPlayingError: No mission playing.
+        """
+        try:
+            resp = self._mission_client.get_state_async(upper_tick_bound, lower_tick_bound, past_ticks)
+        except RpcError:
+            resp = (False, "Could not communicate with the robot")
+        except NoMissionPlayingError:
+            resp = (False, "No mission playing")
+        return resp
     
     def _pause_mission(self):
-        """Pause mission"""
-        return
+        """Pause mission
+        Raises:
+            RpcError: Problem communicating with the robot.
+            NoMissionPlayingError: No mission playing.
+        """
+        try:
+            resp = self._mission_client.pause_mission_async()
+        except RpcError:
+            resp = (False, "Could not communicate with the robot")
+        except NoMissionPlayingError:
+            resp = (False, "No mission playing")
+        return resp
     
     def _restart_mission(self, pause_time_secs, leases=[], settings=None):
-        """Restart mission after pause"""
-        return
+        """Restart mission after pause
+        Args:
+          pause_time_secs: Absolute time when the mission should pause execution. Subsequent RPCs
+              to RestartMission will override this value, so you can use this to say "if you don't hear
+              from me again, stop running the mission at this time."
+          leases: Leases the mission service will need to use. Unlike other clients, these MUST
+              be specified.
+        Raises:
+            RpcError: Problem communicating with the robot.
+            NoMissionError: No Mission Loaded.
+            bosdyn.mission.client.ValidationError: The mission failed to validate.
+        """
+        try:
+            resp = self._mission_client.restart_mission_async(pause_time_secs, leases, settings)
+        except RpcError:
+            resp = (False, "Could not communicate with the robot")
+        except NoMissionError:
+            resp = (False, "No mission loaded")
+        except ValidationError as e:
+            resp = (False, f"The mission could not be validated: {e}")
+        return resp
     
     def _stop_mission(self):
-        """Stop the current mission"""
-        return
-
-
-    def _spot_check_cmd(self, command: spot_check_pb2.SpotCheckCommandRequest):
-        """Send a Spot Check command"""
-        start_time_seconds, start_time_ns = int(time.time()), int(time.time_ns() % 1e9)
-        req = spot_check_pb2.SpotCheckCommandRequest(
-            header=header_pb2.RequestHeader(
-                request_timestamp=Timestamp(seconds=start_time_seconds, nanos=start_time_ns),
-                client_name="spot-check",
-                disable_rpc_logging=False,
-            ),
-            lease=self._get_lease().lease_proto,
-            command=command,
-        )
-        self._spot_check_client.spot_check_command(req)
-
-    def stop_check(self) -> typing.Tuple[bool, str]:
-        """Stop the Spot Check
-        Note: This may cause the robot to enter a FaultState. Use only in emergencies.
-        """
-        self._spot_check_cmd(spot_check_pb2.SpotCheckCommandRequest.COMMAND_ABORT)
-
-        # Get feedback
-        resp = self._req_feedback()
-
-        # Check for errors
-        success, status = self._feedback_error_check(resp)
-
-        if success:
-            status = "Successfully stopped Spot Check"
-            self._logger.info(status)
-        else:
-            self._logger.error("Failed to stop Spot Check")
-
-        return success, status
-
-    def revert_calibration(self) -> typing.Tuple[bool, str]:
-        """Revert calibration for Spot Check"""
-        self._spot_check_cmd(spot_check_pb2.SpotCheckCommandRequest.COMMAND_REVERT_CAL)
-
-        # Get feedback
-        resp = self._req_feedback()
-
-        # Check for errors
-        success, status = self._feedback_error_check(resp)
-
-        if success:
-            status = "Successfully reverted calibration"
-            self._logger.info(status)
-        else:
-            status = "Failed to revert calibration"
-            self._logger.error(status)
-
-        return success, status
-
-    def start_check(self) -> typing.Tuple[bool, str]:
-        """Start the Spot Check"""
-        # Make sure we're powered on and sitting
-        try:
-            self._robot.power_on()
-            if not self._robot_state.is_sitting:
-                robot_command.blocking_sit(command_client=self._robot_command_client, timeout_sec=10)
-                self._logger.info("Spot is sitting")
-            else:
-                self._logger.info("Spot is already sitting")
-
-            self._spot_check_cmd(spot_check_pb2.SpotCheckCommandRequest.COMMAND_START)
-
-            # Get feedback
-            resp = self._req_feedback()
-
-            # Check for errors
-            success, status = self._feedback_error_check(resp)
-
-            if success:
-                status = "Successfully started Spot Check"
-                self._logger.info(status)
-            else:
-                self._logger.error("Failed to start Spot Check")
-            return success, status
-
-        except Exception as e:
-            return False, f"Exception running start_check from spot check: {str(e)}"
-
-    def blocking_check(
-        self,
-        timeout_sec: int = 360,
-        update_freq: float = 0.25,
-        verbose: bool = False,
-    ) -> typing.Tuple[bool, str]:
-        """Check the robot
-        Args:
-            timeout_sec: Timeout for the blocking check
-            update_freq: Frequency to update the check
-            verbose: Whether to print the check status
-        Returns:
-            Tuple of (success, message)
+        """Stop the current mission
+        Raises:
+            RpcError: Problem communicating with the robot.
+            NoMissionPlayingError: No mission playing.
         """
         try:
-            # Make sure we're powered on and sitting
-            self._robot.power_on()
-            if not self._robot_state.is_sitting:
-                robot_command.blocking_sit(command_client=self._robot_command_client, timeout_sec=10)
-                self._logger.info("Spot is sitting")
-            else:
-                self._logger.info("Spot is already sitting")
-
-            # Check the robot and block for timeout_sec
-            self._logger.info("Blocking Spot Check is starting!")
-            resp: spot_check_pb2.SpotCheckFeedbackResponse = run_spot_check(
-                self._spot_check_client,
-                self._get_lease(),
-                timeout_sec,
-                update_freq,
-                verbose,
-            )
-
-            self._logger.info("Blocking Spot Check ran successfully!")
-            success, status = self._feedback_error_check(resp)
-
-            return success, status
-
-        except Exception as e:
-            self._logger.error("Exception thrown during blocking spot check: {}".format(e))
-            return False, str(e)
-
-    def get_feedback(self) -> spot_check_pb2.SpotCheckFeedbackResponse:
-        """Get feedback from Spot Check"""
-        resp = self._req_feedback()
-        return resp[0], "Got only feedback from Spot Check"
+            resp = self._mission_client.stop_mission_async()
+        except RpcError:
+            resp = (False, "Could not communicate with the robot")
+        except NoMissionPlayingError:
+            resp = (False, "No mission playing")
+        return resp
