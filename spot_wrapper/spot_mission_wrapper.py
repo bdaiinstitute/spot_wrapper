@@ -1,6 +1,4 @@
-#!/usr/bin/env python3
 import logging
-import time
 from typing import Optional
 
 from bosdyn.client import robot_command
@@ -14,6 +12,7 @@ from bosdyn.mission.client import (
     NoMissionError, 
     NoMissionPlayingError
 )
+from bosdyn.api.mission import nodes_pb2
 from bosdyn.client import RpcError
 from spot_wrapper.wrapper_helpers import RobotState
 
@@ -46,7 +45,7 @@ class SpotMission:
         self._lease = self._lease_wallet.get_lease()
         return self._lease
 
-    def _load_mission(self, root, leases=[], data_chunk_byte_size: Optional[int]=None):
+    def _load_mission(self, root: nodes_pb2.Node, leases: list[Lease]=[], data_chunk_byte_size: Optional[int]=None):
         """Load a mission
         Args:
             root: Root node in a mission.
@@ -70,7 +69,7 @@ class SpotMission:
         return resp
 
     
-    def _load_mission_as_chunks(self, root, leases=[], data_chunk_byte_size=1000 * 1000):
+    def _load_mission_as_chunks(self, root: nodes_pb2.Node, leases: list[Lease]=[], data_chunk_byte_size: int=1000 * 1000):
         """Load a mission onto the robot.
         Args:
             root: Root node in a mission.
@@ -102,8 +101,8 @@ class SpotMission:
         except RpcError:
             return False, "Could not communicate with the robot"
     
-    def _play_mission(self, pause_time_secs, leases=[], settings=None,):
-        """Play loaded mission
+    def _play_mission(self, pause_time_secs: int, leases: list[Lease]=[], settings=None,):
+        """Play loaded mission or continue a paused mission
         Args:
           pause_time_secs: Absolute time when the mission should pause execution. Subsequent RPCs
               will override this value, so you can use this to say "if you don't hear from me again,
@@ -122,7 +121,7 @@ class SpotMission:
             resp = (False, "No mission loaded")
         return resp
     
-    def _get_mission_state(self, upper_tick_bound=None, lower_tick_bound=None, past_ticks=None):
+    def _get_mission_state(self, upper_tick_bound: int=None, lower_tick_bound: int=None, past_ticks: int=None):
         """Get the state of the current playing mission
         Raises:
             RpcError: Problem communicating with the robot.
@@ -137,7 +136,7 @@ class SpotMission:
         return resp
     
     def _pause_mission(self):
-        """Pause mission
+        """Pause the current mission
         Raises:
             RpcError: Problem communicating with the robot.
             NoMissionPlayingError: No mission playing.
@@ -150,8 +149,8 @@ class SpotMission:
             resp = (False, "No mission playing")
         return resp
     
-    def _restart_mission(self, pause_time_secs, leases=[], settings=None):
-        """Restart mission after pause
+    def _restart_mission(self, pause_time_secs, leases: list[Lease]=[], settings=None):
+        """Restart mission from the beginning 
         Args:
           pause_time_secs: Absolute time when the mission should pause execution. Subsequent RPCs
               to RestartMission will override this value, so you can use this to say "if you don't hear
