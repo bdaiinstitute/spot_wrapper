@@ -85,7 +85,7 @@ class SpotMission:
         except ValidationError as e:
             return False, f"The mission could not be validated: {e}"
 
-    def get_mission_info(self):
+    def _get_mission_info(self):
         """Get static information about the loaded mission.
 
         Raises:
