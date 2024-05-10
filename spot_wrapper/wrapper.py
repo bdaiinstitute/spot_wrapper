@@ -54,8 +54,8 @@ from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.spot_check import SpotCheckClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
-from bosdyn.mission.client import MissionClient
 from bosdyn.geometry import EulerZXY
+from bosdyn.mission.client import MissionClient
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from .spot_arm import SpotArm
@@ -65,8 +65,8 @@ from .spot_docking import SpotDocking
 from .spot_eap import SpotEAP
 from .spot_graph_nav import SpotGraphNav
 from .spot_images import SpotImages
-from .spot_world_objects import SpotWorldObjects
 from .spot_mission_wrapper import SpotMission
+from .spot_world_objects import SpotWorldObjects
 from .wrapper_helpers import ClaimAndPowerDecorator, RobotCommandData, RobotState
 
 SPOT_CLIENT_NAME = "ros_spot"
@@ -394,7 +394,9 @@ class SpotWrapper:
         self._command_data = RobotCommandData()
 
         try:
-            self._sdk = create_standard_sdk(SPOT_CLIENT_NAME, cert_resource_glob=cert_resource_glob)
+            self._sdk = create_standard_sdk(
+                SPOT_CLIENT_NAME, service_clients=[MissionClient], cert_resource_glob=cert_resource_glob
+            )
         except Exception as e:
             self._logger.error("Error creating SDK object: %s", e)
             self._valid = False
@@ -737,7 +739,7 @@ class SpotWrapper:
     def spot_check(self) -> SpotCheck:
         """Return SpotCheck instance"""
         return self._spot_check
-    
+
     @property
     def spot_mission(self) -> SpotMission:
         """Return SpotMission instance"""

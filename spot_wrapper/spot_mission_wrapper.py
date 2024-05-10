@@ -1,19 +1,18 @@
 import logging
 from typing import Optional
 
-from bosdyn.client import robot_command
+from bosdyn.api.mission import nodes_pb2
+from bosdyn.client import RpcError, robot_command
 from bosdyn.client.lease import Lease, LeaseClient, LeaseWallet
 from bosdyn.client.robot import Robot
-
 from bosdyn.mission.client import (
-    MissionClient, 
-    CompilationError, 
-    ValidationError, 
-    NoMissionError, 
-    NoMissionPlayingError
+    CompilationError,
+    MissionClient,
+    NoMissionError,
+    NoMissionPlayingError,
+    ValidationError,
 )
-from bosdyn.api.mission import nodes_pb2
-from bosdyn.client import RpcError
+
 from spot_wrapper.wrapper_helpers import RobotState
 
 
@@ -45,7 +44,7 @@ class SpotMission:
         self._lease = self._lease_wallet.get_lease()
         return self._lease
 
-    def _load_mission(self, root: nodes_pb2.Node, leases: list[Lease]=[], data_chunk_byte_size: Optional[int]=None):
+    def _load_mission(self, root: nodes_pb2.Node, leases: list[Lease] = [], data_chunk_byte_size: Optional[int] = None):
         """Load a mission
         Args:
             root: Root node in a mission.
@@ -68,8 +67,9 @@ class SpotMission:
             resp = (False, f"The mission could not be validated: {e}")
         return resp
 
-    
-    def _load_mission_as_chunks(self, root: nodes_pb2.Node, leases: list[Lease]=[], data_chunk_byte_size: int=1000 * 1000):
+    def _load_mission_as_chunks(
+        self, root: nodes_pb2.Node, leases: list[Lease] = [], data_chunk_byte_size: int = 1000 * 1000
+    ):
         """Load a mission onto the robot.
         Args:
             root: Root node in a mission.
@@ -89,7 +89,7 @@ class SpotMission:
         except ValidationError as e:
             resp = (False, f"The mission could not be validated: {e}")
         return resp
-    
+
     def get_mission_info(self):
         """Get static information about the loaded mission.
 
@@ -97,11 +97,16 @@ class SpotMission:
             RpcError: Problem communicating with the robot.
         """
         try:
-            return self._mission_client.get_info() 
+            return self._mission_client.get_info()
         except RpcError:
             return False, "Could not communicate with the robot"
-    
-    def _play_mission(self, pause_time_secs: int, leases: list[Lease]=[], settings=None,):
+
+    def _play_mission(
+        self,
+        pause_time_secs: int,
+        leases: list[Lease] = [],
+        settings=None,
+    ):
         """Play loaded mission or continue a paused mission
         Args:
           pause_time_secs: Absolute time when the mission should pause execution. Subsequent RPCs
@@ -120,8 +125,8 @@ class SpotMission:
         except NoMissionError:
             resp = (False, "No mission loaded")
         return resp
-    
-    def _get_mission_state(self, upper_tick_bound: int=None, lower_tick_bound: int=None, past_ticks: int=None):
+
+    def _get_mission_state(self, upper_tick_bound: int = None, lower_tick_bound: int = None, past_ticks: int = None):
         """Get the state of the current playing mission
         Raises:
             RpcError: Problem communicating with the robot.
@@ -134,7 +139,7 @@ class SpotMission:
         except NoMissionPlayingError:
             resp = (False, "No mission playing")
         return resp
-    
+
     def _pause_mission(self):
         """Pause the current mission
         Raises:
@@ -148,9 +153,9 @@ class SpotMission:
         except NoMissionPlayingError:
             resp = (False, "No mission playing")
         return resp
-    
-    def _restart_mission(self, pause_time_secs, leases: list[Lease]=[], settings=None):
-        """Restart mission from the beginning 
+
+    def _restart_mission(self, pause_time_secs, leases: list[Lease] = [], settings=None):
+        """Restart mission from the beginning
         Args:
           pause_time_secs: Absolute time when the mission should pause execution. Subsequent RPCs
               to RestartMission will override this value, so you can use this to say "if you don't hear
@@ -171,7 +176,7 @@ class SpotMission:
         except ValidationError as e:
             resp = (False, f"The mission could not be validated: {e}")
         return resp
-    
+
     def _stop_mission(self):
         """Stop the current mission
         Raises:
