@@ -43,7 +43,7 @@ class SpotMission:
         self._lease = self._lease_wallet.get_lease()
         return self._lease
 
-    def _load_mission(self, root: nodes_pb2.Node, leases: list[Lease] = [], data_chunk_byte_size=None):
+    def _load_mission(self, root: nodes_pb2.Node, leases=[], data_chunk_byte_size=None):
         """Load a mission
         Args:
             root: Root node in a mission.
@@ -67,7 +67,7 @@ class SpotMission:
         return resp
 
     def _load_mission_as_chunks(
-        self, root: nodes_pb2.Node, leases: list[Lease] = [], data_chunk_byte_size: int = 1000 * 1000
+        self, root: nodes_pb2.Node, leases=[], data_chunk_byte_size: int = 1000 * 1000
     ):
         """Load a mission onto the robot.
         Args:
@@ -103,7 +103,7 @@ class SpotMission:
     def _play_mission(
         self,
         pause_time_secs: int,
-        leases: list[Lease] = [],
+        leases=[],
         settings=None,
     ):
         """Play loaded mission or continue a paused mission
@@ -153,7 +153,7 @@ class SpotMission:
             resp = (False, "No mission playing")
         return resp
 
-    def _restart_mission(self, pause_time_secs, leases: list[Lease] = [], settings=None):
+    def _restart_mission(self, pause_time_secs, leases=[], settings=None):
         """Restart mission from the beginning
         Args:
           pause_time_secs: Absolute time when the mission should pause execution. Subsequent RPCs
