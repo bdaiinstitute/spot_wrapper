@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from bosdyn.api.mission import nodes_pb2
 from bosdyn.client import RpcError, robot_command
@@ -44,7 +43,7 @@ class SpotMission:
         self._lease = self._lease_wallet.get_lease()
         return self._lease
 
-    def _load_mission(self, root: nodes_pb2.Node, leases: list[Lease] = [], data_chunk_byte_size= None):
+    def _load_mission(self, root: nodes_pb2.Node, leases: list[Lease] = [], data_chunk_byte_size=None):
         """Load a mission
         Args:
             root: Root node in a mission.
