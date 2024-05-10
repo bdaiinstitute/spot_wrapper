@@ -54,7 +54,6 @@ from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.spot_check import SpotCheckClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
-from bosdyn.mission.client import MissionClient
 from bosdyn.geometry import EulerZXY
 from google.protobuf.timestamp_pb2 import Timestamp
 
@@ -67,6 +66,7 @@ from .spot_graph_nav import SpotGraphNav
 from .spot_images import SpotImages
 from .spot_world_objects import SpotWorldObjects
 from .spot_mission_wrapper import SpotMission
+from .spot_world_objects import SpotWorldObjects
 from .wrapper_helpers import ClaimAndPowerDecorator, RobotCommandData, RobotState
 
 SPOT_CLIENT_NAME = "ros_spot"
