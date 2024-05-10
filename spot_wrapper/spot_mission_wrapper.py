@@ -66,9 +66,7 @@ class SpotMission:
             resp = (False, f"The mission could not be validated: {e}")
         return resp
 
-    def _load_mission_as_chunks(
-        self, root: nodes_pb2.Node, leases=[], data_chunk_byte_size: int = 1000 * 1000
-    ):
+    def _load_mission_as_chunks(self, root: nodes_pb2.Node, leases=[], data_chunk_byte_size: int = 1000 * 1000):
         """Load a mission onto the robot.
         Args:
             root: Root node in a mission.
