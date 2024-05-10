@@ -87,7 +87,7 @@ class SpotMission:
             resp = (False, f"The mission could not be validated: {e}")
         return resp
 
-    def get_mission_info(self):
+    def _get_mission_info(self):
         """Get static information about the loaded mission.
 
         Raises:
