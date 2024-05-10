@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from bosdyn.api.mission import nodes_pb2
 from bosdyn.client import RpcError, robot_command
