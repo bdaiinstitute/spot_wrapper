@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from bosdyn.api.mission import nodes_pb2
 from bosdyn.client import RpcError, robot_command
@@ -85,7 +86,7 @@ class SpotMission:
         except ValidationError as e:
             return False, f"The mission could not be validated: {e}"
 
-    def _get_mission_info(self):
+    def get_mission_info(self):
         """Get static information about the loaded mission.
 
         Raises:
