@@ -55,6 +55,7 @@ from bosdyn.client.spot_check import SpotCheckClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
 from bosdyn.geometry import EulerZXY
+from bosdyn.mission.client import MissionClient
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from .spot_arm import SpotArm
@@ -64,6 +65,7 @@ from .spot_docking import SpotDocking
 from .spot_eap import SpotEAP
 from .spot_graph_nav import SpotGraphNav
 from .spot_images import SpotImages
+from .spot_mission_wrapper import SpotMission
 from .spot_world_objects import SpotWorldObjects
 from .wrapper_helpers import ClaimAndPowerDecorator, RobotCommandData, RobotState
 
@@ -392,7 +394,9 @@ class SpotWrapper:
         self._command_data = RobotCommandData()
 
         try:
-            self._sdk = create_standard_sdk(SPOT_CLIENT_NAME, cert_resource_glob=cert_resource_glob)
+            self._sdk = create_standard_sdk(
+                SPOT_CLIENT_NAME, service_clients=[MissionClient], cert_resource_glob=cert_resource_glob
+            )
         except Exception as e:
             self._logger.error("Error creating SDK object: %s", e)
             self._valid = False
@@ -437,6 +441,7 @@ class SpotWrapper:
                 self._estop_client = self._robot.ensure_client(EstopClient.default_service_name)
                 self._docking_client = self._robot.ensure_client(DockingClient.default_service_name)
                 self._spot_check_client = self._robot.ensure_client(SpotCheckClient.default_service_name)
+                self._mission_client = self._robot.ensure_client(MissionClient.default_service_name)
                 self._license_client = self._robot.ensure_client(LicenseClient.default_service_name)
                 if self._robot.has_arm():
                     self._gripper_cam_param_client = self._robot.ensure_client(
@@ -517,6 +522,15 @@ class SpotWrapper:
             self._logger,
             self._state,
             self._spot_check_client,
+            self._robot_command_client,
+            self._lease_client,
+        )
+
+        self._spot_mission = SpotMission(
+            self._robot,
+            self._logger,
+            self._state,
+            self._mission_client,
             self._robot_command_client,
             self._lease_client,
         )
@@ -725,6 +739,11 @@ class SpotWrapper:
     def spot_check(self) -> SpotCheck:
         """Return SpotCheck instance"""
         return self._spot_check
+
+    @property
+    def spot_mission(self) -> SpotMission:
+        """Return SpotMission instance"""
+        return self._spot_mission
 
     @property
     def spot_eap_lidar(self) -> typing.Optional[SpotEAP]:
