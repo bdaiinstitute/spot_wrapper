@@ -1,8 +1,9 @@
 import logging
+from typing import Optional
 
 from bosdyn.api.mission import nodes_pb2
 from bosdyn.client import RpcError, robot_command
-from bosdyn.client.lease import Lease, LeaseClient, LeaseWallet
+from bosdyn.client.lease import LeaseClient, LeaseWallet
 from bosdyn.client.robot import Robot
 from bosdyn.mission.client import (
     CompilationError,
@@ -39,11 +40,7 @@ class SpotMission:
         self._lease = None
         self._lease_wallet: LeaseWallet = self._lease_client.lease_wallet
 
-    def _get_lease(self) -> Lease:
-        self._lease = self._lease_wallet.get_lease()
-        return self._lease
-
-    def _load_mission(self, root: nodes_pb2.Node, leases=[], data_chunk_byte_size=None):
+    def load_mission(self, root: nodes_pb2.Node, leases=None, data_chunk_byte_size: Optional[int] = None):
         """Load a mission
         Args:
             root: Root node in a mission.
@@ -54,19 +51,20 @@ class SpotMission:
             bosdyn.mission.client.CompilationError: The mission failed to compile.
             bosdyn.mission.client.ValidationError: The mission failed to validate.
         """
+        if leases is None:
+            leases = []
         if data_chunk_byte_size:
             return self._load_mission_as_chunks(root, leases, data_chunk_byte_size)
         try:
-            resp = self._mission_client.load_mission_async(root, leases)
+            return self._mission_client.load_mission_async(root, leases)
         except RpcError:
-            resp = (False, "Could not communicate with the robot")
+            return False, "Could not communicate with the robot"
         except CompilationError as e:
-            resp = (False, f"The mission failed to compile: {e}")
+            return False, f"The mission failed to compile: {e}"
         except ValidationError as e:
-            resp = (False, f"The mission could not be validated: {e}")
-        return resp
+            return False, f"The mission could not be validated: {e}"
 
-    def _load_mission_as_chunks(self, root: nodes_pb2.Node, leases=[], data_chunk_byte_size: int = 1000 * 1000):
+    def _load_mission_as_chunks(self, root: nodes_pb2.Node, leases=None, data_chunk_byte_size: int = 1000 * 1000):
         """Load a mission onto the robot.
         Args:
             root: Root node in a mission.
@@ -77,17 +75,18 @@ class SpotMission:
             bosdyn.mission.client.CompilationError: The mission failed to compile.
             bosdyn.mission.client.ValidationError: The mission failed to validate.
         """
+        if leases is None:
+            leases = []
         try:
-            resp = self._mission_client.load_mission_as_chunks2(root, leases, data_chunk_byte_size)
+            return self._mission_client.load_mission_as_chunks2(root, leases, data_chunk_byte_size)
         except RpcError:
-            resp = (False, "Could not communicate with the robot")
+            return False, "Could not communicate with the robot"
         except CompilationError as e:
-            resp = (False, f"The mission failed to compile: {e}")
+            return False, f"The mission failed to compile: {e}"
         except ValidationError as e:
-            resp = (False, f"The mission could not be validated: {e}")
-        return resp
+            return False, f"The mission could not be validated: {e}"
 
-    def _get_mission_info(self):
+    def get_mission_info(self):
         """Get static information about the loaded mission.
 
         Raises:
@@ -98,10 +97,10 @@ class SpotMission:
         except RpcError:
             return False, "Could not communicate with the robot"
 
-    def _play_mission(
+    def play_mission(
         self,
         pause_time_secs: int,
-        leases=[],
+        leases=None,
         settings=None,
     ):
         """Play loaded mission or continue a paused mission
@@ -115,43 +114,47 @@ class SpotMission:
             RpcError: Problem communicating with the robot.
             NoMissionError: No mission Loaded.
         """
+        if leases is None:
+            leases = []
         try:
-            resp = self._mission_client.play_mission_async(pause_time_secs, leases, settings)
+            return self._mission_client.play_mission_async(pause_time_secs, leases, settings)
         except RpcError:
-            resp = (False, "Could not communicate with the robot")
+            return False, "Could not communicate with the robot"
         except NoMissionError:
-            resp = (False, "No mission loaded")
-        return resp
+            return False, "No mission loaded"
 
-    def _get_mission_state(self, upper_tick_bound: int = None, lower_tick_bound: int = None, past_ticks: int = None):
+    def get_mission_state(
+        self,
+        upper_tick_bound: Optional[int] = None,
+        lower_tick_bound: Optional[int] = None,
+        past_ticks: Optional[int] = None,
+    ):
         """Get the state of the current playing mission
         Raises:
             RpcError: Problem communicating with the robot.
             NoMissionPlayingError: No mission playing.
         """
         try:
-            resp = self._mission_client.get_state_async(upper_tick_bound, lower_tick_bound, past_ticks)
+            return self._mission_client.get_state_async(upper_tick_bound, lower_tick_bound, past_ticks)
         except RpcError:
-            resp = (False, "Could not communicate with the robot")
+            return False, "Could not communicate with the robot"
         except NoMissionPlayingError:
-            resp = (False, "No mission playing")
-        return resp
+            return False, "No mission playing"
 
-    def _pause_mission(self):
+    def pause_mission(self):
         """Pause the current mission
         Raises:
             RpcError: Problem communicating with the robot.
             NoMissionPlayingError: No mission playing.
         """
         try:
-            resp = self._mission_client.pause_mission_async()
+            return self._mission_client.pause_mission_async()
         except RpcError:
-            resp = (False, "Could not communicate with the robot")
+            return False, "Could not communicate with the robot"
         except NoMissionPlayingError:
-            resp = (False, "No mission playing")
-        return resp
+            return False, "No mission playing"
 
-    def _restart_mission(self, pause_time_secs, leases=[], settings=None):
+    def restart_mission(self, pause_time_secs, leases=None, settings=None):
         """Restart mission from the beginning
         Args:
           pause_time_secs: Absolute time when the mission should pause execution. Subsequent RPCs
@@ -164,26 +167,26 @@ class SpotMission:
             NoMissionError: No Mission Loaded.
             bosdyn.mission.client.ValidationError: The mission failed to validate.
         """
+        if leases is None:
+            leases = []
         try:
-            resp = self._mission_client.restart_mission_async(pause_time_secs, leases, settings)
+            return self._mission_client.restart_mission_async(pause_time_secs, leases, settings)
         except RpcError:
-            resp = (False, "Could not communicate with the robot")
+            return False, "Could not communicate with the robot"
         except NoMissionError:
-            resp = (False, "No mission loaded")
+            return False, "No mission loaded"
         except ValidationError as e:
-            resp = (False, f"The mission could not be validated: {e}")
-        return resp
+            return False, f"The mission could not be validated: {e}"
 
-    def _stop_mission(self):
+    def stop_mission(self):
         """Stop the current mission
         Raises:
             RpcError: Problem communicating with the robot.
             NoMissionPlayingError: No mission playing.
         """
         try:
-            resp = self._mission_client.stop_mission_async()
+            return self._mission_client.stop_mission_async()
         except RpcError:
-            resp = (False, "Could not communicate with the robot")
+            return False, "Could not communicate with the robot"
         except NoMissionPlayingError:
-            resp = (False, "No mission playing")
-        return resp
+            return False, "No mission playing"
