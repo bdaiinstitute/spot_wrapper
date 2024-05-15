@@ -67,8 +67,6 @@ from .spot_graph_nav import SpotGraphNav
 from .spot_images import SpotImages
 from .spot_mission_wrapper import SpotMission
 from .spot_world_objects import SpotWorldObjects
-from .spot_mission_wrapper import SpotMission
-from .spot_world_objects import SpotWorldObjects
 from .wrapper_helpers import ClaimAndPowerDecorator, RobotCommandData, RobotState
 
 SPOT_CLIENT_NAME = "ros_spot"
@@ -741,11 +739,6 @@ class SpotWrapper:
     def spot_check(self) -> SpotCheck:
         """Return SpotCheck instance"""
         return self._spot_check
-    
-    @property
-    def spot_mission(self) -> SpotMission:
-        """Return SpotMission instance"""
-        return self._spot_mission
 
     @property
     def spot_mission(self) -> SpotMission:
