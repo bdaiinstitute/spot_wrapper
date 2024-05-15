@@ -126,7 +126,7 @@ class MockDirectoryService(DirectoryServiceServicer):
             ),
             ServiceEntry(
                 name="robot-mission",
-                type = "bosdyn.api.mission.MissionService",
+                type="bosdyn.api.mission.MissionService",
                 authority="api.spot.robot",
             ),
         ]
