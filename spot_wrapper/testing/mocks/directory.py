@@ -124,6 +124,11 @@ class MockDirectoryService(DirectoryServiceServicer):
                 type="bosdyn.api.spot_cam.VersionService",
                 authority="api.spot.robot",
             ),
+            ServiceEntry(
+                name="robot-mission",
+                type="bosdyn.api.mission.MissionService",
+                authority="api.spot.robot",
+            ),
         ]
     }
 
