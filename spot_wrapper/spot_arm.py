@@ -417,7 +417,7 @@ class SpotArm:
                 self._logger.info(msg)
                 return False, msg
             else:
-                command = RobotCommandBuilder.claw_gripper_open_fraction_command(angle / 90.0)
+                command = RobotCommandBuilder.claw_gripper_open_fraction_command(gripper_ang / 90.0)
 
                 # Command issue with RobotCommandClient
                 cmd_id = self._robot_command_client.robot_command(command)
