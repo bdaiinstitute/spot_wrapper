@@ -417,12 +417,7 @@ class SpotArm:
                 self._logger.info(msg)
                 return False, msg
             else:
-                # The open angle command does not take degrees but the limits
-                # defined in the urdf, that is why we have to interpolate
-                closed = 0.349066
-                opened = -1.396263
-                angle = gripper_ang / 90.0 * (opened - closed) + closed
-                command = RobotCommandBuilder.claw_gripper_open_angle_command(angle)
+                command = RobotCommandBuilder.claw_gripper_open_fraction_command(gripper_ang / 90.0)
 
                 # Command issue with RobotCommandClient
                 cmd_id = self._robot_command_client.robot_command(command)
