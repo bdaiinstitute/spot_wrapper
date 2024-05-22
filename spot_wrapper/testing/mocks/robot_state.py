@@ -17,6 +17,25 @@ from bosdyn.api.robot_state_pb2 import (
     RobotStateResponse,
 )
 from bosdyn.api.robot_state_service_pb2_grpc import RobotStateServiceServicer
+from bosdyn.client.frame_helpers import (
+    BODY_FRAME_NAME,
+    GRAV_ALIGNED_BODY_FRAME_NAME,
+    GROUND_PLANE_FRAME_NAME,
+    ODOM_FRAME_NAME,
+    VISION_FRAME_NAME,
+)
+
+HEAD_FRAME_NAME = "head"
+BACK_FRAME_NAME = "back"
+LEFT_FRAME_NAME = "left"
+RIGHT_FRAME_NAME = "right"
+FRONT_LEFT_FRAME_NAME = "frontleft"
+FRONT_RIGHT_FRAME_NAME = "frontright"
+BACK_CAMERA_FRAME_NAME = "back_fisheye"
+FRONT_LEFT_CAMERA_FRAME_NAME = "frontleft_fisheye"
+FRONT_RIGHT_CAMERA_FRAME_NAME = "frontright_fisheye"
+LEFT_CAMERA_FRAME_NAME = "left_fisheye"
+RIGHT_CAMERA_FRAME_NAME = "right_fisheye"
 
 
 class MockRobotStateService(RobotStateServiceServicer):
@@ -29,17 +48,57 @@ class MockRobotStateService(RobotStateServiceServicer):
     def __init__(self, **kwargs: typing.Any) -> None:
         super().__init__(**kwargs)
         self._robot_state = RobotState()
-        transforms_snapshot = self._robot_state.kinematic_state.transforms_snapshot
-        world_to_odom_edge = transforms_snapshot.child_to_parent_edge_map["odom"]
-        world_to_odom_edge.parent_tform_child.rotation.w = 1.0
-        odom_to_body_edge = transforms_snapshot.child_to_parent_edge_map["body"]
-        odom_to_body_edge.parent_frame_name = "odom"
-        odom_to_body_edge.parent_tform_child.rotation.w = 1.0
-        body_to_vision_edge = transforms_snapshot.child_to_parent_edge_map["vision"]
-        body_to_vision_edge.parent_frame_name = "body"
-        body_to_vision_edge.parent_tform_child.rotation.w = 1.0
         self._robot_metrics = RobotMetrics()
         self._hardware_configuration = HardwareConfiguration()
+
+        transforms_snapshot = self._robot_state.kinematic_state.transforms_snapshot
+        world_to_odom_edge = transforms_snapshot.child_to_parent_edge_map[ODOM_FRAME_NAME]
+        world_to_odom_edge.parent_tform_child.rotation.w = 1.0
+
+        body_to_back_edge = transforms_snapshot.child_to_parent_edge_map[BACK_CAMERA_FRAME_NAME]
+        body_to_back_edge.parent_frame_name = BODY_FRAME_NAME
+        body_to_back_edge.parent_tform_child.position.x = -0.5
+        body_to_back_edge.parent_tform_child.rotation.w = 1.0
+
+        body_to_head_edge = transforms_snapshot.child_to_parent_edge_map[HEAD_FRAME_NAME]
+        body_to_head_edge.parent_frame_name = BODY_FRAME_NAME
+        body_to_head_edge.parent_tform_child.position.x = 0.5
+        body_to_head_edge.parent_tform_child.rotation.w = 1.0
+
+        body_to_left_edge = transforms_snapshot.child_to_parent_edge_map[LEFT_FRAME_NAME]
+        body_to_left_edge.parent_frame_name = BODY_FRAME_NAME
+        body_to_left_edge.parent_tform_child.position.y = 0.2
+        body_to_left_edge.parent_tform_child.rotation.w = 1.0
+
+        body_to_right_edge = transforms_snapshot.child_to_parent_edge_map[RIGHT_FRAME_NAME]
+        body_to_right_edge.parent_frame_name = BODY_FRAME_NAME
+        body_to_right_edge.parent_tform_child.position.y = -0.2
+        body_to_right_edge.parent_tform_child.rotation.w = 1.0
+
+        head_to_front_left_edge = transforms_snapshot.child_to_parent_edge_map[FRONT_LEFT_FRAME_NAME]
+        head_to_front_left_edge.parent_frame_name = HEAD_FRAME_NAME
+        head_to_front_left_edge.parent_tform_child.position.y = 0.2
+        head_to_front_left_edge.parent_tform_child.rotation.w = 1.0
+
+        head_to_front_right_edge = transforms_snapshot.child_to_parent_edge_map[FRONT_RIGHT_FRAME_NAME]
+        head_to_front_right_edge.parent_frame_name = HEAD_FRAME_NAME
+        head_to_front_right_edge.parent_tform_child.position.y = -0.2
+        head_to_front_right_edge.parent_tform_child.rotation.w = 1.0
+
+        for parent_frame_name, child_frame_name in (
+            (ODOM_FRAME_NAME, BODY_FRAME_NAME),
+            (BODY_FRAME_NAME, GROUND_PLANE_FRAME_NAME),
+            (BODY_FRAME_NAME, VISION_FRAME_NAME),
+            (BODY_FRAME_NAME, GRAV_ALIGNED_BODY_FRAME_NAME),
+            (BACK_FRAME_NAME, BACK_CAMERA_FRAME_NAME),
+            (LEFT_FRAME_NAME, LEFT_CAMERA_FRAME_NAME),
+            (RIGHT_FRAME_NAME, RIGHT_CAMERA_FRAME_NAME),
+            (FRONT_LEFT_FRAME_NAME, FRONT_LEFT_CAMERA_FRAME_NAME),
+            (FRONT_RIGHT_FRAME_NAME, FRONT_RIGHT_CAMERA_FRAME_NAME),
+        ):
+            edge = transforms_snapshot.child_to_parent_edge_map[child_frame_name]
+            edge.parent_frame_name = parent_frame_name
+            edge.parent_tform_child.rotation.w = 1.0
 
     @property
     def robot_state(self) -> RobotState:
