@@ -537,7 +537,6 @@ class SpotArm:
                 )
 
         except Exception as e:
-            print(e)
             return (
                 False,
                 f"An error occured while trying to move arm\n Exception: {e}",
