@@ -521,7 +521,7 @@ class SpotArm:
                     cylindrical_velocity=arm_velocity_command.cylindrical_velocity,
                     angular_velocity_of_hand_rt_odom_in_hand=arm_velocity_command.angular_velocity_of_hand_rt_odom_in_hand,
                     cartesian_velocity=arm_velocity_command.cartesian_velocity,
-                    maximum_acceleration = arm_velocity_command.maximum_acceleration,
+                    maximum_acceleration=arm_velocity_command.maximum_acceleration,
                     end_time=end_time,
                 )
 
