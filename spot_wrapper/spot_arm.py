@@ -614,8 +614,11 @@ class SpotArm:
         except Exception as e:
             return False, f"An error occured while trying to grasp from pose {e}"
 
-    def override_grasp_or_carry(self, grasp_override: manipulation_api_pb2.ApiGraspOverride.Override,
-                                carry_override: ManipulatorState.CarryState) -> typing.Tuple[bool, str]:
+    def override_grasp_or_carry(
+        self,
+        grasp_override: manipulation_api_pb2.ApiGraspOverride.Override,
+        carry_override: ManipulatorState.CarryState,
+    ) -> typing.Tuple[bool, str]:
         """
         Override the robot's grasp and/or carry state.
 
