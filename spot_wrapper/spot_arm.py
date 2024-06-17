@@ -11,6 +11,7 @@ from bosdyn.api import (
     synchronized_command_pb2,
     trajectory_pb2,
 )
+from bosdyn.api.robot_state_pb2 import ManipulatorState
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.robot import Robot
 from bosdyn.client.robot_command import (
@@ -612,3 +613,49 @@ class SpotArm:
                 return False, msg
         except Exception as e:
             return False, f"An error occured while trying to grasp from pose {e}"
+
+    def override_grasp_or_carry(self, grasp_override: manipulation_api_pb2.ApiGraspOverride.Override,
+                                carry_override: ManipulatorState.CarryState) -> typing.Tuple[bool, str]:
+        """
+        Override the robot's grasp and/or carry state.
+
+        Grasp Override:
+
+        The robot's grasp state is whether or not it's holding an object.  Usually the robot is aware of whether or not
+        it is grasping something but sometimes (e.g. when the object is small and the gripper is almost closed) it makes
+        mistakes.  Grasp override values:
+            OVERRIDE_UNKNOWN: If this is set, this function will not request that the grasp state be changed.
+            OVERRIDE_HOLDING: Grasp state will be changed to HOLDING
+            OVERRIDE_NOT_HOLDING: Grasp state will be changed to NOT HOLDING
+
+        Carry Override:
+
+        The robot's carry state governs what the robot will do when control of the arm is requested to stow (usually by
+        a hijack). This only matters if the grasp state is HOLDING (otherwise the arm will always stow) but this
+        function will send the request without checking the grasp state and will not alter the grasp state unless
+        requested to do so.  Carry override values:
+            CARRY_STATE_UNKNOWN: If this is set, this function will not request that the carry state be changed.
+            CARRY_STATE_NOT_CARRYABLE: When the arm is requested to stow, it will open the gripper (let go) first.
+            CARRY_STATE_CARRIABLE: When the arm is requested to stow, it will not do anything.
+            CARRY_STATE_CARRIABLE_AND_STOWABLE: When the arm is requested to stow, it will stow without attempting to
+                first release the object.
+        """
+        grasp_override_set = grasp_override != manipulation_api_pb2.ApiGraspOverride.Override.OVERRIDE_UNKNOWN
+        carry_override_set = carry_override != ManipulatorState.CarryState.CARRY_STATE_UNKNOWN
+        if not grasp_override_set and not carry_override_set:
+            return True, "No change requested"
+        request = manipulation_api_pb2.ApiGraspOverrideRequest()
+        if grasp_override_set:
+            request.api_grasp_override.override_request = grasp_override
+        if carry_override_set:
+            request.carry_state_override.override_request = carry_override
+        # This blocks by default since it's a single command
+        try:
+            self._manipulation_api_client.grasp_override_command(request)
+            if grasp_override_set and not carry_override_set:
+                return True, "Successfully overrode grasp state"
+            if not grasp_override_set:
+                return True, "Successfully overrode carry state"
+            return True, "Successfully overrode grasp and carry state"
+        except Exception as e:
+            return False, f"An error occurred while trying to override grasp or carry state: {e}"
