@@ -55,7 +55,7 @@ class MockRobotStateService(RobotStateServiceServicer):
         world_to_odom_edge = transforms_snapshot.child_to_parent_edge_map[ODOM_FRAME_NAME]
         world_to_odom_edge.parent_tform_child.rotation.w = 1.0
 
-        body_to_back_edge = transforms_snapshot.child_to_parent_edge_map[BACK_CAMERA_FRAME_NAME]
+        body_to_back_edge = transforms_snapshot.child_to_parent_edge_map[BACK_FRAME_NAME]
         body_to_back_edge.parent_frame_name = BODY_FRAME_NAME
         body_to_back_edge.parent_tform_child.position.x = -0.5
         body_to_back_edge.parent_tform_child.rotation.w = 1.0
