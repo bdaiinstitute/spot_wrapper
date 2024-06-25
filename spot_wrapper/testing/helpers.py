@@ -3,12 +3,10 @@
 import functools
 import typing
 
-import grpc
-from bosdyn.api.header_pb2 import CommonError
 from bosdyn.api.lease_pb2 import ResourceTree
 
 
-class GeneralizedDecorator:
+class ThinDecorator:
     __name__ = __qualname__ = __doc__ = ""
 
     __annotations__ = {}
@@ -16,7 +14,7 @@ class GeneralizedDecorator:
     @staticmethod
     def wraps(wrapped: typing.Callable):
         def decorator(func: typing.Callable):
-            class wrapper(GeneralizedDecorator):
+            class wrapper(ThinDecorator):
                 def __call__(self, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
                     return func(*args, **kwargs)
 
@@ -32,26 +30,6 @@ class GeneralizedDecorator:
 
     def __call__(self, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
         raise NotImplementedError()
-
-
-UnaryUnaryHandlerCallable = typing.Callable[[typing.Any, grpc.ServicerContext], typing.Any]
-
-
-def enforce_matching_headers(
-    handler: UnaryUnaryHandlerCallable,
-) -> UnaryUnaryHandlerCallable:
-    """Enforce headers for handler request and response match (by copy)."""
-
-    @GeneralizedDecorator.wraps(handler)
-    def wrapper(request: typing.Any, context: grpc.ServicerContext) -> typing.Any:
-        response = handler(request, context)
-        if hasattr(request, "header") and hasattr(response, "header"):
-            response.header.request_header.CopyFrom(request.header)
-            response.header.request_received_timestamp.CopyFrom(request.header.request_timestamp)
-            response.header.error.code = response.header.error.code or CommonError.CODE_OK
-        return response
-
-    return wrapper
 
 
 def walk_resource_tree(resource_tree: ResourceTree) -> typing.Iterable[ResourceTree]:

@@ -162,19 +162,7 @@ class BaseMockSpot(
     """
 
     name = "mockie"
-
-    def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
-        super().__init__(*args, **kwargs)
-        for _, handler in collect_method_handlers(self):
-            if handler.request_streaming:
-                continue
-            if handler.response_streaming:
-                continue
-            setattr(
-                self,
-                handler.unary_unary.__name__,
-                enforce_matching_headers(handler.unary_unary),
-            )
+    autocomplete = True
 
 
 class MockSpot(
