@@ -84,7 +84,6 @@ from bosdyn.api.time_sync_service_pb2_grpc import TimeSyncServiceServicer
 from bosdyn.api.world_object_service_pb2_grpc import WorldObjectServiceServicer
 
 from spot_wrapper.testing.grpc import AutoServicer, collect_method_handlers
-from spot_wrapper.testing.helpers import enforce_matching_headers
 from spot_wrapper.testing.mocks.auth import MockAuthService
 from spot_wrapper.testing.mocks.directory import MockDirectoryService
 from spot_wrapper.testing.mocks.estop import MockEStopService

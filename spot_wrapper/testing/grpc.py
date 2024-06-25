@@ -289,7 +289,7 @@ class AutoCompletingUnaryStreamRpcHandler(ThinDecorator):
 
 
 class AutoCompletingStreamStreamRpcHandler(ThinDecorator):
-    """A decorator for stream-stream gRPC handlers autocompletes response headers.
+    """A decorator for stream-stream gRPC handlers that autocompletes response headers.
 
     The last request chunk header will be used to complete the response header.
     """
