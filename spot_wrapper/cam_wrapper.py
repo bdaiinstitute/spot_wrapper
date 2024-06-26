@@ -262,7 +262,7 @@ class AudioWrapper:
         Returns:
             List of names of available sounds
         """
-        return self.client.list_sounds()
+        return [sound.name for sound in self.client.list_sounds()]
 
     def set_volume(self, percentage):
         """
