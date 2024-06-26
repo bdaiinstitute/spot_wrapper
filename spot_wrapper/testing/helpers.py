@@ -6,7 +6,9 @@ import typing
 from bosdyn.api.lease_pb2 import ResourceTree
 
 
-class ThinDecorator:
+class ForwardingWrapper:
+    """A `functools.wraps` equivalent that is transparent to attribute access."""
+
     __name__ = __qualname__ = __doc__ = ""
 
     __annotations__ = {}
@@ -14,7 +16,7 @@ class ThinDecorator:
     @staticmethod
     def wraps(wrapped: typing.Callable):
         def decorator(func: typing.Callable):
-            class wrapper(ThinDecorator):
+            class wrapper(ForwardingWrapper):
                 def __call__(self, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
                     return func(*args, **kwargs)
 
