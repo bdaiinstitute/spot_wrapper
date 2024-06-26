@@ -84,7 +84,6 @@ from bosdyn.api.time_sync_service_pb2_grpc import TimeSyncServiceServicer
 from bosdyn.api.world_object_service_pb2_grpc import WorldObjectServiceServicer
 
 from spot_wrapper.testing.grpc import AutoServicer, collect_method_handlers
-from spot_wrapper.testing.helpers import enforce_matching_headers
 from spot_wrapper.testing.mocks.auth import MockAuthService
 from spot_wrapper.testing.mocks.cam import MockCAMService
 from spot_wrapper.testing.mocks.directory import MockDirectoryService
@@ -161,19 +160,7 @@ class BaseMockSpot(
     """
 
     name = "mockie"
-
-    def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
-        super().__init__(*args, **kwargs)
-        for _, handler in collect_method_handlers(self):
-            if handler.request_streaming:
-                continue
-            if handler.response_streaming:
-                continue
-            setattr(
-                self,
-                handler.unary_unary.__name__,
-                enforce_matching_headers(handler.unary_unary),
-            )
+    autocomplete = True
 
 
 class MockSpot(

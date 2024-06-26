@@ -12,8 +12,9 @@ import typing
 from abc import ABC, abstractmethod
 
 import grpc
+from bosdyn.api.header_pb2 import CommonError
 
-from spot_wrapper.testing.helpers import GeneralizedDecorator
+from spot_wrapper.testing.helpers import ForwardingWrapper
 
 
 def implemented(function: typing.Callable) -> bool:
@@ -94,10 +95,12 @@ class AutoServicer(object):
         autospec: if true, deferred handlers will be used in place for every
         non-implemented method handler.
         autotrack: if true, tracking handlers will decorate every method handler.
+        autocomplete: if true, autocompleting handlers will decorate every method handler.
     """
 
     autospec = False
     autotrack = False
+    autocomplete = False
 
     def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         super().__init__(*args, **kwargs)
@@ -112,6 +115,8 @@ class AutoServicer(object):
                         self.needs_shutdown.append(underlying_callable)
                     if self.autotrack:
                         underlying_callable = TrackingStreamStreamRpcHandler(underlying_callable)
+                    if self.autocomplete:
+                        underlying_callable = AutoCompletingStreamStreamRpcHandler(underlying_callable)
                     if underlying_callable is not handler.stream_stream:
                         setattr(self, unqualified_name, underlying_callable)
                 else:
@@ -122,6 +127,8 @@ class AutoServicer(object):
                         self.needs_shutdown.append(underlying_callable)
                     if self.autotrack:
                         underlying_callable = TrackingUnaryStreamRpcHandler(underlying_callable)
+                    if self.autocomplete:
+                        underlying_callable = AutoCompletingUnaryStreamRpcHandler(underlying_callable)
                     if underlying_callable is not handler.unary_stream:
                         setattr(self, unqualified_name, underlying_callable)
             else:
@@ -133,6 +140,8 @@ class AutoServicer(object):
                         self.needs_shutdown.append(underlying_callable)
                     if self.autotrack:
                         underlying_callable = TrackingStreamUnaryRpcHandler(underlying_callable)
+                    if self.autocomplete:
+                        underlying_callable = AutoCompletingStreamUnaryRpcHandler(underlying_callable)
                     if underlying_callable is not handler.stream_unary:
                         setattr(self, unqualified_name, underlying_callable)
                 else:
@@ -143,6 +152,8 @@ class AutoServicer(object):
                         self.needs_shutdown.append(underlying_callable)
                     if self.autotrack:
                         underlying_callable = TrackingUnaryUnaryRpcHandler(underlying_callable)
+                    if self.autocomplete:
+                        underlying_callable = AutoCompletingUnaryUnaryRpcHandler(underlying_callable)
                     if underlying_callable is not handler.unary_unary:
                         setattr(self, unqualified_name, underlying_callable)
 
@@ -167,7 +178,7 @@ class AutoServicer(object):
             obj.shutdown()
 
 
-class TrackingUnaryUnaryRpcHandler(GeneralizedDecorator):
+class TrackingUnaryUnaryRpcHandler(ForwardingWrapper):
     """A decorator for unary-unary gRPC handlers that tracks calls."""
 
     def __init__(self, handler: typing.Callable) -> None:
@@ -183,7 +194,7 @@ class TrackingUnaryUnaryRpcHandler(GeneralizedDecorator):
             self.num_calls += 1
 
 
-class TrackingStreamUnaryRpcHandler(GeneralizedDecorator):
+class TrackingStreamUnaryRpcHandler(ForwardingWrapper):
     """A decorator for stream-unary gRPC handlers that tracks calls."""
 
     def __init__(self, handler: typing.Callable) -> None:
@@ -201,7 +212,7 @@ class TrackingStreamUnaryRpcHandler(GeneralizedDecorator):
             self.num_calls += 1
 
 
-class TrackingUnaryStreamRpcHandler(GeneralizedDecorator):
+class TrackingUnaryStreamRpcHandler(ForwardingWrapper):
     """A decorator for unary-stream gRPC handlers that tracks calls."""
 
     def __init__(self, handler: typing.Callable) -> None:
@@ -217,7 +228,7 @@ class TrackingUnaryStreamRpcHandler(GeneralizedDecorator):
             self.num_calls += 1
 
 
-class TrackingStreamStreamRpcHandler(GeneralizedDecorator):
+class TrackingStreamStreamRpcHandler(ForwardingWrapper):
     """A decorator for stream-stream gRPC handlers that tracks calls."""
 
     def __init__(self, handler: typing.Callable) -> None:
@@ -235,7 +246,62 @@ class TrackingStreamStreamRpcHandler(GeneralizedDecorator):
             self.num_calls += 1
 
 
-class DeferredRpcHandler(GeneralizedDecorator):
+def fill_response_header(request: typing.Any, response: typing.Any) -> bool:
+    """Fill response header if any when missing."""
+    if not hasattr(response, "header"):
+        return False
+    if hasattr(request, "header"):
+        response.header.request_header.CopyFrom(request.header)
+        response.header.request_received_timestamp.CopyFrom(request.header.request_timestamp)
+    response.header.error.code = response.header.error.code or CommonError.CODE_OK
+    return True
+
+
+class AutoCompletingUnaryUnaryRpcHandler(ForwardingWrapper):
+    """A decorator for unary-unary gRPC handlers that autocompletes response headers."""
+
+    def __call__(self, request: typing.Any, context: grpc.ServicerContext) -> typing.Any:
+        response = self.__wrapped__(request, context)
+        fill_response_header(request, response)
+        return response
+
+
+class AutoCompletingStreamUnaryRpcHandler(ForwardingWrapper):
+    """A decorator for stream-unary gRPC handlers that autocompletes response headers.
+
+    The last request chunk header will be used to complete the response header.
+    """
+
+    def __call__(self, request_iterator: typing.Iterator, context: grpc.ServicerContext) -> typing.Any:
+        *head_requests, tail_request = request_iterator
+        response = self.__wrapped__(iter([*head_requests, tail_request]), context)
+        fill_response_header(tail_request, response)
+        return response
+
+
+class AutoCompletingUnaryStreamRpcHandler(ForwardingWrapper):
+    """A decorator for unary-stream gRPC handlers that autocompletes response headers."""
+
+    def __call__(self, request: typing.Any, context: grpc.ServicerContext) -> typing.Iterator:
+        for response in self.__wrapped__(request, context):
+            fill_response_header(request, response)
+            yield response
+
+
+class AutoCompletingStreamStreamRpcHandler(ForwardingWrapper):
+    """A decorator for stream-stream gRPC handlers that autocompletes response headers.
+
+    The last request chunk header will be used to complete the response header.
+    """
+
+    def __call__(self, request_iterator: typing.Iterator, context: grpc.ServicerContext) -> typing.Iterator:
+        *head_requests, tail_request = request_iterator
+        for response in self.__wrapped__(iter([*head_requests, tail_request]), context):
+            fill_response_header(tail_request, response)
+            yield response
+
+
+class DeferredRpcHandler(ForwardingWrapper):
     """
     A gRPC handler that decouples invocation and computation execution paths.
 
