@@ -49,7 +49,7 @@ from bosdyn.client.map_processing import MapProcessingServiceClient
 from bosdyn.client.payload_registration import PayloadNotAuthorizedError
 from bosdyn.client.power import PowerClient, power_on, safe_power_off
 from bosdyn.client.robot import Robot, UnregisteredServiceError
-from bosdyn.client.robot_command import RobotCommandBuilder, RobotCommandClient
+from bosdyn.client.robot_command import RobotCommandBuilder, RobotCommandClient, blocking_sit
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.spot_check import SpotCheckClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
@@ -1134,6 +1134,21 @@ class SpotWrapper:
         response = self._robot_command(RobotCommandBuilder.synchro_sit_command())
         self.last_sit_command = response[2]
         return response[0], response[1]
+
+    def sit_blocking(self) -> typing.Tuple[bool, str]:
+        """
+        Stop the robot's motion and sit down if able, and block until this function returns.
+
+        Returns:
+            Tuple of bool success and a string message
+
+        """
+        try:
+            blocking_sit(command_client=self._robot_command_client, timeout_sec=10, update_frequency=1.0)
+            return True, "Success"
+        except Exception as e:
+            self._logger.error(f"Unable to execute blocking sit: {e}")
+            return False, str(e)
 
     def simple_stand(self, monitor_command: bool = True) -> typing.Tuple[bool, str]:
         """

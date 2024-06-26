@@ -85,14 +85,13 @@ from bosdyn.api.world_object_service_pb2_grpc import WorldObjectServiceServicer
 
 from spot_wrapper.testing.grpc import AutoServicer, collect_method_handlers
 from spot_wrapper.testing.mocks.auth import MockAuthService
+from spot_wrapper.testing.mocks.cam import MockCAMService
 from spot_wrapper.testing.mocks.directory import MockDirectoryService
 from spot_wrapper.testing.mocks.estop import MockEStopService
 from spot_wrapper.testing.mocks.keepalive import MockKeepaliveService
 from spot_wrapper.testing.mocks.lease import MockLeaseService
 from spot_wrapper.testing.mocks.license import MockLicenseService
-from spot_wrapper.testing.mocks.payload_registration import (
-    MockPayloadRegistrationService,
-)
+from spot_wrapper.testing.mocks.payload import MockPayloadService
 from spot_wrapper.testing.mocks.power import MockPowerService
 from spot_wrapper.testing.mocks.robot_id import MockRobotIdService
 from spot_wrapper.testing.mocks.robot_state import MockRobotStateService
@@ -167,12 +166,13 @@ class BaseMockSpot(
 class MockSpot(
     BaseMockSpot,
     MockAuthService,
+    MockCAMService,
     MockDirectoryService,
     MockEStopService,
     MockKeepaliveService,
     MockLeaseService,
     MockLicenseService,
-    MockPayloadRegistrationService,
+    MockPayloadService,
     MockPowerService,
     MockRobotIdService,
     MockRobotStateService,

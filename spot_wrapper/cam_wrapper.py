@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import enum
+import logging
 import math
 import os.path
 import pathlib
@@ -261,7 +262,7 @@ class AudioWrapper:
         Returns:
             List of names of available sounds
         """
-        return self.client.list_sounds()
+        return [sound.name for sound in self.client.list_sounds()]
 
     def set_volume(self, percentage):
         """
@@ -895,14 +896,22 @@ class ImageStreamWrapper:
 
 
 class SpotCamWrapper:
-    def __init__(self, hostname, username, password, logger, port: typing.Optional[int] = None):
+    def __init__(
+        self,
+        hostname: str,
+        username: str,
+        password: str,
+        logger: logging.Logger,
+        port: typing.Optional[int] = None,
+        cert_resource_glob: typing.Optional[str] = None,
+    ) -> None:
         self._hostname = hostname
         self._username = username
         self._password = password
         self._logger = logger
 
         # Create robot object and authenticate.
-        self.sdk = bosdyn.client.create_standard_sdk("Spot CAM Client")
+        self.sdk = bosdyn.client.create_standard_sdk("Spot CAM Client", cert_resource_glob=cert_resource_glob)
         spot_cam.register_all_service_clients(self.sdk)
 
         self.robot = self.sdk.create_robot(self._hostname)

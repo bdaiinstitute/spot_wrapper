@@ -3,7 +3,7 @@
 import typing
 
 import grpc
-from bosdyn.api.payload_pb2 import Payload
+from bosdyn.api.payload_pb2 import ListPayloadsRequest, ListPayloadsResponse, Payload
 from bosdyn.api.payload_registration_pb2 import (
     GetPayloadAuthTokenRequest,
     GetPayloadAuthTokenResponse,
@@ -17,22 +17,26 @@ from bosdyn.api.payload_registration_pb2 import (
 from bosdyn.api.payload_registration_service_pb2_grpc import (
     PayloadRegistrationServiceServicer,
 )
+from bosdyn.api.payload_service_pb2_grpc import PayloadServiceServicer
 
 
-class MockPayloadRegistrationService(PayloadRegistrationServiceServicer):
+class MockPayloadService(PayloadRegistrationServiceServicer, PayloadServiceServicer):
     """
-    A mock Spot payload registration service.
+    A mock Spot payload registration and listing service.
 
     It bookkeeps all payloads but enforces nothing.
     """
 
     def __init__(self, **kwargs: typing.Any) -> None:
         super().__init__(**kwargs)
-        self._payloads: typing.Dict[str, Payload] = {}
+        self.payloads: typing.Dict[str, Payload] = {
+            "spotcam": Payload(GUID="spotcam", name="Spot CAM", is_enabled=True)
+        }
 
-    @property
-    def payloads(self) -> typing.Iterable[Payload]:
-        return list(self._payloads.values())
+    def ListPayloads(self, request: ListPayloadsRequest, context: grpc.ServicerContext) -> ListPayloadsResponse:
+        response = ListPayloadsResponse()
+        response.payloads.extend(self.payloads.values())
+        return response
 
     def RegisterPayload(
         self, request: RegisterPayloadRequest, context: grpc.ServicerContext
