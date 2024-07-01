@@ -68,7 +68,7 @@ class SpotGraphNav:
         """
         ids, eds = self._list_graph_waypoint_and_edge_ids()
 
-        return [v for k, v in sorted(ids.items(), key=lambda id: int(id[0].replace("waypoint_", "")))]
+        return [v for _, v in sorted(ids.items(), key=lambda item: item[0])]
 
     def navigate_initial_localization(
         self,
