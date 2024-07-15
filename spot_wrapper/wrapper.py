@@ -445,7 +445,7 @@ class SpotWrapper:
                 self._spot_check_client = self._robot.ensure_client(SpotCheckClient.default_service_name)
                 self._mission_client = self._robot.ensure_client(MissionClient.default_service_name)
                 self._license_client = self._robot.ensure_client(LicenseClient.default_service_name)
-                if self._robot.has_arm() and not self.gripperless:
+                if not self.gripperless and self._robot.has_arm():
                     self._gripper_cam_param_client = self._robot.ensure_client(
                         GripperCameraParamClient.default_service_name
                     )
