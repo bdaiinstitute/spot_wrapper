@@ -343,6 +343,7 @@ class SpotWrapper:
         rgb_cameras: bool = True,
         payload_credentials_file: str = None,
         cert_resource_glob: typing.Optional[str] = None,
+        gripperless: bool = False,
     ) -> None:
         """
         Args:
@@ -387,6 +388,7 @@ class SpotWrapper:
         self._keep_alive = True
         self._lease_keepalive = None
         self._valid = True
+        self.gripperless = gripperless
 
         self._mobility_params = RobotCommandBuilder.mobility_params()
         self._state = RobotState()
@@ -443,7 +445,7 @@ class SpotWrapper:
                 self._spot_check_client = self._robot.ensure_client(SpotCheckClient.default_service_name)
                 self._mission_client = self._robot.ensure_client(MissionClient.default_service_name)
                 self._license_client = self._robot.ensure_client(LicenseClient.default_service_name)
-                if self._robot.has_arm():
+                if self._robot.has_arm() and not self.gripperless:
                     self._gripper_cam_param_client = self._robot.ensure_client(
                         GripperCameraParamClient.default_service_name
                     )
