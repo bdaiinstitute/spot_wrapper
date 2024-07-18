@@ -935,7 +935,9 @@ class SpotCamWrapper:
         self.lighting = LightingWrapper(self.robot, self._logger)
         self.power = PowerWrapper(self.robot, self._logger)
         self.compositor = CompositorWrapper(self.robot, self._logger)
-        self.image = ImageStreamWrapper(self._hostname, self.robot, self._logger)
+        # NOTE(mhidalgo-bdai): WebRTC image streaming from Spot is failing due to H264 codec issues.
+        # Unable to root cause. Disabling until BD support reports back.
+        # self.image = ImageStreamWrapper(self._hostname, self.robot, self._logger)
         self.health = HealthWrapper(self.robot, self._logger)
         self.audio = AudioWrapper(self.robot, self._logger)
         self.stream_quality = StreamQualityWrapper(self.robot, self._logger)
