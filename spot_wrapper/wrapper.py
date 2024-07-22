@@ -1260,7 +1260,7 @@ class SpotWrapper:
         return self._mobility_params
 
     def velocity_cmd(
-        self, v_x: float, v_y: float, v_rot: float, cmd_duration: float = 0.125
+        self, v_x: float, v_y: float, v_rot: float, cmd_duration: float = 0.125, height: float = 0.0
     ) -> typing.Tuple[bool, str]:
         """
 
@@ -1277,8 +1277,8 @@ class SpotWrapper:
             Tuple of bool success and a string message
         """
         end_time = time.time() + cmd_duration
-        response = self._robot_command(
-            RobotCommandBuilder.synchro_velocity_command(v_x=v_x, v_y=v_y, v_rot=v_rot, params=self._mobility_params),
+        response = self._robot_command( #params=self._mobility_params
+            RobotCommandBuilder.synchro_velocity_command(v_x=v_x, v_y=v_y, v_rot=v_rot, body_height=height),
             end_time_secs=end_time,
             timesync_endpoint=self._robot.time_sync.endpoint,
         )
