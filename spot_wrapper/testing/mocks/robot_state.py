@@ -21,6 +21,7 @@ from bosdyn.client.frame_helpers import (
     BODY_FRAME_NAME,
     GRAV_ALIGNED_BODY_FRAME_NAME,
     GROUND_PLANE_FRAME_NAME,
+    HAND_FRAME_NAME,
     ODOM_FRAME_NAME,
     VISION_FRAME_NAME,
 )
@@ -32,10 +33,12 @@ RIGHT_FRAME_NAME = "right"
 FRONT_LEFT_FRAME_NAME = "frontleft"
 FRONT_RIGHT_FRAME_NAME = "frontright"
 BACK_CAMERA_FRAME_NAME = "back_fisheye"
+WRIST_FRAME_NAME = "arm_link_wr1"
 FRONT_LEFT_CAMERA_FRAME_NAME = "frontleft_fisheye"
 FRONT_RIGHT_CAMERA_FRAME_NAME = "frontright_fisheye"
 LEFT_CAMERA_FRAME_NAME = "left_fisheye"
 RIGHT_CAMERA_FRAME_NAME = "right_fisheye"
+HAND_CAMERA_FRAME_NAME = "hand_color_image_sensor"
 
 
 class MockRobotStateService(RobotStateServiceServicer):
@@ -85,6 +88,12 @@ class MockRobotStateService(RobotStateServiceServicer):
         head_to_front_right_edge.parent_tform_child.position.y = -0.2
         head_to_front_right_edge.parent_tform_child.rotation.w = 1.0
 
+        head_to_wrist_edge = transforms_snapshot.child_to_parent_edge_map[WRIST_FRAME_NAME]
+        head_to_wrist_edge.parent_frame_name = HEAD_FRAME_NAME
+        head_to_wrist_edge.parent_tform_child.position.x = 0.2
+        head_to_wrist_edge.parent_tform_child.position.z = 0.5
+        head_to_wrist_edge.parent_tform_child.rotation.w = 1.0
+
         for parent_frame_name, child_frame_name in (
             (ODOM_FRAME_NAME, BODY_FRAME_NAME),
             (BODY_FRAME_NAME, GROUND_PLANE_FRAME_NAME),
@@ -95,6 +104,8 @@ class MockRobotStateService(RobotStateServiceServicer):
             (RIGHT_FRAME_NAME, RIGHT_CAMERA_FRAME_NAME),
             (FRONT_LEFT_FRAME_NAME, FRONT_LEFT_CAMERA_FRAME_NAME),
             (FRONT_RIGHT_FRAME_NAME, FRONT_RIGHT_CAMERA_FRAME_NAME),
+            (WRIST_FRAME_NAME, HAND_FRAME_NAME),
+            (HAND_FRAME_NAME, HAND_CAMERA_FRAME_NAME),
         ):
             edge = transforms_snapshot.child_to_parent_edge_map[child_frame_name]
             edge.parent_frame_name = parent_frame_name
