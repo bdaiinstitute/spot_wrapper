@@ -219,7 +219,9 @@ class AsyncIdle(AsyncPeriodicQuery):
                         self._logger.warning("Stand command in unknown state")
                         self._spot_wrapper.is_standing = False
                 else:
-                    self._logger.warning(f"Stand command is not being processed anymore, current status: {command_feedback.status}")
+                    self._logger.warning(
+                        f"Stand command is not being processed anymore, current status: {command_feedback.status}"
+                    )
                     self._spot_wrapper.last_stand_command = None
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
@@ -241,7 +243,9 @@ class AsyncIdle(AsyncPeriodicQuery):
                         self._logger.warning("Sit command in unknown state")
                         self._spot_wrapper.is_sitting = False
                 else:
-                    self._logger.warning(f"Sit command is not being processed anymore, current status: {command_feedback.status}")
+                    self._logger.warning(
+                        f"Sit command is not being processed anymore, current status: {command_feedback.status}"
+                    )
                     self._spot_wrapper.last_sit_command = None
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
@@ -290,8 +294,9 @@ class AsyncIdle(AsyncPeriodicQuery):
 
         self._spot_wrapper.is_moving = is_moving
 
-        # Check if the robot is currently not receiving any velocity/trajectory commands as these will override any previous sit/stand commands,
-        # and might leave the robot in an illogical state (sitting and moving at the same time).
+        # Check if the robot is currently not receiving any velocity/trajectory commands as these will override any
+        # previous sit/stand commands, and might leave the robot in an illogical state (sitting and moving at the
+        # same time).
         if self._spot_wrapper.is_moving:
             self._spot_wrapper.is_standing = True
             self._spot_wrapper.is_sitting = False
