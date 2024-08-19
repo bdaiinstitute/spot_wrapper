@@ -230,7 +230,7 @@ If you like the core tools of this utility, and you'd like a more portable versi
 use independent of Spot that doesn't depend on Spot Wrapper, you could recreate
 the CLI tool with no dependency on Spot Wrapper with the following command:
 ```
-cat calibration_util.py <(tail -n +5 automatic_camera_calibration_robot.py) <(tail -n +21 calibrate_multistereo_cameras_with_charuco_cli.py) > standalone_cli.py
+cat calibration_util.py <(tail -n +3 automatic_camera_calibration_robot.py) <(tail -n +21 calibrate_multistereo_cameras_with_charuco_cli.py) > standalone_cli.py
 ```
 The core capability above depends primarily on NumPy, OpenCV and standard Python libraries.
 
