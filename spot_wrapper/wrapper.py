@@ -206,32 +206,47 @@ class AsyncIdle(AsyncPeriodicQuery):
         if self._spot_wrapper.last_stand_command is not None:
             try:
                 response = self._client.robot_command_feedback(self._spot_wrapper.last_stand_command)
-                status = response.feedback.synchronized_feedback.mobility_command_feedback.stand_feedback.status
-                self._spot_wrapper.is_sitting = False
-                if status == basic_command_pb2.StandCommand.Feedback.STATUS_IS_STANDING:
-                    self._spot_wrapper.is_standing = True
-                    self._spot_wrapper.last_stand_command = None
-                elif status == basic_command_pb2.StandCommand.Feedback.STATUS_IN_PROGRESS:
-                    self._spot_wrapper.is_standing = False
+                command_feedback = response.feedback.synchronized_feedback.mobility_command_feedback
+                if command_feedback.status == basic_command_pb2.RobotCommandFeedbackStatus.STATUS_PROCESSING:
+                    self._spot_wrapper.is_sitting = False
+                    stand_status = command_feedback.stand_feedback.status
+                    if stand_status == basic_command_pb2.StandCommand.Feedback.STATUS_IS_STANDING:
+                        self._spot_wrapper.is_standing = True
+                        self._spot_wrapper.last_stand_command = None
+                    elif stand_status == basic_command_pb2.StandCommand.Feedback.STATUS_IN_PROGRESS:
+                        self._spot_wrapper.is_standing = False
+                    else:
+                        self._logger.warning("Stand command in unknown state")
+                        self._spot_wrapper.is_standing = False
                 else:
-                    self._logger.warning("Stand command in unknown state")
-                    self._spot_wrapper.is_standing = False
+                    self._logger.warning(
+                        f"Stand command is not being processed anymore, current status: {command_feedback.status}"
+                    )
+                    self._spot_wrapper.last_stand_command = None
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper.last_stand_command = None
 
         if self._spot_wrapper.last_sit_command is not None:
             try:
-                self._spot_wrapper.is_standing = False
                 response = self._client.robot_command_feedback(self._spot_wrapper.last_sit_command)
-                if (
-                    response.feedback.synchronized_feedback.mobility_command_feedback.sit_feedback.status
-                    == basic_command_pb2.SitCommand.Feedback.STATUS_IS_SITTING
-                ):
-                    self._spot_wrapper.is_sitting = True
-                    self._spot_wrapper.last_sit_command = None
+                command_feedback = response.feedback.synchronized_feedback.mobility_command_feedback
+                if command_feedback.status == basic_command_pb2.RobotCommandFeedbackStatus.STATUS_PROCESSING:
+                    self._spot_wrapper.is_standing = False
+                    sit_status = command_feedback.sit_feedback.status
+                    if sit_status == basic_command_pb2.SitCommand.Feedback.STATUS_IS_SITTING:
+                        self._spot_wrapper.is_sitting = True
+                        self._spot_wrapper.last_sit_command = None
+                    elif sit_status == basic_command_pb2.SitCommand.Feedback.STATUS_IN_PROGRESS:
+                        self._spot_wrapper.is_sitting = False
+                    else:
+                        self._logger.warning("Sit command in unknown state")
+                        self._spot_wrapper.is_sitting = False
                 else:
-                    self._spot_wrapper.is_sitting = False
+                    self._logger.warning(
+                        f"Sit command is not being processed anymore, current status: {command_feedback.status}"
+                    )
+                    self._spot_wrapper.last_sit_command = None
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper.last_sit_command = None
@@ -278,6 +293,13 @@ class AsyncIdle(AsyncPeriodicQuery):
                 self._spot_wrapper.last_trajectory_command = None
 
         self._spot_wrapper.is_moving = is_moving
+
+        # Check if the robot is currently not receiving any velocity/trajectory commands as these will override any
+        # previous sit/stand commands, and might leave the robot in an illogical state (sitting and moving at the
+        # same time).
+        if self._spot_wrapper.is_moving:
+            self._spot_wrapper.is_standing = True
+            self._spot_wrapper.is_sitting = False
 
         # We must check if any command currently has a non-None value for its id. If we don't do this, this stand
         # command can cause other commands to be interrupted before they get to start
