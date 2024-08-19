@@ -44,7 +44,7 @@ Assuming that you have a charuco board you'd like to automatically calibrate you
 **To calibrate a new robot with new cameras using the utility**, implement the abstract class ```AutomaticCameraCalibrationRobot``` from ```automatic_camera_calibration_robot.py``` 
 (Only five methods, that are likely analogous to what's needed for automatic calibration even if this utility isn't used.
 in Spot's case , excluding comments, it's under ~250 lines of code, see ```spot_in_hand_camera_calibration.py```),
-and pass the callable methods as arguments to ```get_multiple_perspective_camera_calibration_dataset``` from ```calibration_util.py``` (see ```calibrate_spot_hand_camera_cli.py``` for an example).
+and pass the implemented class as an argument to ```get_multiple_perspective_camera_calibration_dataset``` from ```calibration_util.py``` (see ```calibrate_spot_hand_camera_cli.py``` for an example).
 
 **Adding a new camera to register with Spot's existing hand cameras** is as easy as adding a call to append
 the new camera image in ```SpotInHandCalibration.capture_images``` in ```spot_in_hand_camera_calibration.py``` to the existing
