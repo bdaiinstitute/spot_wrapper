@@ -198,19 +198,24 @@ def multistereo_calibration_charuco(
         raise ValueError("Stereo Madness requires more than one camera. Use the monocular method instead.")
     else:  # More than one camera - Multi-Stereo Madness ;p
         for idx in range(num_cams):
-            try:
-                _ = camera_matrices[idx]
-            except KeyError:
+            if idx not in camera_matrices:
                 camera_matrices[idx] = None
-            try:
-                _ = dist_coeffs[idx]
-            except KeyError:
+            if idx not in dist_coeffs:
                 dist_coeffs[idx] = None
 
         if desired_stereo_pairs is None:
             desired_stereo_pairs = []
             for idx in range(1, num_cams):
-                desired_stereo_pairs.append((0, idx))  # just register all to 0th cam
+                """
+                Desired stereo pairs is a mapping, where the 0th index is the origin (base)
+                frame, where the reference frame is defined within the origin (base) frame's
+                coordinate system. The reference frame is the 1st index.
+
+                By Default, if desired_stereo_pairs is None,
+                then each camera's intrinsic is defined in the 0th camera's frame,
+                so this is set as the origin for all stereo calibrations
+                """
+                desired_stereo_pairs.append((0, idx))  # just register all in 0th cam frame
 
         for idx, pair in enumerate(desired_stereo_pairs):
             for index in pair:
