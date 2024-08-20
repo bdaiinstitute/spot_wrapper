@@ -737,6 +737,9 @@ def load_images_from_path(path: str) -> np.ndarray:
     """
     Load image dataset from path in a way that's compatible with multistereo_calibration_charuco.
 
+    See Using the CLI Tool To Calibrate On an Existing Dataset section in the README
+    to see the expected folder/data structure for this method to work
+
     Args:
         path (str): The parent path
 

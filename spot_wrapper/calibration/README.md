@@ -5,7 +5,7 @@ TODO: placeholder for reference image not yet approved for release, hopefully ad
 # Table of Contents
 
 1. [***Overview***](#overview)
-2. [***Adapting Automatic Collection and Calibration to Your Scenario***](#adapting-automatic-collection-and-calibration-to-your-scenario)
+2. [***Adapting Automatic Collection and Calibration to Your Scenario***](#adapting-automatic-data-collection-and-calibration-to-your-scenario)
 3. [***Calibrate Spot Manipulator Eye-In-Hand Cameras With the CLI Tool***](#calibrate-spot-manipulator-eye-in-hand-cameras-with-the-cli-tool)
     - [Robot and Target Setup](#robot-and-target-setup)
     - [Example Usage](#example-usage-aka-hand-specific-live-incantations)
@@ -107,7 +107,7 @@ Many parameters are customizable.
 If you'd like to calibrate depth to rgb, with rgb at default resolution, saving photos to ```~/my_collection/calibrated.yaml```, 
 here is an example CLI command template, under the default tag (recommended for first time)
 ```
-python3 calibrate_spot_hand_camera_cli.py --ip 10.17.30.IP -u user -pw SECRET --data_path ~/my_collection/ \
+python3 calibrate_spot_hand_camera_cli.py --ip <IP> -u user -pw <SECRET> --data_path ~/my_collection/ \
 --save_data True --result_path ~/my_collection/calibrated.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0)]" \
 --spot_rgb_photo_width=640 --spot_rgb_photo_height=480 --tag default
 ```
@@ -138,33 +138,9 @@ The default calibration viewpoint parameters are meant to facilitate a quick  ca
 even on more inexpensive hardware, and as such uses a minimal amount of viewpoints.
 
 ## Using the Registered Information with Spot ROS 2
-
-First, collection a calibration with ```calibrate_spot_hand_camera_cli.py```.
-Make sure to use the default ```--stereo_pairs``` configuration, and the default tag configuration (```--tag default```).
-
-For the robot and target setup described, the default viewpoint ranges should suffice.
-
-```
-python3 calibrate_spot_hand_camera_cli.py --ip 10.17.30.IP -u user -pw SECRET --data_path ~/my_collection/ \
---save_data True --result_path ~/my_collection/calibrated.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0)]" \
---spot_rgb_photo_width=640 --spot_rgb_photo_height=480 --tag default
-```
-
-Then, if you have the [Spot ROS 2 Driver](https://github.com/bdaiinstitute/spot_ros2) installed,
-you can run a publisher to transform the depth image into the rgb images frame with the same image
-dimensions, so that finding the 3D location of a feature found in rgb can be as easy as passing
-the image feature pixel coordinates to the registered depth image, and extracting the 3D location.
-
-```
-ros2 run spot_ros2 calibrated_reregistered_hand_camera_depth_publisher.py --tag=default --calibration_path <SAVED_CAL> --robot_name <ROBOT_NAMESPACE> --topic_name /depth_registered/hand_custom_cal/image
-```
-
-You can treat the reregistered topic, (in the above example, ```<ROBOT_NAME>/depth_registered/hand_custom_cal/image```)
-as a drop in replacement by the registered image published by the default spot driver
-(```<ROBOT_NAME>/depth_registered/hand/image```). The registered depth can be easily used in tools 
-like downstream, like Open3d, (see [creating RGBD Images](https://www.open3d.org/docs/release/python_api/open3d.geometry.RGBDImage.html) and [creating color point clouds from RGBD Images](https://www.open3d.org/docs/release/python_api/open3d.geometry.PointCloud.html#open3d.geometry.PointCloud.create_from_rgbd_image)), due to matching image dimensions and registration
-to a shared frame.
-
+If you have the [Spot ROS 2 Driver](https://github.com/bdaiinstitute/spot_ros2) installed,
+you can leverage the output of the automatic calibration to publish a depth image registered
+to the RGB image frame. For more info, see the [spot_ros2 main README](https://github.com/bdaiinstitute/spot_ros2/blob/main/README.md)
 
 # Using the CLI Tool To Calibrate On an Existing Dataset
 To use the CLI Tool, please ensure that you have one parent folder, 
@@ -198,9 +174,43 @@ python3 calibrate_multistereo_cameras_with_charuco_cli.py --data_path ~/existing
 ```
 
 # Understanding the Output Calibration Config File from the CLI
+
 A calibration produced with ```multistereo_calibration_charuco``` from ```calibration_util```
-can be saved as a ```.yaml```file with ```save_calibration_parameters``` from ```calibration_util```. Each calibration run
-that creates or modifies a config file is tagged with a unique name, to allow for tracking of several experiments, which is the main title.
+can be saved as a ```.yaml```file with ```save_calibration_parameters``` from ```calibration_util```. 
+Here is a demonstration output calibration config file for example purposes:
+
+```
+default:
+  intrinsic:
+    1: 
+      camera_matrix: flattened_3x3_camera_matrix_now_9x1
+      dist_coeffs: flat_5x1_opencv_distortion_coeffs
+      image_dim: [height, width]
+    0:
+      camera_matrix: flattened_3x3_camera_matrix_now_9x1
+      dist_coeffs: flat_5x1_opencv_distortion_coeffs
+      image_dim: [480, 640]
+  extrinsic:
+    1: # primary camera index (origin/base frame), first sublevel
+      0:  # reference camera index, second sublevel
+        R: flattened_3x3_rotation_matrix_from_primary_to_reference_camera_now_9x1
+        T: 3x1_translation_matrix_from_primary_to_reference_camera
+  run_param:
+    num_images: 729
+    timestamp: '2024-08-19 03:43:06'
+    stereo_pairs:
+    - [1, 0]
+    photo_utilization_ratio: 2
+    num_checkers_width: 9
+    num_checkers_height: 4
+    dict_size: DICT_4X4_50
+    checker_dim: 0.115
+    marker_dim: 0.09
+```
+
+Each calibration run
+that creates or modifies a config file is tagged with a unique name, to allow for tracking of several experiments, 
+which is the main title (in the above case, ```default```).
 Under the main title, there are the fields relevant to the calibration.
 Under ```intrinsic```, the intrinsic (camera matrix, distortion coefficents, and image height/width)
 for each camera are recorded as a flattened representation
@@ -212,18 +222,10 @@ would be stored under ```0```, and the intrinsic for ```reference_camera``` woul
 Under ```extrinsic```, the first sublevel, again a camera index, corresponds to the camera index of which camera
 is the origin for the ```extrinsic``` transform between two cameras as the first
 field in a requested stereo pair. The second sublevel corresponds to the index of which camera
-the ```extrinsic``` maps to from the origin camera. Going with the example mentioned above, an extrinsic
-would be stored as 
-
-```
-extrinsic:
-    0: # primary camera index
-        1: # reference camera index
-            R: flattened_3x3_rotation_matrix_from_primary_to_reference_camera_now_9x1
-            T: 3x1_translation_matrix_from_primary_to_reference_camera
-```
+the ```extrinsic``` maps to from the origin camera. See the comments in the example config file
+above for more information. 
 Additionally, arguments from an argparser can also be dumped into the yaml, which will be saved 
-under ```run_param```
+under ```run_param``` (excluding args that are: ```password``` or ```username```)
 
 # Recreate the Core Calibration CLI Tool Without Depending On Spot Wrapper
 If you like the core tools of this utility, and you'd like a more portable version (```standalone_cli.py```) for 
@@ -238,5 +240,5 @@ The core capability above depends primarily on NumPy, OpenCV and standard Python
 Gary Lvov
 
 # Special Thanks To...
-Michael Pickett, Katie Hughes, Tiffany Cappellari, 
+Michael Pickett, Katie Hughes, Tiffany Cappellari, Andrew Messing, 
 Emmanuel Panov, Eric Rosen, Brian Okorn, Joseph St Germain and Ken Baker.
