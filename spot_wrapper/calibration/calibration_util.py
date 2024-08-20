@@ -489,7 +489,7 @@ def stereo_calibration_charuco(
 
         if len(obj_points_all) > 0:
             logger.info(f"Collected {len(obj_points_all)} shared point sets for stereo calibration.")
-            _, _, _, _, _, R, T, E, F = cv2.stereoCalibrate(
+            _, _, _, _, _, R, T, _, _ = cv2.stereoCalibrate(
                 obj_points_all,
                 img_points_origin,
                 img_points_reference,
@@ -621,11 +621,11 @@ def convert_camera_t_viewpoint_to_origin_t_planning_frame(
 def get_relative_viewpoints_from_board_pose_and_param(
     R_board: np.ndarray,
     tvec: np.ndarray,
-    distances: np.ndarray = np.arange(0.5, 0.7, 0.1),
-    x_axis_rots: np.ndarray = np.arange(-20, 21, 5),
-    y_axis_rots: np.ndarray = np.arange(-20, 21, 5),
-    z_axis_rots: np.ndarray = np.array([-20, 21, 5]),
-    R_align_board_frame_with_camera: np.ndarray = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]]),
+    distances: Optional[np.ndarray] = None,
+    x_axis_rots: Optional[np.ndarray] = None,
+    y_axis_rots: Optional[np.ndarray] = None,
+    z_axis_rots: Optional[np.ndarray] = None,
+    R_align_board_frame_with_camera: Optional[np.ndarray] = None,
     degree_offset_rotations: bool = True,
 ) -> List[np.ndarray]:
     """
@@ -674,6 +674,17 @@ def get_relative_viewpoints_from_board_pose_and_param(
         List[np.ndarray]: a list of 4x4 homogenous transforms to visit in the "principal" cameras
             frame
     """
+    if distances is None:
+        distances = np.arange(0.5, 0.7, 0.1)
+    if x_axis_rots is None:
+        x_axis_rots = np.arange(-20, 21, 5)
+    if y_axis_rots is None:
+        y_axis_rots = np.arange(-20, 21, 5)
+    if z_axis_rots is None:
+        z_axis_rots = np.arange(-20, 21, 5)
+    if R_align_board_frame_with_camera is None:
+        R_align_board_frame_with_camera = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+
     if degree_offset_rotations:
         x_axis_rots = [radians(deg) for deg in x_axis_rots]
         y_axis_rots = [radians(deg) for deg in y_axis_rots]
