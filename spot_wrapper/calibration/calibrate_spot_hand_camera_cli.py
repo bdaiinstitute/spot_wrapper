@@ -113,7 +113,7 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
         nargs="+",
         type=float,
         dest="dist_from_board_viewpoint_range",
-        default=[0.6, 0.9, 0.2],
+        default=[0.6, 0.7, 0.2],
         help=(
             "What distances to conduct calibrations at relative to the board. (along the normal vector) "
             "Three value array arg defines the [Start, Stop), step. for the viewpoint sweep. "
