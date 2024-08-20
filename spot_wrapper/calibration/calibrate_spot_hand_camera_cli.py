@@ -82,6 +82,7 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument(
         "--ip",
         "-i",
+        "-ip",
         dest="ip",
         type=str,
         help="The IP address of the Robot to calibrate",
@@ -112,7 +113,7 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
         nargs="+",
         type=float,
         dest="dist_from_board_viewpoint_range",
-        default=[0.6, 0.9, 0.1],
+        default=[0.6, 0.9, 0.2],
         help=(
             "What distances to conduct calibrations at relative to the board. (along the normal vector) "
             "Three value array arg defines the [Start, Stop), step. for the viewpoint sweep. "
@@ -132,7 +133,7 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
             f"-{axis}arvr",
             nargs="+",
             type=float,
-            default=[-10, 11, 5],
+            default=[-30, 31, 10],
             dest=f"{axis}_axis_rot_viewpoint_range",
             help=(
                 f"What range of viewpoints around {axis}-axis to sample relative to boards normal vector. "
@@ -156,7 +157,7 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
         "-st",
         dest="settle_time",
         type=float,
-        default=0.25,
+        default=0.5,
         help="How long to wait after movement to take a picture; don't want motion blur",
     )
 
