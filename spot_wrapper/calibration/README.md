@@ -27,7 +27,7 @@ with calibration metadata, to document related runs with different setups or par
 
 This was developed to calibrate the two cameras at the 
 end of Spot's optional manipulator payload, while being **as general as possible 
-to be easily adapted to new robots and camera configurations. The core calibration utilities depend only on NumPy and OpenCV**
+to be easily adapted to new robots and camera configurations. The core calibration utilities depend only on NumPy and OpenCV.**
 
 This utility works by sampling viewpoints relative to the Charuco calibration board,
 visiting those viewpoints, and snapping photos with all cameras at each viewpoint. Then,
@@ -64,7 +64,7 @@ with most Spots. You can also use a different board if you'd like, just set the 
 
 ## Robot and Target Setup
 Have Spot sit on the ground with the arm stowed such that nothing is within a meter of the robot.
-Spot should NOT be on it's charging dock.
+Spot should NOT be on its charging dock.
 
 No program should have robot control authority. Make sure Spot is sitting 
 with the arm stowed before releasing robot authority.
@@ -96,7 +96,7 @@ distance from the board must be feasible to reach with where the base of the
 robot is started relative to the board. The previously recommended Spot and Target setup is what worked well 
 in testing for the default distance viewpoint range.
 
-After the calibration is finished, Spot stows it's arm and sits back down. At this point,
+After the calibration is finished, Spot stows its arm and sits back down. At this point,
 it is safe to take control of Spot from the tablet or ROS 2 , even if the calibration script is still
 running. Just don't stop the script or it will stop calculating the parameters :) 
 
@@ -125,7 +125,7 @@ with finer steps, here is an example CLI command template. Also,
 to demonstrate the stereo pairs argument, let's assume that you also want to find rgb to depth (redundant for 
 demonstration purposes), while writing to the same config files as above.
 ```
-python3 calibrate_spot_hand_camera_cli.py --ip 10.17.30.IP -u user -pw SECRET --data_path ~/my_collection/ \
+python3 calibrate_spot_hand_camera_cli.py --ip <IP> -u user -pw <SECRET> --data_path ~/my_collection/ \
 --save_data True --result_path ~/my_collection/calibrated.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0), (0,1)]" \
 --spot_rgb_photo_width=1920 --spot_rgb_photo_height=1080 --x_axis_rot_viewpoint_range -10 10 1 \
 --dist_from_board_viewpoint_range .6 .9 .1
@@ -201,7 +201,7 @@ python3 calibrate_multistereo_cameras_with_charuco_cli.py --data_path ~/existing
 A calibration produced with ```multistereo_calibration_charuco``` from ```calibration_util```
 can be saved as a ```.yaml```file with ```save_calibration_parameters``` from ```calibration_util```. Each calibration run
 that creates or modifies a config file is tagged with a unique name, to allow for tracking of several experiments, which is the main title.
-Under the main title, there are the fields relevant to the calibration
+Under the main title, there are the fields relevant to the calibration.
 Under ```intrinsic```, the intrinsic (camera matrix, distortion coefficents, and image height/width)
 for each camera are recorded as a flattened representation
 under the camera's index number as it appears in the list of images 
