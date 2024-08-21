@@ -81,7 +81,8 @@ def calibrator_cli() -> argparse.ArgumentParser:
             "what index in the list of images' corresponding camera"
             "to calibrate to what camera. Say capture_images returns [rgb_img, depth_img]"
             "and you want to register depth to rgb, then the desired stereo pair"
-            "is [(1,0)]. If you want to register more than one pair, you can do it like [(1, 0), (2,0)]."
+            'is "[(1,0)]". If you want to register more than one pair, you can do it like "[(1, 0), (2,0)]."'
+            "Make sure to put the stereo pairs in quotes so bash doesn't complain"
         ),
     )
 
