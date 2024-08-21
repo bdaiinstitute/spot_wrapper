@@ -33,6 +33,7 @@ from bosdyn.client.robot_command import (
     blocking_stand,
 )
 from bosdyn.client.robot_state import RobotStateClient
+from bosdyn.client.time_sync import TimedOutError
 
 from spot_wrapper.calibration.automatic_camera_calibration_robot import (
     AutomaticCameraCalibrationRobot,
@@ -65,7 +66,10 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             raise AttributeError("Must specify IP, username, and password for calibration.")
         self.robot = sdk.create_robot(ip)
         self.robot.authenticate(username, password)
-        self.robot.time_sync.wait_for_sync()
+        try:
+            self.robot.time_sync.wait_for_sync()
+        except TimedOutError as e:
+            raise ValueError(f"Could not establish a time sync to the robot... {e}")
         logger.info("Established time sync, resetting e-stop...")
         estop_client = self.robot.ensure_client(EstopClient.default_service_name)
         estop_endpoint = EstopEndpoint(client=estop_client, estop_timeout=20, name="my_estop")

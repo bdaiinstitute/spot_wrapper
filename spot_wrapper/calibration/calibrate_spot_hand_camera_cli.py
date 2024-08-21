@@ -58,6 +58,12 @@ def spot_main() -> None:
             ),
         )
 
+        try:
+            args.robot_name = in_hand_bot.robot.get_cached_robot_id().nickname
+        except Exception:
+            logger.warning("Could not determine cached robot nickname, saving name as unknown")
+            args.robot_name = "unknown"
+
         images = get_multiple_perspective_camera_calibration_dataset(
             auto_cam_cal_robot=in_hand_bot,
             max_num_images=args.max_num_images,
@@ -73,6 +79,7 @@ def spot_main() -> None:
     else:
         logger.info(f"Loading images from {args.data_path}")
         images = load_images_from_path(args.data_path)
+
     calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict)
 
 
