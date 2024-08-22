@@ -610,7 +610,8 @@ def convert_camera_t_viewpoint_to_origin_t_planning_frame(
             from camera to the future viewpoint. Defaults to np.eye(4).
 
     Returns:
-        np.ndarray: 4x4 homogenous transform of origin to planning frame of future viewpoint.
+        np.ndarray: 4x4 homogenous transform of the planning frame of a future viewpoint
+            expressed in the origin frame.
     """
     origin_t_opencv_camera_pose = origin_t_planning_frame @ planning_frame_t_opencv_camera
     origin_t_viewpoint = origin_t_opencv_camera_pose @ opencv_camera_t_viewpoint
