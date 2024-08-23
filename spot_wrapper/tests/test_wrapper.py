@@ -141,7 +141,7 @@ def test_mobility_command_feedback(simple_spot: SpotFixture, simple_spot_wrapper
     simple_spot.api.RobotCommand.future.returns(response).forever()
 
     def update_with_feedback_response(r: RobotCommandFeedbackResponse) -> None:
-        simple_spot.api.RobotCommandFeedback.future.returns(r).repeatedly(1)
+        simple_spot.api.RobotCommandFeedback.future.returns(r)
         simple_spot_wrapper.updateTasks()
         time.sleep(0.1)
 
