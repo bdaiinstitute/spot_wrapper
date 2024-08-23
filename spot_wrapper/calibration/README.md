@@ -1,6 +1,11 @@
 # Automatic Robotic Stereo Camera Calibration Utility with Charuco Target (a.k.a Multi-Stereo Madness)
-TODO: placeholder for reference image not yet approved for release, hopefully added soon
-![spot eye in hand cal](spot_eye_in_hand_cal_thumbnail.jpg)
+
+### Recommended Setup
+
+![spot eye in hand cal](spot_eye_in_hand_setup.jpg)
+
+### Reference Image
+![side by side comparison](registration_qualitative_example.jpg)
 
 # Table of Contents
 
@@ -78,8 +83,7 @@ Spot at a 45 degree angle, so that the bottom of the board is closer Spot than t
 the board should be at about a 45 degree angle from the board. The board's bottom should be about a meter away 
 from the front of Spot while sitting. Nothing should be within a meter of the robot.
 
-**See the reference image at the top of this README to see good board placement relative to Spot.**
-TODO: reference image not yet approved 
+**See the first reference image at the top of this README to see good board placement relative to Spot.**
 
 When calibrating, Spot will stand up, ready its arm, lower its base slightly, and 
 lower its arm slightly. As soon as this happens, if Spot
