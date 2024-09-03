@@ -145,8 +145,7 @@ even on more inexpensive hardware, and as such uses a minimal amount of viewpoin
 If you have the [Spot ROS 2 Driver](https://github.com/bdaiinstitute/spot_ros2) installed,
 you can leverage the output of the automatic calibration to publish a depth image registered
 to the RGB image frame. For more info, see the ```Optional Automatic Eye-in-Hand Stereo Calibration Routine for Manipulator (Arm) Payload```
-section in the [spot_ros2 main README](https://github.com/bdaiinstitute/spot_ros2/blob/main/README.md)
-
+section in the [spot_ros2 main README](https://github.com/bdaiinstitute/spot_ros2?tab=readme-ov-file#optional-automatic-eye-in-hand-stereo-calibration-routine-for-manipulator-arm-payload)
 # Using the CLI Tool To Calibrate On an Existing Dataset
 To use the CLI Tool, please ensure that you have one parent folder, 
 where each camera has a folder under the parent (Numbered from 0 to N). Synchronized photos 
