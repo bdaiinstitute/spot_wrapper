@@ -127,12 +127,21 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
             "These are used to sample viewpoints for automatic collection. "
         ),
     )
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         "--degrees",
         "-d",
+        dest="use_degrees",
+        action="store_true",
         default=True,
-        type=bool,
-        help="Whether to use degrees for rot ranges",
+        help="Use degrees for rotation ranges (default)",
+    )
+    group.add_argument(
+        "--radians",
+        "-r",
+        dest="use_degrees",
+        action="store_false",
+        help="Use radians for rotation ranges",
     )
     for axis in ["x", "y", "z"]:
         parser.add_argument(
