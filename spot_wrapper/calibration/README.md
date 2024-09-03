@@ -112,7 +112,7 @@ If you'd like to calibrate depth to rgb, with rgb at default resolution, saving 
 here is an example CLI command template, under the default tag (recommended for first time)
 ```
 python3 calibrate_spot_hand_camera_cli.py --ip <IP> -u user -pw <SECRET> --data_path ~/my_collection/ \
---save_data True --result_path ~/my_collection/calibrated.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0)]" \
+--save_data --result_path ~/my_collection/calibrated.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0)]" \
 --spot_rgb_photo_width=640 --spot_rgb_photo_height=480 --tag default
 ```
 If you'd like to load photos, and run the calibration with slightly different parameters, 
@@ -130,7 +130,7 @@ to demonstrate the stereo pairs argument, let's assume that you also want to fin
 demonstration purposes), while writing to the same config files as above.
 ```
 python3 calibrate_spot_hand_camera_cli.py --ip <IP> -u user -pw <SECRET> --data_path ~/my_collection/ \
---save_data True --result_path ~/my_collection/calibrated.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0), (0,1)]" \
+--save_data --result_path ~/my_collection/calibrated.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0), (0,1)]" \
 --spot_rgb_photo_width=1920 --spot_rgb_photo_height=1080 --x_axis_rot_viewpoint_range -10 10 1 \
 --dist_from_board_viewpoint_range .6 .9 .1
 ```
