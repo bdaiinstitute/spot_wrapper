@@ -189,8 +189,7 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
         "--save_data",
         "-sd",
         dest="save_data",
-        type=bool,
-        default=True,
+        action="store_true",
         help="whether to save the images to file",
     )
 
