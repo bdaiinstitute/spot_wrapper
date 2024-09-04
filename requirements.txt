@@ -7,6 +7,7 @@ bosdyn-mission==4.0.2
 grpcio==1.59.3
 image==1.5.33
 inflection==0.5.1
+opencv-python>=4.5.4
 open3d==0.18.0 
 protobuf==4.22.1
 pytest==7.3.1
