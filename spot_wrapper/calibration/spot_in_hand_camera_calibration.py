@@ -139,8 +139,8 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
                 self.estimated_camera_matrix,
                 self.estimated_camera_distort_coeffs,
             )
-        except AttributeError:
-            raise ValueError("Must call _set_localization_param prior to localizing")
+        except AttributeError as e:
+            raise ValueError(f"Must call _set_localization_param prior to localizing: {e}")
 
     def move_cameras_to_see_calibration_target(self) -> np.ndarray:
         def adjust_standing_height(height: float) -> None:

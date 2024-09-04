@@ -34,11 +34,13 @@ def spot_main() -> None:
         aruco_dict = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, args.dict_size))
     else:
         raise ValueError(f"Invalid ArUco dictionary: {args.dict_size}")
-    charuco = create_charuco_board(num_checkers_width=args.num_checkers_width, 
-                                   num_checkers_height=args.num_checkers_height, 
-                                   checker_dim=args.checker_dim,
-                                   marker_dim=args.marker_dim, 
-                                   aruco_dict=aruco_dict)
+    charuco = create_charuco_board(
+        num_checkers_width=args.num_checkers_width,
+        num_checkers_height=args.num_checkers_height,
+        checker_dim=args.checker_dim,
+        marker_dim=args.marker_dim,
+        aruco_dict=aruco_dict,
+    )
 
     if not args.from_data:
         logger.warning("This script moves the robot around. !!! USE AT YOUR OWN RISK !!!")

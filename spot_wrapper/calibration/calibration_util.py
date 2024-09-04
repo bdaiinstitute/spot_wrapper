@@ -322,37 +322,45 @@ def detect_charuco_corners(
     aruco_dict: cv2.aruco_Dictionary = SPOT_DEFAULT_ARUCO_DICT,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     """
-    Detect the Charuco Corners and their IDs in an image.
+    Detect the Charuco Corners and their IDs in an image, with support for OpenCV versions before and after 4.7.0.
 
     Args:
-        img (np.ndarray): The image to find charuco corners in
-        charuco_board (cv2.aruco_CharucoBoard, optional): What
-            charuco board to look for. Defaults to SPOT_DEFAULT_CHARUCO.
-        aruco_dict (cv2.aruco_Dictionary, optional): What aruco dict to look for.
-        Defaults to SPOT_DEFAULT_ARUCO_DICT.
+        img (np.ndarray): The image to find Charuco corners in.
+        charuco_board (cv2.aruco_CharucoBoard, optional): The Charuco board to look for.
+            Defaults to SPOT_DEFAULT_CHARUCO.
+        aruco_dict (cv2.aruco_Dictionary, optional): The Aruco dictionary to use.
+            Defaults to SPOT_DEFAULT_ARUCO_DICT.
 
     Returns:
-        Tuple[Optional[np.ndarray], Optional[np.ndarray]]: Either the corners, and their
-        ids, or (None,None) if corners weren't found.
+        Tuple[Optional[np.ndarray], Optional[np.ndarray]]: The detected corners and their IDs,
+            or (None, None) if not found.
     """
+    opencv_version = tuple(map(int, cv2.__version__.split(".")))
+
     if len(img.shape) == 2:
         gray = img
     else:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict)
-    if ids is not None:
-        """
-        Here, setting the minMarkers=0 flag is critical for a good calibration due to the partial
-        board views. Otherwise, no corners near the border of the board are used, which with the
-        large default spot board, results in no points near the border of the image being collected.
-        Without points near the border of the image, the distortion model will be inaccurate.
-        """
-        _, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
-            corners, ids, gray, charuco_board, minMarkers=0
-        )
+    if opencv_version < (4, 7, 0):
+        # For older versions, use the older detection method
+        corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict)
+        if ids is not None:
+            _, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
+                corners, ids, gray, charuco_board, minMarkers=0
+            )
+            return charuco_corners, charuco_ids
+    else:
+        # For newer versions, use the updated detection method
+        detector = cv2.aruco.ArucoDetector(aruco_dict)
+        markerCorners, markerIds, _ = detector.detectMarkers(gray)
 
-        return charuco_corners, charuco_ids
+        if markerIds is not None:
+            _, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
+                markerCorners, markerIds, gray, charuco_board, minMarkers=0
+            )
+            return charuco_corners, charuco_ids
+
     return None, None
 
 
