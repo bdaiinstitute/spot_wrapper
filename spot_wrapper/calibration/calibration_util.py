@@ -25,7 +25,60 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 SPOT_DEFAULT_ARUCO_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-SPOT_DEFAULT_CHARUCO = cv2.aruco.CharucoBoard_create(9, 4, 0.115, 0.09, SPOT_DEFAULT_ARUCO_DICT)
+
+def create_charuco_board(num_checkers_width: int, 
+                         num_checkers_height: int, 
+                         checker_dim: float, marker_dim: float, 
+                         aruco_dict: cv2.aruco_Dictionary) -> cv2.aruco_CharucoBoard:
+    """
+    Create a Charuco board using the provided parameters and Aruco dictionary.
+    Issues a deprecation warning if using the older 'CharucoBoard_create' method.
+
+    Args:
+        num_checkers_width (int): Number of checkers along the width of the board.
+        num_checkers_height (int): Number of checkers along the height of the board.
+        checker_dim (float): Size of the checker squares.
+        marker_dim (float): Size of the Aruco marker squares.
+        aruco_dict (cv2.aruco_Dictionary): The Aruco dictionary to use for marker generation.
+
+    Returns:
+        charuco (cv2.aruco_CharucoBoard): The generated Charuco board.
+    """
+
+    opencv_version = tuple(map(int, cv2.__version__.split('.')))
+
+    if opencv_version < (4, 7, 0):
+        logger.warning(
+            "You're using an older version of OpenCV that has charuco outside of core capability (in contrib)"
+            "Consider upgrading to OpenCV >= 4.7.0 for including charuco capability in core.",
+        )
+
+        # Create Charuco board using the older method
+        charuco = cv2.aruco.CharucoBoard_create(
+            num_checkers_width,
+            num_checkers_height,
+            checker_dim,
+            marker_dim,
+            aruco_dict,
+        )
+    else:
+        # Create Charuco board using the newer method
+        charuco = cv2.aruco_CharucoBoard(
+            (num_checkers_width, num_checkers_height),
+            checker_dim,
+            marker_dim,
+            aruco_dict,
+        )
+
+
+    return charuco
+
+SPOT_DEFAULT_CHARUCO = create_charuco_board(num_checkers_width=9,
+                                            num_checkers_height=4,
+                                            checker_dim=.115,
+                                            marker_dim=.09,
+                                            aruco_dict=SPOT_DEFAULT_ARUCO_DICT)
+
 
 
 def get_multiple_perspective_camera_calibration_dataset(

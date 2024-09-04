@@ -14,6 +14,7 @@ from spot_wrapper.calibration.calibrate_multistereo_cameras_with_charuco_cli imp
 from spot_wrapper.calibration.calibration_util import (
     get_multiple_perspective_camera_calibration_dataset,
     load_images_from_path,
+    create_charuco_board
 )
 from spot_wrapper.calibration.spot_in_hand_camera_calibration import (
     SpotInHandCalibration,
@@ -33,14 +34,11 @@ def spot_main() -> None:
         aruco_dict = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, args.dict_size))
     else:
         raise ValueError(f"Invalid ArUco dictionary: {args.dict_size}")
-    charuco = cv2.aruco.CharucoBoard_create(
-        args.num_checkers_width,
-        args.num_checkers_height,
-        args.checker_dim,
-        args.marker_dim,
-        aruco_dict,
-    )
-
+    charuco = create_charuco_board(args.num_checkers_width,
+                                   args.num_checkers_height,
+                                   args.marker_dim,
+                                   aruco_dict)
+    
     if not args.from_data:
         logger.warning("This script moves the robot around. !!! USE AT YOUR OWN RISK !!!")
         logger.warning("HOLD Ctrl + C NOW TO CANCEL")

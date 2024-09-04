@@ -41,6 +41,8 @@ from spot_wrapper.calibration.automatic_camera_calibration_robot import (
 from spot_wrapper.calibration.calibration_util import (
     convert_camera_t_viewpoint_to_origin_t_planning_frame,
     est_camera_t_charuco_board_center,
+    SPOT_DEFAULT_ARUCO_DICT,
+    SPOT_DEFAULT_CHARUCO
 )
 
 logging.basicConfig(
@@ -48,9 +50,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-SPOT_DEFAULT_ARUCO_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-SPOT_DEFAULT_CHARUCO = cv2.aruco.CharucoBoard_create(9, 4, 0.115, 0.09, SPOT_DEFAULT_ARUCO_DICT)
-
 
 class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
     def __init__(self, ip: str, username: str, password: str):
