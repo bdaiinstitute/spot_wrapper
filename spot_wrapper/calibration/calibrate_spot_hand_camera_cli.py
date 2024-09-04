@@ -70,7 +70,7 @@ def spot_main() -> None:
             x_axis_rots=np.arange(*args.x_axis_rot_viewpoint_range),
             y_axis_rots=np.arange(*args.y_axis_rot_viewpoint_range),
             z_axis_rots=np.arange(*args.z_axis_rot_viewpoint_range),
-            use_degrees=args.degrees,
+            use_degrees=args.use_degrees,
             settle_time=args.settle_time,
             data_path=args.data_path,
             save_data=args.save_data,
