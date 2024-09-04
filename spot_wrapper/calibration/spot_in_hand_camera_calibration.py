@@ -41,8 +41,6 @@ from spot_wrapper.calibration.automatic_camera_calibration_robot import (
 from spot_wrapper.calibration.calibration_util import (
     convert_camera_t_viewpoint_to_origin_t_planning_frame,
     est_camera_t_charuco_board_center,
-    SPOT_DEFAULT_ARUCO_DICT,
-    SPOT_DEFAULT_CHARUCO
 )
 
 logging.basicConfig(
@@ -50,6 +48,7 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
 
 class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
     def __init__(self, ip: str, username: str, password: str):

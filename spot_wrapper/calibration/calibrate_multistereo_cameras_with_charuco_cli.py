@@ -9,10 +9,10 @@ import cv2
 import numpy as np
 
 from spot_wrapper.calibration.calibration_util import (
+    create_charuco_board,
     load_images_from_path,
     multistereo_calibration_charuco,
     save_calibration_parameters,
-    create_charuco_board
 )
 
 logging.basicConfig(
@@ -57,11 +57,8 @@ def main():
         aruco_dict = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, args.dict_size))
     else:
         raise ValueError(f"Invalid ArUco dictionary: {args.dict_size}")
-    charuco = create_charuco_board(args.num_checkers_width,
-                                   args.num_checkers_height,
-                                   args.marker_dim,
-                                   aruco_dict)
-    
+    charuco = create_charuco_board(args.num_checkers_width, args.num_checkers_height, args.marker_dim, aruco_dict)
+
     logger.info(f"Loading images from {args.data_path}")
     images = load_images_from_path(args.data_path)
     calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict)
