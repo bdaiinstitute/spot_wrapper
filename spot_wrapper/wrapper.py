@@ -5,6 +5,7 @@ import typing
 
 import bosdyn.client.auth
 from bosdyn.api import (
+    arm_command_pb2,
     basic_command_pb2,
     lease_pb2,
     manipulation_api_pb2,
@@ -1323,6 +1324,11 @@ class SpotWrapper:
         )
         self.last_velocity_command_time = end_time
         return response[0], response[1]
+
+    def arm_joint_cmd(self, sh0: float, sh1: float, el0: float, el1: float, wr0: float, wr1: float) -> typing.Tuple[bool, str]:
+        end_time = time.time() + cmd_duration
+        traj_point = RobotCommandBuilder.create_arm_joint_trajectory_point(sh0, sh1, el0, el1, wr0, wr1)
+        arm_joint_traj = arm_command_pb2.ArmJointTrajectory(points=[traj_point])
 
     def trajectory_cmd(
         self,
