@@ -448,7 +448,7 @@ def detect_charuco_corners(
         # Newer OpenCV version with charuco_detector
         detector_params = cv2.aruco.CharucoParameters()
         detector_params.minMarkers = 0
-        #detector_params.tryRefineMarkers = True
+        detector_params.tryRefineMarkers = True  # Makes calibration NaNs
         charuco_detector = cv2.aruco.CharucoDetector(charuco_board, detector_params)
         charuco_detector.setBoard(charuco_board)
         charuco_corners, charuco_ids, _, _ = charuco_detector.detectBoard(gray)
@@ -495,11 +495,12 @@ def detect_charuco_corners(
             and detect_charuco_corners.enforce_ids
             and hasattr(detect_charuco_corners, "corr_map")
         ):  # correlation map computed
+            # logger.warning("Using cached comp map..")
             correlation_map = detect_charuco_corners.corr_map  # grab the map
 
         reworked_charuco_ids = []
         for charuco_id in charuco_ids:
-            reworked_charuco_ids.append(correlation_map[charuco_id[0]])
+            reworked_charuco_ids.append([correlation_map[charuco_id[0]]])
 
         return charuco_corners, reworked_charuco_ids
 
@@ -697,7 +698,7 @@ def stereo_calibration_charuco(
 
         if len(obj_points_all) > 0:
             logger.info(f"Collected {len(obj_points_all)} shared point sets for stereo calibration.")
-            #logger.info(f"{np.array(obj_points_all).shape = } {np.array()}")
+            # logger.info(f"{np.array(obj_points_all).shape = } {np.array()}")
             _, _, _, _, _, R, T, _, _ = cv2.stereoCalibrate(
                 obj_points_all,
                 img_points_origin,
@@ -1163,7 +1164,7 @@ def charuco_pose_sanity_check(
         """Draws the 3D pose axes on the image and displays if the Z-axis is out or into the board."""
         axis = np.float32([[axis_length, 0, 0], [0, axis_length, 0], [0, 0, axis_length], [0, 0, 0]]).reshape(-1, 3)
 
-        rmat_camera, tvec_camera = rmat, tvec 
+        rmat_camera, tvec_camera = rmat, tvec
         imgpts, _ = cv2.projectPoints(axis, rmat_camera, tvec_camera, camera_matrix, dist_coeffs)
 
         z_out_of_board = is_z_axis_out_of_board(tvec)
@@ -1201,3 +1202,14 @@ def charuco_pose_sanity_check(
 
     # Visualize the pose with 3D axes
     return visualize_pose_with_axis(img, rmat, tvec, camera_matrix, dist_coeffs)
+
+
+def create_ideal_charuco_image(charuco_board: cv2.aruco_CharucoBoard, dim=(500, 700), colorful=False):
+    if OPENCV_VERSION < OPENCV_CHARUCO_LIBRARY_CHANGE_VERSION:
+        img = charuco_board.draw(outSize=dim)
+    else:
+        img = charuco_board.generateImage(outSize=dim)
+    if colorful:
+        return cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    else:
+        return img

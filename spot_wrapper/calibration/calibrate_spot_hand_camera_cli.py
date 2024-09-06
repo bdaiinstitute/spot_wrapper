@@ -162,7 +162,7 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
         "-st",
         dest="settle_time",
         type=float,
-        default=0.5,
+        default=1.0,
         help="How long to wait after movement to take a picture; don't want motion blur",
     )
 

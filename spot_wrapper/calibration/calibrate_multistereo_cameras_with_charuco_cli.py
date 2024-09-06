@@ -9,10 +9,9 @@ import cv2
 import numpy as np
 
 from spot_wrapper.calibration.calibration_util import (
-    OPENCV_CHARUCO_LIBRARY_CHANGE_VERSION,
-    OPENCV_VERSION,
     charuco_pose_sanity_check,
     create_charuco_board,
+    create_ideal_charuco_image,
     detect_charuco_corners,
     load_images_from_path,
     multistereo_calibration_charuco,
@@ -24,8 +23,40 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-
 #
+
+
+def setup_calibration_param(parser):
+    args = parser.parse_args()
+    if hasattr(cv2.aruco, args.dict_size):
+        aruco_dict = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, args.dict_size))
+    else:
+        raise ValueError(f"Invalid ArUco dictionary: {args.dict_size}")
+    charuco = create_charuco_board(
+        num_checkers_width=args.num_checkers_width,
+        num_checkers_height=args.num_checkers_height,
+        checker_dim=args.checker_dim,
+        marker_dim=args.marker_dim,
+        aruco_dict=aruco_dict,
+        legacy=args.legacy_charuco_pattern,
+    )
+
+    if not args.allow_default_internal_corner_ordering:
+        logger.warning("Enforcing bottom up charuco ordering. Pre-computing correlation now...")
+        detect_charuco_corners(
+            create_ideal_charuco_image(charuco_board=charuco),
+            charuco_board=charuco,
+            aruco_dict=aruco_dict,
+            enforce_ascending_ids_from_bottom_left_corner=True,
+        )
+    if args.check_board_pattern:
+        logger.warning("Checking board, you'll need to close a window in a sec (press any key)")
+        charuco_pose_sanity_check(
+            create_ideal_charuco_image(charuco_board=charuco, colorful=True),
+            charuco_board=charuco,
+            aruco_dict=aruco_dict,
+        )
+    return args, aruco_dict, charuco
 
 
 def calibration_helper(
@@ -38,6 +69,16 @@ def calibration_helper(
         f"Calibrating from {len(images)} images.. for every "
         f"{args.photo_utilization_ratio} recorded photos 1 is used to calibrate"
     )
+    if not args.allow_default_internal_corner_ordering:
+        logger.warning("Turning off corner swap (needed for localization) for calibration solution...")
+        logger.warning("Corner swap needed for initial localization, but breaks calibration.")
+        logger.warning("See ")
+        detect_charuco_corners(
+            create_ideal_charuco_image(charuco_board=charuco),
+            charuco_board=charuco,
+            aruco_dict=aruco_dict,
+            enforce_ascending_ids_from_bottom_left_corner=False,
+        )
     calibration = multistereo_calibration_charuco(
         images[:: args.photo_utilization_ratio],
         desired_stereo_pairs=args.stereo_pairs,
@@ -66,49 +107,6 @@ def calibration_helper(
         parser_args=args,
         unsafe=args.unsafe_tag_save,
     )
-
-
-def setup_calibration_param(parser):
-    args = parser.parse_args()
-    if hasattr(cv2.aruco, args.dict_size):
-        aruco_dict = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, args.dict_size))
-    else:
-        raise ValueError(f"Invalid ArUco dictionary: {args.dict_size}")
-    charuco = create_charuco_board(
-        num_checkers_width=args.num_checkers_width,
-        num_checkers_height=args.num_checkers_height,
-        checker_dim=args.checker_dim,
-        marker_dim=args.marker_dim,
-        aruco_dict=aruco_dict,
-        legacy=args.legacy_charuco_pattern,
-    )
-
-    def create_ideal_charuco_image(charuco_board: cv2.aruco_CharucoBoard, dim=(500, 700), colorful=False):
-        if OPENCV_VERSION < OPENCV_CHARUCO_LIBRARY_CHANGE_VERSION:
-            img = charuco_board.draw(outSize=dim)
-        else:
-            img = charuco_board.generateImage(outSize=dim)
-        if colorful:
-            return cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-        else:
-            return img
-
-    if not args.allow_default_internal_corner_ordering:
-        logger.warning("Enforcing bottom up charuco ordering. Pre-computing correlation now...")
-        detect_charuco_corners(
-            create_ideal_charuco_image(charuco_board=charuco),
-            charuco_board=charuco,
-            aruco_dict=aruco_dict,
-            enforce_ascending_ids_from_bottom_left_corner=True,
-        )
-    if args.check_board_pattern:
-        logger.warning("Checking board, you'll need to close a window in a sec (press any key)")
-        charuco_pose_sanity_check(
-            create_ideal_charuco_image(charuco_board=charuco, colorful=True),
-            charuco_board=charuco,
-            aruco_dict=aruco_dict,
-        )
-    return args, aruco_dict, charuco
 
 
 def main():
