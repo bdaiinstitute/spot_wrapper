@@ -448,7 +448,7 @@ def detect_charuco_corners(
         # Newer OpenCV version with charuco_detector
         detector_params = cv2.aruco.CharucoParameters()
         detector_params.minMarkers = 0
-        detector_params.tryRefineMarkers = True
+        #detector_params.tryRefineMarkers = True
         charuco_detector = cv2.aruco.CharucoDetector(charuco_board, detector_params)
         charuco_detector.setBoard(charuco_board)
         charuco_corners, charuco_ids, _, _ = charuco_detector.detectBoard(gray)
@@ -697,6 +697,7 @@ def stereo_calibration_charuco(
 
         if len(obj_points_all) > 0:
             logger.info(f"Collected {len(obj_points_all)} shared point sets for stereo calibration.")
+            #logger.info(f"{np.array(obj_points_all).shape = } {np.array()}")
             _, _, _, _, _, R, T, _, _ = cv2.stereoCalibrate(
                 obj_points_all,
                 img_points_origin,
@@ -1158,15 +1159,11 @@ def charuco_pose_sanity_check(
         """Determine if the Z-axis points out of the Charuco board (towards the camera)."""
         return tvec[2] > 0  # If Z is positive, it points out of the board
 
-    def transform_pose_to_camera_frame(rmat, tvec):
-        """Transforms the pose to the camera frame by applying the inverse of the rotation."""
-        return rmat.T, -np.dot(rmat.T, tvec)
-
     def visualize_pose_with_axis(img, rmat, tvec, camera_matrix, dist_coeffs, axis_length=0.115):
         """Draws the 3D pose axes on the image and displays if the Z-axis is out or into the board."""
         axis = np.float32([[axis_length, 0, 0], [0, axis_length, 0], [0, 0, axis_length], [0, 0, 0]]).reshape(-1, 3)
 
-        rmat_camera, tvec_camera = transform_pose_to_camera_frame(rmat, tvec)
+        rmat_camera, tvec_camera = rmat, tvec 
         imgpts, _ = cv2.projectPoints(axis, rmat_camera, tvec_camera, camera_matrix, dist_coeffs)
 
         z_out_of_board = is_z_axis_out_of_board(tvec)
