@@ -766,7 +766,6 @@ def est_camera_t_charuco_board_center(
             rmat, _ = cv2.Rodrigues(rvec)
 
             tvec = tvec + rmat.dot(center_trans)
-            # tvec_to_camera = -rmat.T @ tvec
             tvec_to_camera = tvec
             return np.array(rmat), np.array(tvec_to_camera).ravel()
         else:
@@ -777,69 +776,6 @@ def est_camera_t_charuco_board_center(
             "localization failed. Ensure the board is visible from the"
             " primed pose."
         )
-
-
-# def est_camera_t_charuco_board_center(
-#     img: np.ndarray,
-#     charuco_board: cv2.aruco_CharucoBoard,
-#     aruco_dict: cv2.aruco_Dictionary,
-#     camera_matrix: np.ndarray,
-#     dist_coeffs: np.ndarray,
-# ) -> Tuple[np.ndarray, np.ndarray]:
-#     """
-#     Localizes the 6D pose of the checkerboard center using Charuco corners.
-
-#     The board pose's translation should be at the center of the board, with the orientation
-#     in OpenCV format, where the +Z points out of the board with
-#     the other axis being parallel to the sides of the board.
-
-#     Args:
-#         img (np.ndarray): The input image containing the checkerboard.
-#         charuco_board (cv2.aruco_CharucoBoard): The Charuco board configuration.
-#         aruco_dict (cv2.aruco_Dictionary): The Aruco dictionary used to detect markers.
-#         camera_matrix (np.ndarray): The camera matrix from calibration.
-#         dist_coeffs (np.ndarray): The distortion coefficients from calibration.
-
-#     Returns:
-#         Optional[Tuple[np.ndarray, np.ndarray]]: The rotation vector and translation vector
-#         representing the 6D pose of the checkerboard center if found, else None.
-#     """
-#     charuco_corners, charuco_ids = detect_charuco_corners(img, charuco_board, aruco_dict)
-
-#     if charuco_corners is not None and charuco_ids is not None:
-#         # Estimate the pose of the Charuco board
-#         rvec = np.zeros((3, 1))
-#         tvec = np.zeros((3, 1))
-#         retval, rvec, tvec = cv2.aruco.estimatePoseCharucoBoard(
-#             charuco_corners,
-#             charuco_ids,
-#             charuco_board,
-#             camera_matrix,
-#             dist_coeffs,
-#             rvec,
-#             tvec,
-#         )
-#         if retval:
-#             # Compute the translations needed to transform to the center
-#             x_trans = (charuco_board.getSquareLength() * charuco_board.getChessboardSize()[0]) / 2.0
-#             y_trans = (charuco_board.getSquareLength() * charuco_board.getChessboardSize()[1]) / 2.0
-#             # Adjust tvec to be relative to the center
-#             center_trans = np.array([x_trans, y_trans, 0.0]).reshape((3, 1))
-#             rmat, _ = cv2.Rodrigues(rvec)
-#             tvec = tvec + rmat.dot(center_trans)
-
-#             return np.array(rmat), np.array(tvec).ravel()
-#         else:
-#             raise ValueError(
-#                 "Corners were found, but failed to localize. You likely primed the robot too close to the board"
-#             )
-#     else:
-#         raise ValueError(
-#             "Couldn't detect any Charuco Boards in the image, "
-#             "localization failed. Ensure the board is visible from the"
-#             " primed pose."
-#         )
-
 
 def convert_camera_t_viewpoint_to_origin_t_planning_frame(
     origin_t_planning_frame: np.ndarray = np.eye(4),
