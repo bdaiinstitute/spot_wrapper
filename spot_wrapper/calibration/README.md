@@ -58,6 +58,10 @@ list of images obtained with the default cameras (assuming that the new camera
 is fixed relative to the existing cameras.).
 
 # Check if you have a Legacy Charuco Board
+
+You only need to do this if using an opencv version after ```4.7```(
+check with```python3 -c "import cv2; print(cv2.__version__)"```)
+
 Through using the CLI tool (```python3 calibrate_multistereo_cameras_with_charuco_cli.py -h```), you can check if you have a legacy board through visually comparing the generated drawn virtual board to your physical charuco board target. Some legacy boards have an aruco tag in the top
 left corner, whether as some non-legacy boards have a checker in the top left corner.
 Also, check to see that the aruco tags match between virtual and physical boards.

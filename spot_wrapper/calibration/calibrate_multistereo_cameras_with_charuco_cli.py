@@ -47,17 +47,25 @@ def calibration_helper(
     logger.info(f"Finished script, obtained {calibration}")
     logger.info("Saving calibration param")
 
-    if args.result_path is not None:
-        save_calibration_parameters(
-            data=calibration,
-            output_path=args.result_path,
-            num_images=len(images[:: args.photo_utilization_ratio]),
-            tag=args.tag,
-            parser_args=args,
-            unsafe=args.unsafe_tag_save,
-        )
-    else:
-        logger.warning("Ran the calibration, but COULD NOT SAVE PARAMETERS: supply -rp")
+    # If result path is not provided, prompt the user for one
+    if args.result_path is None:
+        result_path = input("Please provide a path to save the calibration results (or type 'No' to skip): ")
+        
+        if result_path.lower() == "no":
+            logger.warning("Ran the calibration, but user opted not to save parameters.")
+            return
+        else:
+            args.result_path = result_path
+
+    # Save the calibration parameters if a valid result path is provided
+    save_calibration_parameters(
+        data=calibration,
+        output_path=args.result_path,
+        num_images=len(images[:: args.photo_utilization_ratio]),
+        tag=args.tag,
+        parser_args=args,
+        unsafe=args.unsafe_tag_save,
+    )
 
 
 def setup_calibration_param(parser):
