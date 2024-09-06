@@ -126,6 +126,12 @@ After the calibration is finished, Spot stows its arm and sits back down. At thi
 it is safe to take control of Spot from the tablet or ROS 2 , even if the calibration script is still
 running. Just don't stop the script or it will stop calculating the parameters :) 
 
+If Spot is shaking while moving the arm around, it is likely that
+your viewpoint range is too close or too far (most often, adjusting
+```--dist_from_board_viewpoint_range``` will help with that). You can
+also try to drive the Spot to a better location to start the calibration
+that fits the distance from viewpoint range better.
+
 ## Example Usage (a.k.a Hand Specific Live Incantations)
 For all possible arguments to the Hand Specific CLI tool, run ```python3 calibrate_spot_hand_camera_cli.py -h```.
 Many parameters are customizable.

@@ -767,7 +767,6 @@ def est_camera_t_charuco_board_center(
 
             tvec = tvec + rmat.dot(center_trans)
             tvec_to_camera = -rmat.T @ tvec
-
             return np.array(rmat), np.array(tvec_to_camera).ravel()
         else:
             raise ValueError("Pose estimation failed. You likely primed the robot too close to the board.")
