@@ -1327,7 +1327,7 @@ class SpotWrapper:
         return response[0], response[1]
 
     def arm_joint_cmd(
-        self, sh0: float, sh1: float, el0: float, el1: float, wr0: float, wr1: float
+        self, *, sh0: float, sh1: float, el0: float, el1: float, wr0: float, wr1: float
     ) -> typing.Tuple[bool, str]:
         traj_point = RobotCommandBuilder.create_arm_joint_trajectory_point(sh0, sh1, el0, el1, wr0, wr1)
         arm_joint_traj = arm_command_pb2.ArmJointTrajectory(points=[traj_point])
