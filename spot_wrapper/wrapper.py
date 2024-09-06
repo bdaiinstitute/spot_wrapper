@@ -12,6 +12,7 @@ from bosdyn.api import (
     point_cloud_pb2,
     robot_command_pb2,
     robot_state_pb2,
+    synchronized_command_pb2,
     world_object_pb2,
 )
 from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
@@ -1326,9 +1327,16 @@ class SpotWrapper:
         return response[0], response[1]
 
     def arm_joint_cmd(self, sh0: float, sh1: float, el0: float, el1: float, wr0: float, wr1: float) -> typing.Tuple[bool, str]:
-        end_time = time.time() + cmd_duration
         traj_point = RobotCommandBuilder.create_arm_joint_trajectory_point(sh0, sh1, el0, el1, wr0, wr1)
         arm_joint_traj = arm_command_pb2.ArmJointTrajectory(points=[traj_point])
+
+        joint_move_command = arm_command_pb2.ArmJointMoveCommand.Request(trajectory=arm_joint_traj)
+        arm_command = arm_command_pb2.ArmCommand.Request(arm_joint_move_command=joint_move_command)
+        sync_arm = synchronized_command_pb2.SynchronizedCommand.Request(arm_command=arm_command)
+        arm_sync_robot_cmd = robot_command_pb2.RobotCommand(synchronized_command=sync_arm)
+        robot_command = RobotCommandBuilder.build_synchro_command(arm_sync_robot_cmd)
+        response = self._robot_command(robot_command)
+        return response[0], response[1]
 
     def trajectory_cmd(
         self,
