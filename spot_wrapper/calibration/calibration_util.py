@@ -766,7 +766,7 @@ def est_camera_t_charuco_board_center(
             rmat, _ = cv2.Rodrigues(rvec)
 
             tvec = tvec + rmat.dot(center_trans)
-            #tvec_to_camera = -rmat.T @ tvec
+            # tvec_to_camera = -rmat.T @ tvec
             tvec_to_camera = tvec
             return np.array(rmat), np.array(tvec_to_camera).ravel()
         else:
@@ -776,7 +776,9 @@ def est_camera_t_charuco_board_center(
             "Couldn't detect any Charuco boards in the image, "
             "localization failed. Ensure the board is visible from the"
             " primed pose."
-         )
+        )
+
+
 # def est_camera_t_charuco_board_center(
 #     img: np.ndarray,
 #     charuco_board: cv2.aruco_CharucoBoard,
@@ -837,6 +839,7 @@ def est_camera_t_charuco_board_center(
 #             "localization failed. Ensure the board is visible from the"
 #             " primed pose."
 #         )
+
 
 def convert_camera_t_viewpoint_to_origin_t_planning_frame(
     origin_t_planning_frame: np.ndarray = np.eye(4),
