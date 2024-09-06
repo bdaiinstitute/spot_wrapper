@@ -442,6 +442,8 @@ def detect_charuco_corners(
                 corners, ids, gray, charuco_board, minMarkers=0
             )
             return charuco_corners, charuco_ids
+        else:
+            return None, None
     else:
         # Newer OpenCV version with charuco_detector
         detector_params = cv2.aruco.CharucoParameters()
@@ -450,6 +452,9 @@ def detect_charuco_corners(
         charuco_detector = cv2.aruco.CharucoDetector(charuco_board, detector_params)
         charuco_detector.setBoard(charuco_board)
         charuco_corners, charuco_ids, _, _ = charuco_detector.detectBoard(gray)
+
+        if charuco_ids is None:
+            return None, None
 
         enforce_ids = enforce_ascending_ids_from_bottom_left_corner
         if enforce_ids is not None and hasattr(detect_charuco_corners, "enforce_ids"):
@@ -557,6 +562,7 @@ def calibrate_single_camera_charuco(
     for idx, img in enumerate(images):
         if img_size is None:
             img_size = img.shape[:2][::-1]
+        
 
         charuco_corners, charuco_ids = detect_charuco_corners(img, charuco_board, aruco_dict)
 
@@ -776,6 +782,7 @@ def est_camera_t_charuco_board_center(
             "localization failed. Ensure the board is visible from the"
             " primed pose."
         )
+
 
 def convert_camera_t_viewpoint_to_origin_t_planning_frame(
     origin_t_planning_frame: np.ndarray = np.eye(4),
