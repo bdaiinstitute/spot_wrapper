@@ -168,8 +168,12 @@ python3 calibrate_spot_hand_camera_cli.py --ip <IP> -u user -pw <SECRET> --data_
 ## Improving Calibration Quality
 If you find that the calibration quality isn't high enough, try a longer calibration
 with a wider variety of viewpoints (decrease the step size, increase the bounds). 
-The default calibration viewpoint parameters are meant to facilitate a quick  calibration
+The default calibration viewpoint parameters are meant to facilitate a quick calibration
 even on more inexpensive hardware, and as such uses a minimal amount of viewpoints. 
+
+However, in calibration, less is more. It is better to collect fewer high quality
+viewpoints then many low quality ones. Play with the viewpoint sampling parameters
+to find what takes the most diverse high quality photos of the board.
 
 Also, [make you are checking if your board is legacy, and if you can 
 allow default corner ordering](#check-if-you-have-a-legacy-charuco-board).

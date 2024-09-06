@@ -495,7 +495,7 @@ def detect_charuco_corners(
             and detect_charuco_corners.enforce_ids
             and hasattr(detect_charuco_corners, "corr_map")
         ):  # correlation map computed
-            # logger.warning("Using cached comp map..")
+            logger.warning("Using cached comp map..")
             correlation_map = detect_charuco_corners.corr_map  # grab the map
 
         reworked_charuco_ids = []

@@ -109,7 +109,7 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
         nargs="+",
         type=float,
         dest="dist_from_board_viewpoint_range",
-        default=[0.6, 0.7, 0.2],
+        default=[0.5, 0.6, 0.1],
         help=(
             "What distances to conduct calibrations at relative to the board. (along the normal vector) "
             "Three value array arg defines the [Start, Stop), step. for the viewpoint sweep. "
@@ -132,13 +132,14 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
         action="store_false",
         help="Use radians for rotation ranges",
     )
-    for axis in ["x", "y", "z"]:
+    defaults = [[-10, 11, 10], [-10, 11, 10], [-10, 11, 10]]
+    for idx, axis in enumerate(["x", "y", "z"]):
         parser.add_argument(
             f"--{axis}_axis_rot_viewpoint_range",
             f"-{axis}arvr",
             nargs="+",
             type=float,
-            default=[-30, 31, 10],
+            default=defaults[idx],
             dest=f"{axis}_axis_rot_viewpoint_range",
             help=(
                 f"What range of viewpoints around {axis}-axis to sample relative to boards normal vector. "
