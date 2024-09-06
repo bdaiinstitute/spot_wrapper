@@ -562,7 +562,6 @@ def calibrate_single_camera_charuco(
     for idx, img in enumerate(images):
         if img_size is None:
             img_size = img.shape[:2][::-1]
-        
 
         charuco_corners, charuco_ids = detect_charuco_corners(img, charuco_board, aruco_dict)
 
