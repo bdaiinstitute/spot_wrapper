@@ -4,15 +4,14 @@ import argparse
 import logging
 from time import sleep
 
-import cv2
 import numpy as np
 
 from spot_wrapper.calibration.calibrate_multistereo_cameras_with_charuco_cli import (
     calibration_helper,
     calibrator_cli,
+    setup_calibration_param,
 )
 from spot_wrapper.calibration.calibration_util import (
-    create_charuco_board,
     get_multiple_perspective_camera_calibration_dataset,
     load_images_from_path,
 )
@@ -29,18 +28,7 @@ logger = logging.getLogger(__name__)
 
 def spot_main() -> None:
     parser = spot_cli(calibrator_cli())
-    args = parser.parse_args()
-    if hasattr(cv2.aruco, args.dict_size):
-        aruco_dict = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, args.dict_size))
-    else:
-        raise ValueError(f"Invalid ArUco dictionary: {args.dict_size}")
-    charuco = create_charuco_board(
-        num_checkers_width=args.num_checkers_width,
-        num_checkers_height=args.num_checkers_height,
-        checker_dim=args.checker_dim,
-        marker_dim=args.marker_dim,
-        aruco_dict=aruco_dict,
-    )
+    args, aruco_dict, charuco = setup_calibration_param(parser)
 
     if not args.from_data:
         logger.warning("This script moves the robot around. !!! USE AT YOUR OWN RISK !!!")

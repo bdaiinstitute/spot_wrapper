@@ -9,7 +9,11 @@ import cv2
 import numpy as np
 
 from spot_wrapper.calibration.calibration_util import (
+    OPENCV_CHARUCO_LIBRARY_CHANGE_VERSION,
+    OPENCV_VERSION,
+    charuco_pose_sanity_check,
     create_charuco_board,
+    detect_charuco_corners,
     load_images_from_path,
     multistereo_calibration_charuco,
     save_calibration_parameters,
@@ -20,6 +24,8 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+#
 
 
 def calibration_helper(
@@ -40,18 +46,21 @@ def calibration_helper(
     )
     logger.info(f"Finished script, obtained {calibration}")
     logger.info("Saving calibration param")
-    save_calibration_parameters(
-        data=calibration,
-        output_path=args.result_path,
-        num_images=len(images[:: args.photo_utilization_ratio]),
-        tag=args.tag,
-        parser_args=args,
-        unsafe=args.unsafe_tag_save,
-    )
+
+    if args.result_path is not None:
+        save_calibration_parameters(
+            data=calibration,
+            output_path=args.result_path,
+            num_images=len(images[:: args.photo_utilization_ratio]),
+            tag=args.tag,
+            parser_args=args,
+            unsafe=args.unsafe_tag_save,
+        )
+    else:
+        logger.warning("Ran the calibration, but COULD NOT SAVE PARAMETERS: supply -rp")
 
 
-def main():
-    parser = calibrator_cli()
+def setup_calibration_param(parser):
     args = parser.parse_args()
     if hasattr(cv2.aruco, args.dict_size):
         aruco_dict = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, args.dict_size))
@@ -63,10 +72,47 @@ def main():
         checker_dim=args.checker_dim,
         marker_dim=args.marker_dim,
         aruco_dict=aruco_dict,
+        legacy=args.legacy_charuco_pattern,
     )
+
+    def create_ideal_charuco_image(charuco_board: cv2.aruco_CharucoBoard, dim=(500, 700), colorful=False):
+        if OPENCV_VERSION < OPENCV_CHARUCO_LIBRARY_CHANGE_VERSION:
+            img = charuco_board.draw(outSize=dim)
+        else:
+            img = charuco_board.generateImage(outSize=dim)
+        if colorful:
+            return cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        else:
+            return img
+
+    if not args.allow_default_internal_corner_ordering:
+        logger.warning("Enforcing bottom up charuco ordering. Pre-computing correlation now...")
+        detect_charuco_corners(
+            create_ideal_charuco_image(charuco_board=charuco),
+            charuco_board=charuco,
+            aruco_dict=aruco_dict,
+            enforce_ascending_ids_from_bottom_left_corner=True,
+        )
+    if args.check_board_pattern:
+        logger.warning("Checking board, you'll need to close a window in a sec (press any key)")
+        charuco_pose_sanity_check(
+            create_ideal_charuco_image(charuco_board=charuco, colorful=True),
+            charuco_board=charuco,
+            aruco_dict=aruco_dict,
+        )
+    return args, aruco_dict, charuco
+
+
+def main():
+    parser = calibrator_cli()
+    args, aruco_dict, charuco = setup_calibration_param(parser)
     logger.info(f"Loading images from {args.data_path}")
-    images = load_images_from_path(args.data_path)
-    calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict)
+
+    if args.data_path is not None:
+        images = load_images_from_path(args.data_path)
+        calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict)
+    else:
+        logger.warning("Could not load any images to calibrate from, supply --data_path")
 
 
 def calibrator_cli() -> argparse.ArgumentParser:
@@ -76,7 +122,7 @@ def calibrator_cli() -> argparse.ArgumentParser:
         "--stereo_pairs",
         "-sp",
         type=parse_tuple_list,
-        required=True,
+        required=False,
         default=[(1, 0)],
         help=(
             "Capture images returns a list of images. Stereo pairs correspond to"
@@ -85,6 +131,39 @@ def calibrator_cli() -> argparse.ArgumentParser:
             "and you want to register depth to rgb, then the desired stereo pair"
             'is "[(1,0)]". If you want to register more than one pair, you can do it like "[(1, 0), (2,0)]."'
             "Make sure to put the stereo pairs in quotes so bash doesn't complain"
+        ),
+    )
+
+    parser.add_argument(
+        "--legacy_charuco_pattern",
+        "-l",
+        type=str2bool,
+        required=True,
+        help=(
+            "Whether to use the legacy charuco pattern. For Spot Default board, this should be True."
+            "If you aren't sure if your board is legacy, try supplying the --check_board_pattern"
+            "arg to verify that the cv2 board matches your board."
+        ),
+    )
+    parser.add_argument(
+        "--check_board_pattern",
+        action="store_true",
+        default=False,
+        help="Whether to visually verify the board pattern (to check legacy and internal corner ordering.",
+    )
+
+    parser.add_argument(
+        "--allow_default_internal_corner_ordering",
+        action="store_true",
+        default=False,
+        help=(
+            "Whether to allow default internal corner ordering. "
+            "For new versions of OpenCV, it is recommended "
+            "to NOT set this parameter to make sure that corners "
+            "are ordered in a known pattern. "
+            "Try supplying the --check_board_pattern flag "
+            "to check whether you should enable this flag "
+            "When checking, Z-Axis should point out of board. "
         ),
     )
 
@@ -179,7 +258,7 @@ def calibrator_cli() -> argparse.ArgumentParser:
         "-rp",
         dest="result_path",
         type=str,
-        required=True,
+        required=False,
         help="Where to store calibration result as file",
     )
 
@@ -207,6 +286,21 @@ def calibrator_cli() -> argparse.ArgumentParser:
     )
 
     return parser
+
+
+def str2bool(value: str) -> bool:
+    """
+    Convert a string to a boolean.
+    Accepts 'true', 'false', 'yes', 'no', '1', '0', etc.
+    """
+    if isinstance(value, bool):
+        return value
+    if value.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif value.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
 # collection

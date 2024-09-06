@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 import re
+from copy import deepcopy
 from datetime import datetime
 from glob import glob
 from math import radians
@@ -25,6 +26,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 SPOT_DEFAULT_ARUCO_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+OPENCV_VERSION = tuple(map(int, cv2.__version__.split(".")))
+OPENCV_CHARUCO_LIBRARY_CHANGE_VERSION = (4, 7, 0)
 
 
 def create_charuco_board(
@@ -33,6 +36,7 @@ def create_charuco_board(
     checker_dim: float,
     marker_dim: float,
     aruco_dict: cv2.aruco_Dictionary,
+    legacy: bool = True,
 ) -> cv2.aruco_CharucoBoard:
     """
     Create a Charuco board using the provided parameters and Aruco dictionary.
@@ -54,8 +58,12 @@ def create_charuco_board(
     if opencv_version < (4, 7, 0):
         logger.warning(
             (
-                "You're using an older version of OpenCV that has charuco outside of core capability (in contrib)"
-                "Consider upgrading to OpenCV >= 4.7.0 for including charuco capability in core."
+                "Creating Charuco Board..."
+                "You're using an older version of OpenCV requires the additional OpenCV Modules. "
+                "This will not work without the additional modules (opencv-contrib-python). "
+                "Consider upgrading to OpenCV >= 4.7.0 to enable "
+                "the use of this tool with base opencv (opencv-python) "
+                "without relying on additional modules."
             ),
         )
 
@@ -67,6 +75,7 @@ def create_charuco_board(
             marker_dim,
             aruco_dict,
         )
+
     else:
         # Create Charuco board using the newer method
         charuco = cv2.aruco_CharucoBoard(
@@ -75,22 +84,28 @@ def create_charuco_board(
             marker_dim,
             aruco_dict,
         )
+        charuco.setLegacyPattern(legacy)
 
     return charuco
 
 
 SPOT_DEFAULT_CHARUCO = create_charuco_board(
-    num_checkers_width=9, num_checkers_height=4, checker_dim=0.115, marker_dim=0.09, aruco_dict=SPOT_DEFAULT_ARUCO_DICT
+    num_checkers_width=9,
+    num_checkers_height=4,
+    checker_dim=0.115,
+    marker_dim=0.09,
+    aruco_dict=SPOT_DEFAULT_ARUCO_DICT,
+    legacy=True,
 )
 
 
 def get_multiple_perspective_camera_calibration_dataset(
     auto_cam_cal_robot: AutomaticCameraCalibrationRobot,
     max_num_images: int = 10000,
-    distances: np.ndarray = np.arange(0.5, 0.8, 0.1),
-    x_axis_rots: np.ndarray = np.arange(-21, 21, 5),
-    y_axis_rots: np.ndarray = np.arange(-21, 21, 5),
-    z_axis_rots: np.ndarray = np.array([-21, 21, 5]),
+    distances: Optional[np.ndarray] = None,
+    x_axis_rots: Optional[np.ndarray] = None,
+    y_axis_rots: Optional[np.ndarray] = None,
+    z_axis_rots: Optional[np.ndarray] = None,
     use_degrees: bool = True,
     settle_time: float = 0.1,
     data_path: str = os.path.expanduser("~"),
@@ -109,16 +124,16 @@ def get_multiple_perspective_camera_calibration_dataset(
              reached prior to all viewpoints being reached . Defaults to 100.
         distances (np.ndarray, optional): What distances
             away from the calibration board's pose (along the Z axis)
-            to sample calibration viewpoints from. Defaults to np.arange(0.5, 0.8, 0.1).
+            to sample calibration viewpoints from. Defaults to None.
         x_axis_rots (np.ndarray, optional): What
             x-axis rotations relative to the camera viewing the board orthogonally
-            to apply to sample viewpoints. Defaults to np.arange(-21, 21, 5).
+            to apply to sample viewpoints. Defaults to None.
         y_axis_rots (np.ndarray, optional): What
             y-axis rotations relative to the camera viewing the board orthogonally
-            to apply to sample viewpoints. Defaults to np.arange(-21, 21, 5).
+            to apply to sample viewpoints. Defaults to None.
         z_axis_rots (np.ndarray, optional): What
             z-axis rotations relative to the camera viewing the board orthogonally
-            to aply to sample viewpoints. Defaults to np.array([-21, 21, 5]).
+            to apply to sample viewpoints. Defaults to None.
         use_degrees (bool, optional): Whether to use degrees for the rotations
             about the axis to sample viewpoints from. Defaults to True.
         settle_time (float, optional): How long to wait in seconds after moving the robot
@@ -316,10 +331,85 @@ def multistereo_calibration_charuco(
     return calibration
 
 
+def get_correlation_map_to_enforce_ascending_ids_from_bottom_left_corner(
+    all_charuco_corners: List,
+    all_charuco_ids: List,
+    charuco_board: cv2.aruco_CharucoBoard,
+) -> List:
+    """
+    This is needed only for OpenCV versions > 4.7.0. Basically,
+    this determines the needed correlation
+    to ensure that internal corners are numbered left to right bottom
+    up as opposed to left to right top down.
+
+    For more info see https://github.com/opencv/opencv/issues/26126
+
+    Args:
+        all_charuco_corners (List): All charuco corners of the board.
+        all_charuco_ids (List): All charuco ids of the board, as returned by the Charuco detector
+            for an ideal board with a full view. Expected to be a list ascending
+            from 0 but could be otherwise
+        charuco_board (cv2.aruco_CharucoBoard): the charuco board to utilize
+            to construct the correlation map
+
+    Returns:
+        List: the correlation map where the indicies represent to the original
+            ordering of corners, and the values at each index represent the new
+            ordering index of a corner. Can be used to ensure bottom up
+            left to right ordering of internal corners.
+    """
+
+    num_checker_width, num_checker_height = charuco_board.getChessboardSize()
+    num_interior_corners = (num_checker_width - 1) * (num_checker_height - 1)
+    correlation_map = np.array([i for i in range(num_interior_corners)])
+    # Adjust indexing to account for nested arrays
+    first_corner_height = all_charuco_corners[all_charuco_ids[0][0]][0][1]
+    last_corner_height = all_charuco_corners[all_charuco_ids[-1][0]][0][1]
+    row_num_a = 0
+    row_num_b = num_checker_height - 2
+
+    if first_corner_height < last_corner_height:
+        logger.warning(
+            "Detected Charuco Configuration "
+            "where internal corners (detected checker corners) are numbered top down, "
+            "(left to right) as opposed to bottom up (left to right). "
+            "Enforcing bottom up numbering instead. "
+            "This ensures that the Z axis points out of the board "
+            "As opposed to -180 degrees about the X axis "
+            "relative to the Z out of the board"
+        )
+    else:
+        logger.warning(
+            "You have selected to enforce ascending ids from the bottom left corner "
+            "But it seems as if your ids are already in that form "
+            "Returning identity correlation map"
+        )
+        return [int(mapping) for mapping in correlation_map]
+
+    while row_num_a < row_num_b:
+        row_num_a_correlation_slice = slice(
+            row_num_a * (num_checker_width - 1), (row_num_a * (num_checker_width - 1) + (num_checker_width - 1)), 1
+        )
+
+        row_num_b_correlation_slice = slice(
+            row_num_b * (num_checker_width - 1), ((row_num_b * (num_checker_width - 1)) + (num_checker_width - 1)), 1
+        )
+        # Record A
+        precopy_row_a = deepcopy(correlation_map[row_num_a_correlation_slice])
+        # Copy B onto A
+        correlation_map[row_num_a_correlation_slice] = correlation_map[row_num_b_correlation_slice]
+        # copy old A into B
+        correlation_map[row_num_b_correlation_slice] = precopy_row_a
+        row_num_a += 1
+        row_num_b -= 1
+    return [int(mapping) for mapping in correlation_map]
+
+
 def detect_charuco_corners(
     img: np.ndarray,
-    charuco_board: cv2.aruco_CharucoBoard = SPOT_DEFAULT_CHARUCO,
-    aruco_dict: cv2.aruco_Dictionary = SPOT_DEFAULT_ARUCO_DICT,
+    charuco_board: cv2.aruco_CharucoBoard,
+    aruco_dict: cv2.aruco_Dictionary,
+    enforce_ascending_ids_from_bottom_left_corner: Union[bool, None] = None,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     """
     Detect the Charuco Corners and their IDs in an image, with support for OpenCV versions before and after 4.7.0.
@@ -330,20 +420,22 @@ def detect_charuco_corners(
             Defaults to SPOT_DEFAULT_CHARUCO.
         aruco_dict (cv2.aruco_Dictionary, optional): The Aruco dictionary to use.
             Defaults to SPOT_DEFAULT_ARUCO_DICT.
+        enforce_ascending_ids_from_bottom_left_corner (Union[bool, None]): whether to
+            ensure that internal charuco corners are numbered left to right bottom up
+            (only ensures bottom up, assumes already left to right).
 
     Returns:
         Tuple[Optional[np.ndarray], Optional[np.ndarray]]: The detected corners and their IDs,
             or (None, None) if not found.
     """
-    opencv_version = tuple(map(int, cv2.__version__.split(".")))
-
+    # Convert the image to grayscale if it's not already
     if len(img.shape) == 2:
         gray = img
     else:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    if opencv_version < (4, 7, 0):
-        # For older versions, use the older detection method
+    if OPENCV_VERSION < OPENCV_CHARUCO_LIBRARY_CHANGE_VERSION:
+        # Older OpenCV version
         corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict)
         if ids is not None:
             _, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
@@ -351,17 +443,60 @@ def detect_charuco_corners(
             )
             return charuco_corners, charuco_ids
     else:
-        # For newer versions, use the updated detection method
-        detector = cv2.aruco.ArucoDetector(aruco_dict)
-        markerCorners, markerIds, _ = detector.detectMarkers(gray)
+        # Newer OpenCV version with charuco_detector
+        detector_params = cv2.aruco.CharucoParameters()
+        detector_params.minMarkers = 0
+        detector_params.tryRefineMarkers = True
+        charuco_detector = cv2.aruco.CharucoDetector(charuco_board, detector_params)
+        charuco_detector.setBoard(charuco_board)
+        charuco_corners, charuco_ids, _, _ = charuco_detector.detectBoard(gray)
 
-        if markerIds is not None:
-            _, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
-                markerCorners, markerIds, gray, charuco_board, minMarkers=0
+        enforce_ids = enforce_ascending_ids_from_bottom_left_corner
+        if enforce_ids is not None and hasattr(detect_charuco_corners, "enforce_ids"):
+            logger.warning(
+                "Previously, for detecting internal charuco corners, the enforce "
+                "ascending from bottom left corner id policy was set to: "
+                f"{detect_charuco_corners.enforce_ids}"
+                f"it will now be set to {enforce_ids}"
             )
-            return charuco_corners, charuco_ids
+            detect_charuco_corners.enforce_ids = enforce_ids
+        elif enforce_ids is not None and not hasattr(detect_charuco_corners, "enforce_ids"):
+            logger.warning(
+                "For detecting charuco corners, the enforce "
+                "ascending from bottom left corner id policy is set to: "
+                f"{enforce_ids}. For this call, and future calls until set otherwise."
+            )
+            detect_charuco_corners.enforce_ids = enforce_ids
 
-    return None, None
+        # Create the identity correlation map...
+        num_checker_width, num_checker_height = charuco_board.getChessboardSize()
+        num_interior_corners = (num_checker_width - 1) * (num_checker_height - 1)
+        correlation_map = np.array([i for i in range(num_interior_corners)])
+
+        if (
+            hasattr(detect_charuco_corners, "enforce_ids")
+            and detect_charuco_corners.enforce_ids
+            and not hasattr(detect_charuco_corners, "corr_map")
+        ):  # correlation map not computed
+            ideal_charuco = charuco_board.generateImage(outSize=(1000, 1000))
+            all_charuco_corners, all_charuco_ids, _, _ = charuco_detector.detectBoard(ideal_charuco)
+
+            detect_charuco_corners.corr_map = get_correlation_map_to_enforce_ascending_ids_from_bottom_left_corner(
+                all_charuco_corners, all_charuco_ids, charuco_board
+            )
+
+        if (
+            hasattr(detect_charuco_corners, "enforce_ids")
+            and detect_charuco_corners.enforce_ids
+            and hasattr(detect_charuco_corners, "corr_map")
+        ):  # correlation map computed
+            correlation_map = detect_charuco_corners.corr_map  # grab the map
+
+        reworked_charuco_ids = []
+        for charuco_id in charuco_ids:
+            reworked_charuco_ids.append(correlation_map[charuco_id[0]])
+
+        return charuco_corners, reworked_charuco_ids
 
 
 def get_charuco_board_object_points(
@@ -380,9 +515,13 @@ def get_charuco_board_object_points(
     Returns:
         np.ndarray: the object points
     """
+    if OPENCV_VERSION < OPENCV_CHARUCO_LIBRARY_CHANGE_VERSION:
+        corners = charuco_board.chessboardCorners
+    else:
+        corners = charuco_board.getChessboardCorners()
     object_points = []
     for idx in corners_ids:
-        object_points.append(charuco_board.chessboardCorners[idx])
+        object_points.append(corners[idx])
     return np.array(object_points, dtype=np.float32)
 
 
@@ -461,7 +600,7 @@ def stereo_calibration_charuco(
     dist_coeffs_reference: Optional[np.ndarray] = None,
 ) -> Dict:
     """
-    Perform a stereo calibration from a set of syncrhonized stereo images of a charuco calibration
+    Perform a stereo calibration from a set of synchronized stereo images of a charuco calibration
     board.
 
     Args:
@@ -478,7 +617,7 @@ def stereo_calibration_charuco(
         camera_matrix_reference (Optional[np.ndarray], optional): What camera
             matrix to assign to camera 1. If none, is computed. . Defaults to None.
         dist_coeffs_reference (Optional[np.ndarray], optional): What distortion coefficients
-            toa ssign to camera 1. If None, is computed. Defaults to None.
+            to assign to camera 1. If None, is computed. Defaults to None.
 
     Raises:
         ValueError: Could not calibrate a camera individually
@@ -595,11 +734,10 @@ def est_camera_t_charuco_board_center(
     dist_coeffs: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Localizes the 6D pose of the checkerboard center using Charuco corners.
+    Localizes the 6D pose of the checkerboard center using Charuco corners with OpenCV's solvePnP.
 
-    The board pose's translation should be at the center of the board, with the orientation
-    in OpenCV format, where the +Z points out of the board with
-    the other axis being parallel to the sides of the board.
+    The board pose's translation should be at the center of the board, with the orientation in OpenCV format,
+    where the +Z points out of the board with the other axes being parallel to the sides of the board.
 
     Args:
         img (np.ndarray): The input image containing the checkerboard.
@@ -613,37 +751,29 @@ def est_camera_t_charuco_board_center(
         representing the 6D pose of the checkerboard center if found, else None.
     """
     charuco_corners, charuco_ids = detect_charuco_corners(img, charuco_board, aruco_dict)
-
     if charuco_corners is not None and charuco_ids is not None:
-        # Estimate the pose of the Charuco board
-        rvec = np.zeros((3, 1))
-        tvec = np.zeros((3, 1))
-        retval, rvec, tvec = cv2.aruco.estimatePoseCharucoBoard(
-            charuco_corners,
-            charuco_ids,
-            charuco_board,
-            camera_matrix,
-            dist_coeffs,
-            rvec,
-            tvec,
-        )
-        if retval:
-            # Compute the translations needed to transform to the center
+        object_points = get_charuco_board_object_points(charuco_board, charuco_ids)
+        image_points = charuco_corners
+
+        # Use solvePnP to estimate the pose of the Charuco board
+        success, rvec, tvec = cv2.solvePnP(object_points, np.array(image_points), camera_matrix, dist_coeffs)
+
+        if success:
+            # Convert to the camera frame: Adjust the translation vector to be relative to the center of the board
             x_trans = (charuco_board.getSquareLength() * charuco_board.getChessboardSize()[0]) / 2.0
             y_trans = (charuco_board.getSquareLength() * charuco_board.getChessboardSize()[1]) / 2.0
-            # Adjust tvec to be relative to the center
             center_trans = np.array([x_trans, y_trans, 0.0]).reshape((3, 1))
             rmat, _ = cv2.Rodrigues(rvec)
-            tvec = tvec + rmat.dot(center_trans)
 
-            return np.array(rmat), np.array(tvec).ravel()
+            tvec = tvec + rmat.dot(center_trans)
+            tvec_to_camera = -rmat.T @ tvec
+
+            return np.array(rmat), np.array(tvec_to_camera).ravel()
         else:
-            raise ValueError(
-                "Corners were found, but failed to localize. You likely primed the robot too close to the board"
-            )
+            raise ValueError("Pose estimation failed. You likely primed the robot too close to the board.")
     else:
         raise ValueError(
-            "Couldn't detect any Charuco Boards in the image, "
+            "Couldn't detect any Charuco boards in the image, "
             "localization failed. Ensure the board is visible from the"
             " primed pose."
         )
@@ -998,3 +1128,75 @@ def save_calibration_parameters(
             sort_keys=False,
         )
     logger.info(f"Saved calibration to file {output_path} under tag '{tag}'")
+
+
+def charuco_pose_sanity_check(
+    img: np.ndarray, charuco_board: cv2.aruco_CharucoBoard, aruco_dict: cv2.aruco_Dictionary
+) -> np.ndarray:
+    """
+    This method:
+    1. Defines the camera matrix as identity.
+    2. Uses zero distortion coefficients.
+    3. Estimates the Charuco board pose using `est_camera_t_charuco_board_center`.
+    4. Transforms the pose into the camera frame.
+    5. Visualizes the pose with 3D axes on the image using cv2 window.
+
+    Args:
+        img (np.ndarray): The input image containing the Charuco board.
+        charuco_board (cv2.aruco_CharucoBoard): The Charuco board configuration.
+        aruco_dict (cv2.aruco_Dictionary): The Aruco dictionary used to detect markers.
+
+    Returns:
+        img_with_axes (np.ndarray): The image with the pose axes drawn.
+    """
+
+    def is_z_axis_out_of_board(tvec):
+        """Determine if the Z-axis points out of the Charuco board (towards the camera)."""
+        return tvec[2] > 0  # If Z is positive, it points out of the board
+
+    def transform_pose_to_camera_frame(rmat, tvec):
+        """Transforms the pose to the camera frame by applying the inverse of the rotation."""
+        return rmat.T, -np.dot(rmat.T, tvec)
+
+    def visualize_pose_with_axis(img, rmat, tvec, camera_matrix, dist_coeffs, axis_length=0.115):
+        """Draws the 3D pose axes on the image and displays if the Z-axis is out or into the board."""
+        axis = np.float32([[axis_length, 0, 0], [0, axis_length, 0], [0, 0, axis_length], [0, 0, 0]]).reshape(-1, 3)
+
+        rmat_camera, tvec_camera = transform_pose_to_camera_frame(rmat, tvec)
+        imgpts, _ = cv2.projectPoints(axis, rmat_camera, tvec_camera, camera_matrix, dist_coeffs)
+
+        z_out_of_board = is_z_axis_out_of_board(tvec)
+        img_with_axes = img.copy()
+        origin = tuple(imgpts[3].ravel().astype(int))
+        img_with_axes = cv2.line(img_with_axes, origin, tuple(imgpts[0].ravel().astype(int)), (0, 0, 255), 3)  # X
+        img_with_axes = cv2.line(img_with_axes, origin, tuple(imgpts[1].ravel().astype(int)), (0, 255, 0), 3)  # Y
+        img_with_axes = cv2.line(img_with_axes, origin, tuple(imgpts[2].ravel().astype(int)), (255, 0, 0), 3)  # Z
+
+        if not z_out_of_board:
+            logger.warning("This tool assumes that Z axis is out of board, but it was detected as into board.")
+        window_name = f'Charuco Board Pose ({"Z-axis out of board" if z_out_of_board else "Z-axis into board"})'
+        cv2.imshow(window_name, img_with_axes)
+        elapsed_time = 0
+        wait_interval = 100  # Wait 100 ms in each loop iteration
+        max_wait_time = 20  # 20 sec
+        while elapsed_time < max_wait_time * 1000:  # Convert max_wait_time to milliseconds
+            if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1:
+                break  # Exit loop if window is closed
+            key = cv2.waitKey(wait_interval)  # Check every 100ms
+            if key != -1:  # If any key is pressed
+                break
+            elapsed_time += wait_interval
+
+        cv2.destroyAllWindows()
+
+        return img_with_axes
+
+    # Camera matrix as identity and zero distortion coefficients
+    camera_matrix = np.eye(3, dtype=np.float32)
+    dist_coeffs = np.zeros(5, dtype=np.float32)
+
+    # Estimate pose using the existing est_camera_t_charuco_board_center
+    rmat, tvec = est_camera_t_charuco_board_center(img, charuco_board, aruco_dict, camera_matrix, dist_coeffs)
+
+    # Visualize the pose with 3D axes
+    return visualize_pose_with_axis(img, rmat, tvec, camera_matrix, dist_coeffs)
