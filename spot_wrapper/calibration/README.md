@@ -172,7 +172,10 @@ The default calibration viewpoint parameters are meant to facilitate a quick  ca
 even on more inexpensive hardware, and as such uses a minimal amount of viewpoints. 
 
 Also, [make you are checking if your board is legacy, and if you can 
-allow default corner ordering](#check-if-you-have-a-legacy-charuco-board)
+allow default corner ordering](#check-if-you-have-a-legacy-charuco-board).
+
+If you are using a robot to collect your dataset, such as Spot, increase the settle
+time prior to taking an image (see ```--settle_time```)
 
 ## Using the Registered Information with Spot ROS 2
 If you have the [Spot ROS 2 Driver](https://github.com/bdaiinstitute/spot_ros2) installed,

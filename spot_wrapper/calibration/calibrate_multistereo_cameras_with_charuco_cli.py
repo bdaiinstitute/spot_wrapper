@@ -50,7 +50,7 @@ def calibration_helper(
     # If result path is not provided, prompt the user for one
     if args.result_path is None:
         result_path = input("Please provide a path to save the calibration results (or type 'No' to skip): ")
-        
+
         if result_path.lower() == "no":
             logger.warning("Ran the calibration, but user opted not to save parameters.")
             return
