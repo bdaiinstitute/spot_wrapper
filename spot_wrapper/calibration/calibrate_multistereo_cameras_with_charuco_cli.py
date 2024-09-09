@@ -72,7 +72,7 @@ def calibration_helper(
     if not args.allow_default_internal_corner_ordering:
         logger.warning("Turning off corner swap (needed for localization) for calibration solution...")
         logger.warning("Corner swap needed for initial localization, but breaks calibration.")
-        logger.warning("See ")
+        logger.warning("See https://github.com/opencv/opencv/issues/26126")
         detect_charuco_corners(
             create_ideal_charuco_image(charuco_board=charuco),
             charuco_board=charuco,
