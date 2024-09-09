@@ -448,7 +448,7 @@ def detect_charuco_corners(
         # Newer OpenCV version with charuco_detector
         detector_params = cv2.aruco.CharucoParameters()
         detector_params.minMarkers = 0
-        detector_params.tryRefineMarkers = True  # Makes calibration NaNs
+        detector_params.tryRefineMarkers = True
         charuco_detector = cv2.aruco.CharucoDetector(charuco_board, detector_params)
         charuco_detector.setBoard(charuco_board)
         charuco_corners, charuco_ids, _, _ = charuco_detector.detectBoard(gray)
