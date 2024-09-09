@@ -48,8 +48,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-SPOT_DEFAULT_ARUCO_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-SPOT_DEFAULT_CHARUCO = cv2.aruco.CharucoBoard_create(9, 4, 0.115, 0.09, SPOT_DEFAULT_ARUCO_DICT)
 
 
 class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
@@ -141,8 +139,8 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
                 self.estimated_camera_matrix,
                 self.estimated_camera_distort_coeffs,
             )
-        except AttributeError:
-            raise ValueError("Must call _set_localization_param prior to localizing")
+        except AttributeError as e:
+            raise ValueError(f"Must call _set_localization_param prior to localizing: {e}")
 
     def move_cameras_to_see_calibration_target(self) -> np.ndarray:
         def adjust_standing_height(height: float) -> None:

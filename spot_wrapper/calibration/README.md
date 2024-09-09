@@ -11,14 +11,15 @@
 
 1. [***Overview***](#overview)
 2. [***Adapting Automatic Collection and Calibration to Your Scenario***](#adapting-automatic-data-collection-and-calibration-to-your-scenario)
-3. [***Calibrate Spot Manipulator Eye-In-Hand Cameras With the CLI Tool***](#calibrate-spot-manipulator-eye-in-hand-cameras-with-the-cli-tool)
+3. [***Check if you have a Legacy Charuco Board***](#check-if-you-have-a-legacy-charuco-board)
+4. [***Calibrate Spot Manipulator Eye-In-Hand Cameras With the CLI Tool***](#calibrate-spot-manipulator-eye-in-hand-cameras-with-the-cli-tool)
     - [Robot and Target Setup](#robot-and-target-setup)
     - [Example Usage](#example-usage-aka-hand-specific-live-incantations)
     - [Improving Calibration Quality](#improving-calibration-quality)
     - [Using the Registered Information with Spot ROS 2](#using-the-registered-information-with-spot-ros-2)
-4. [***Using the CLI Tool To Calibrate On an Existing Dataset***](#using-the-cli-tool-to-calibrate-on-an-existing-dataset)
-5. [***Understanding the Output Calibration Config File from the CLI***](#understanding-the-output-calibration-config-file-from-the-cli)
-6. [Recreate the Core Calibration CLI Tool Without Depending On Spot Wrapper](#recreate-the-core-calibration-cli-tool-without-depending-on-spot-wrapper)
+5. [***Using the CLI Tool To Calibrate On an Existing Dataset***](#using-the-cli-tool-to-calibrate-on-an-existing-dataset)
+6. [***Understanding the Output Calibration Config File from the CLI***](#understanding-the-output-calibration-config-file-from-the-cli)
+7. [Recreate the Core Calibration CLI Tool Without Depending On Spot Wrapper](#recreate-the-core-calibration-cli-tool-without-depending-on-spot-wrapper)
 
 # Overview
 This utility streamlines automatic
@@ -56,6 +57,27 @@ the new camera image in ```SpotInHandCalibration.capture_images``` in ```spot_in
 list of images obtained with the default cameras (assuming that the new camera
 is fixed relative to the existing cameras.).
 
+# Check if you have a Legacy Charuco Board
+
+You only need to do this if using an opencv version after ```4.7```(
+check with```python3 -c "import cv2; print(cv2.__version__)"```)
+
+Through using the CLI tool (```python3 calibrate_multistereo_cameras_with_charuco_cli.py -h```), you can check if you have a legacy board through visually comparing the generated drawn virtual board to your physical charuco board target. Some legacy boards have an aruco tag in the top
+left corner, whether as some non-legacy boards have a checker in the top left corner.
+Also, check to see that the aruco tags match between virtual and physical boards.
+It is important that the virtual board matches the physical board, otherwise this calibration
+will not work.
+
+```
+python3 calibrate_multistereo_cameras_with_charuco_cli.py --check_board_pattern --legacy_charuco_pattern t 
+```
+
+There should be an axis at the center of the board, where the Y axis (green)
+points upwards, the X axis (red) points to the right, and the figure should be labelled
+as Z-axis out of board. If it isn't then try without legacy (```--legacy_charuco_pattern f```).
+
+If you are using the default Spot Calibation board, and there is an aruco marker
+in the top left corner, then it legacy (so supply true argument to legacy.)
 
 # Calibrate Spot Manipulator Eye-In-Hand Cameras With the CLI tool
 
@@ -104,23 +126,31 @@ After the calibration is finished, Spot stows its arm and sits back down. At thi
 it is safe to take control of Spot from the tablet or ROS 2 , even if the calibration script is still
 running. Just don't stop the script or it will stop calculating the parameters :) 
 
+If Spot is shaking while moving the arm around, it is likely that
+your viewpoint range is too close or too far (most often, adjusting
+```--dist_from_board_viewpoint_range``` will help with that). You can
+also try to drive the Spot to a better location to start the calibration
+that fits the distance from viewpoint range better.
+
 ## Example Usage (a.k.a Hand Specific Live Incantations)
 For all possible arguments to the Hand Specific CLI tool, run ```python3 calibrate_spot_hand_camera_cli.py -h```.
 Many parameters are customizable.
 
 If you'd like to calibrate depth to rgb, with rgb at default resolution, saving photos to ```~/my_collection/calibrated.yaml```, 
-here is an example CLI command template, under the default tag (recommended for first time)
+here is an example CLI command template, under the default tag (recommended for first time).
+Note that the default Spot Board is a legacy pattern for OpenCV > 4.7, so ensure to pass
+the --legacy_charuco_pattern flag 
 ```
 python3 calibrate_spot_hand_camera_cli.py --ip <IP> -u user -pw <SECRET> --data_path ~/my_collection/ \
---save_data --result_path ~/my_collection/calibrated.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0)]" \
+--save_data --result_path ~/my_collection/calibrated.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0)]" --legacy_charuco_pattern True \
 --spot_rgb_photo_width=640 --spot_rgb_photo_height=480 --tag default
 ```
 If you'd like to load photos, and run the calibration with slightly different parameters, 
 while saving both the resuls and the parameters to same the config file as in the previous example.
 Here is an example CLI command template (from recorded images, no data collection)
 ```
-python3 calibrate_spot_hand_camera_cli.py --data_path ~/my_collection/ --from_data \
---result_path ~/my_collection/bottle_calibrated.yaml --photo_utilization_ratio 2 --stereo_pairs "[(1,0)]" \
+python3 calibrate_multistereo_cameras_with_charuco_cli.py --data_path ~/my_collection/ 
+--result_path ~/my_collection/bottle_calibrated.yaml --photo_utilization_ratio 2 --stereo_pairs "[(1,0)]" --legacy_charuco_pattern True \
 --spot_rgb_photo_width=640 --spot_rgb_photo_height=480 --tag less_photos_used_test_v1
 ```
 If you'd like to calibrate depth to rgb, at a greater resolution, while sampling
@@ -130,7 +160,7 @@ to demonstrate the stereo pairs argument, let's assume that you also want to fin
 demonstration purposes), while writing to the same config files as above.
 ```
 python3 calibrate_spot_hand_camera_cli.py --ip <IP> -u user -pw <SECRET> --data_path ~/my_collection/ \
---save_data --result_path ~/my_collection/calibrated.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0), (0,1)]" \
+--save_data --result_path ~/my_collection/calibrated.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0), (0,1)]" --legacy_charuco_pattern True\
 --spot_rgb_photo_width=1920 --spot_rgb_photo_height=1080 --x_axis_rot_viewpoint_range -10 10 1 \
 --dist_from_board_viewpoint_range .6 .9 .1
 ```
@@ -138,8 +168,18 @@ python3 calibrate_spot_hand_camera_cli.py --ip <IP> -u user -pw <SECRET> --data_
 ## Improving Calibration Quality
 If you find that the calibration quality isn't high enough, try a longer calibration
 with a wider variety of viewpoints (decrease the step size, increase the bounds). 
-The default calibration viewpoint parameters are meant to facilitate a quick  calibration
-even on more inexpensive hardware, and as such uses a minimal amount of viewpoints.
+The default calibration viewpoint parameters are meant to facilitate a quick calibration
+even on more inexpensive hardware, and as such uses a minimal amount of viewpoints. 
+
+However, in calibration, less is more. It is better to collect fewer high quality
+viewpoints then many low quality ones. Play with the viewpoint sampling parameters
+to find what takes the most diverse high quality photos of the board.
+
+Also, [make you are checking if your board is legacy, and if you can 
+allow default corner ordering](#check-if-you-have-a-legacy-charuco-board).
+
+If you are using a robot to collect your dataset, such as Spot, you can
+also try increasing the settle time prior to taking an image (see ```--settle_time```)
 
 ## Using the Registered Information with Spot ROS 2
 If you have the [Spot ROS 2 Driver](https://github.com/bdaiinstitute/spot_ros2) installed,
@@ -174,6 +214,7 @@ If you'd like to register camera 1 to camera 0, and camera 2 to camera 0, you co
 ```
 python3 calibrate_multistereo_cameras_with_charuco_cli.py --data_path ~/existing_dataset/ \
 --result_path ~/existing_dataset/eye_in_hand_calib.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0), (2, 0)]" \
+--legacy_charuco_pattern=SUPPLY_CHECK_BOARD_FLAG_TO_SEE_IF_LEGACY_NEEDED \
 --tag default --unsafe_tag_save
 ```
 
@@ -236,7 +277,7 @@ If you like the core tools of this utility, and you'd like a more portable versi
 use independent of Spot that doesn't depend on Spot Wrapper, you could recreate
 the CLI tool with no dependency on Spot Wrapper with the following command:
 ```
-cat calibration_util.py <(tail -n +3 automatic_camera_calibration_robot.py) <(tail -n +21 calibrate_multistereo_cameras_with_charuco_cli.py) > standalone_cli.py
+cat calibration_util.py <(tail -n +3 automatic_camera_calibration_robot.py) <(tail -n +26 calibrate_multistereo_cameras_with_charuco_cli.py) > standalone_cli.py
 ```
 The core capability above depends primarily on NumPy, OpenCV and standard Python libraries.
 

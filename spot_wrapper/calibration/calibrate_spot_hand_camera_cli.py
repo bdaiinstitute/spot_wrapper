@@ -4,12 +4,12 @@ import argparse
 import logging
 from time import sleep
 
-import cv2
 import numpy as np
 
 from spot_wrapper.calibration.calibrate_multistereo_cameras_with_charuco_cli import (
     calibration_helper,
     calibrator_cli,
+    setup_calibration_param,
 )
 from spot_wrapper.calibration.calibration_util import (
     get_multiple_perspective_camera_calibration_dataset,
@@ -28,18 +28,7 @@ logger = logging.getLogger(__name__)
 
 def spot_main() -> None:
     parser = spot_cli(calibrator_cli())
-    args = parser.parse_args()
-    if hasattr(cv2.aruco, args.dict_size):
-        aruco_dict = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, args.dict_size))
-    else:
-        raise ValueError(f"Invalid ArUco dictionary: {args.dict_size}")
-    charuco = cv2.aruco.CharucoBoard_create(
-        args.num_checkers_width,
-        args.num_checkers_height,
-        args.checker_dim,
-        args.marker_dim,
-        aruco_dict,
-    )
+    args, aruco_dict, charuco = setup_calibration_param(parser)
 
     if not args.from_data:
         logger.warning("This script moves the robot around. !!! USE AT YOUR OWN RISK !!!")
@@ -71,7 +60,7 @@ def spot_main() -> None:
             x_axis_rots=np.arange(*args.x_axis_rot_viewpoint_range),
             y_axis_rots=np.arange(*args.y_axis_rot_viewpoint_range),
             z_axis_rots=np.arange(*args.z_axis_rot_viewpoint_range),
-            use_degrees=args.degrees,
+            use_degrees=args.use_degrees,
             settle_time=args.settle_time,
             data_path=args.data_path,
             save_data=args.save_data,
@@ -93,7 +82,7 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
         dest="ip",
         type=str,
         help="The IP address of the Robot to calibrate",
-        required=False,
+        required=True,
     )
     parser.add_argument(
         "--user",
@@ -102,7 +91,7 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
         dest="username",
         type=str,
         help="Robot Username",
-        required=False,
+        required=True,
     )
     parser.add_argument(
         "--pass",
@@ -111,7 +100,7 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
         dest="password",
         type=str,
         help="Robot Password",
-        required=False,
+        required=True,
     )
 
     parser.add_argument(
@@ -120,7 +109,7 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
         nargs="+",
         type=float,
         dest="dist_from_board_viewpoint_range",
-        default=[0.6, 0.7, 0.2],
+        default=[0.5, 0.6, 0.1],
         help=(
             "What distances to conduct calibrations at relative to the board. (along the normal vector) "
             "Three value array arg defines the [Start, Stop), step. for the viewpoint sweep. "
@@ -143,13 +132,14 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
         action="store_false",
         help="Use radians for rotation ranges",
     )
-    for axis in ["x", "y", "z"]:
+    defaults = [[-10, 11, 10], [-10, 11, 10], [-10, 11, 10]]
+    for idx, axis in enumerate(["x", "y", "z"]):
         parser.add_argument(
             f"--{axis}_axis_rot_viewpoint_range",
             f"-{axis}arvr",
             nargs="+",
             type=float,
-            default=[-30, 31, 10],
+            default=defaults[idx],
             dest=f"{axis}_axis_rot_viewpoint_range",
             help=(
                 f"What range of viewpoints around {axis}-axis to sample relative to boards normal vector. "
@@ -173,7 +163,7 @@ def spot_cli(parser=argparse.ArgumentParser) -> argparse.ArgumentParser:
         "-st",
         dest="settle_time",
         type=float,
-        default=0.5,
+        default=1.0,
         help="How long to wait after movement to take a picture; don't want motion blur",
     )
 
