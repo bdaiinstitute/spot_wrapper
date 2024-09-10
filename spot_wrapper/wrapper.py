@@ -1327,6 +1327,21 @@ class SpotWrapper:
     def arm_joint_cmd(
         self, *, sh0: float, sh1: float, el0: float, el1: float, wr0: float, wr1: float
     ) -> typing.Tuple[bool, str]:
+    """
+    Send a single point arm joint command to the robot.
+    
+    Args: 
+        sh0: shoulder joint angle
+        sh1: shoulder joint angle
+        el0: elbow joint angle
+        el1: elbow joint angle
+        wr0: wrist joint angle
+        wr1: wrist joint angle
+    
+    Returns:
+        Tuple of bool success and a string message
+
+    """
         robot_command = RobotCommandBuilder.arm_joint_command(sh0, sh1, el0, el1, wr0, wr1)
         response = self._robot_command(robot_command)
         return response[0], response[1]
