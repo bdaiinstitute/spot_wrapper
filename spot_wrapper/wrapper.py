@@ -5,14 +5,12 @@ import typing
 
 import bosdyn.client.auth
 from bosdyn.api import (
-    arm_command_pb2,
     basic_command_pb2,
     lease_pb2,
     manipulation_api_pb2,
     point_cloud_pb2,
     robot_command_pb2,
     robot_state_pb2,
-    synchronized_command_pb2,
     world_object_pb2,
 )
 from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
