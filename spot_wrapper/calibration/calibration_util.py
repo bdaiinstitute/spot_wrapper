@@ -766,8 +766,8 @@ def stereo_calibration_charuco(
                     t_gripper2base=t_gripper2base,
                     R_target2cam=rmats_origin,
                     t_target2cam=tvecs_origin,
-                    # method=cv2.CALIB_HAND_EYE_DANIILIDIS
-                    method=cv2.CALIB_HAND_EYE_HORAUD,
+                    method=cv2.CALIB_HAND_EYE_DANIILIDIS,
+                    # method=cv2.CALIB_HAND_EYE_HORAUD,
                 )
                 robot_to_cam = np.eye(4)  # Initialize 4x4 identity matrix
                 robot_to_cam[:3, :3] = R_handeye  # Populate rotation
