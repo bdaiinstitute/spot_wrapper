@@ -196,7 +196,7 @@ def get_multiple_perspective_camera_calibration_dataset(
             np.save(os.path.join(data_path, "poses", f"{idx}.npy"), new_pose)
     calibration_images = np.array(calibration_images, dtype=object)
     auto_cam_cal_robot.shutdown()
-    return (calibration_images, poses)
+    return (np.array(calibration_images, dtype=object), poses)
 
 
 def multistereo_calibration_charuco(
@@ -206,7 +206,7 @@ def multistereo_calibration_charuco(
     aruco_dict: cv2.aruco_Dictionary = SPOT_DEFAULT_ARUCO_DICT,
     camera_matrices: Optional[Dict] = {},
     dist_coeffs: Optional[Dict] = {},
-    poses: Optional[np.ndarray] = None,
+    poses: Union[np.ndarray, None] = None
 ) -> Dict:
     """
     Calibrates the intrinsic and extrinsic parameters for multiple stereo camera pairs
@@ -577,6 +577,7 @@ def calibrate_single_camera_charuco(
         if charuco_corners is not None and len(charuco_corners) >= 8:
             all_corners.append(charuco_corners)
             all_ids.append(charuco_ids)
+            #used_image_ids.append(idx)
         else:
             logger.warning(f"Not enough corners detected in image index {idx} {debug_str}; ignoring")
 
@@ -613,7 +614,7 @@ def stereo_calibration_charuco(
     dist_coeffs_origin: Optional[np.ndarray] = None,
     camera_matrix_reference: Optional[np.ndarray] = None,
     dist_coeffs_reference: Optional[np.ndarray] = None,
-    poses: Optional[np.ndarray] = None,
+    poses: Union[np.ndarray, None] = None
 ) -> Dict:
     """
     Perform a stereo calibration from a set of synchronized stereo images of a charuco calibration
@@ -647,22 +648,24 @@ def stereo_calibration_charuco(
     """
     if camera_matrix_origin is None or dist_coeffs_origin is None:
         logger.info("Calibrating Origin Camera individually")
-        (camera_matrix_origin, dist_coeffs_origin, rmats_origin, tvecs_origin) = calibrate_single_camera_charuco(
+        (camera_matrix_origin, dist_coeffs_origin, 
+         rmats_origin, tvecs_origin) = (
+            calibrate_single_camera_charuco(
             images=origin_images,
             charuco_board=charuco_board,
             aruco_dict=aruco_dict,
             debug_str="for origin camera",
-        )
+        ))
     if camera_matrix_reference is None or dist_coeffs_origin is None:
         logger.info("Calibrating reference Camera individually ")
-        (camera_matrix_reference, dist_coeffs_reference, rmats_reference, tvecs_reference) = (
+        (camera_matrix_reference, dist_coeffs_reference, 
+         rmats_reference, tvecs_reference) = (
             calibrate_single_camera_charuco(
-                images=reference_images,
-                charuco_board=charuco_board,
-                aruco_dict=aruco_dict,
-                debug_str="for reference camera",
-            )
-        )
+            images=reference_images,
+            charuco_board=charuco_board,
+            aruco_dict=aruco_dict,
+            debug_str="for reference camera",
+        ))
 
     if camera_matrix_origin is None or camera_matrix_reference is None:
         raise ValueError("Could not calibrate one of the cameras as desired")
@@ -672,6 +675,12 @@ def stereo_calibration_charuco(
     all_ids_origin = []
     all_ids_reference = []
     img_size = None
+    
+    no_poses = poses is None
+    if no_poses:
+        poses = [x for x in range(len(origin_images))]
+    else:
+        filtered_poses = []
 
     no_poses = poses is None
     if no_poses:  # fill up poses with dummy values so that you can iterate over poses
@@ -689,9 +698,9 @@ def stereo_calibration_charuco(
         reference_charuco_corners, reference_charuco_ids = detect_charuco_corners(
             reference_img, charuco_board, aruco_dict
         )
-
-        if not no_poses and origin_charuco_corners is not None:  # Only want to use poses that have a matching tvec/rmat
-            filtered_poses.append(pose)  # no matching tvec/rmat if the corners are not found in the image.
+        
+        if not no_poses:
+            filtered_poses.append(pose)
         if origin_charuco_corners is not None and reference_charuco_corners is not None:
             all_corners_origin.append(origin_charuco_corners)
             all_corners_reference.append(reference_charuco_corners)
@@ -764,6 +773,7 @@ def stereo_calibration_charuco(
                     R_target2cam=rmats_origin,
                     t_target2cam=tvecs_origin,
                     method=cv2.CALIB_HAND_EYE_DANIILIDIS,
+                    # method=cv2.CALIB_HAND_EYE_HORAUD,
                 )
                 robot_to_cam = np.eye(4)  # Initialize 4x4 identity matrix
                 robot_to_cam[:3, :3] = R_handeye  # Populate rotation
@@ -780,7 +790,6 @@ def stereo_calibration_charuco(
                 # Add the hand-eye calibration results to the final result dictionary
                 result_dict["R_handeye"] = camera_to_robot_R
                 result_dict["T_handeye"] = camera_to_robot_T
-
             return result_dict
         else:
             raise ValueError("Not enough valid points for stereo calibration.")

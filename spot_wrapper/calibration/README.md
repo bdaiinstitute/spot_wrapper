@@ -1,13 +1,15 @@
 # Automatic Robotic Stereo Camera Calibration Utility with Charuco Target (a.k.a Multi-Stereo Madness)
 
 ## Find where your cameras are relative to each other, and relative to your robot
-##  Find how your cameras project 3D points into pixels
+
+## Find how your cameras project 3D points into pixels
 
 ### Recommended Setup
 
 ![spot eye in hand cal](spot_eye_in_hand_setup.jpg)
 
 ### Reference Image
+
 ![side by side comparison](registration_qualitative_example.jpg)
 
 # Table of Contents
@@ -27,20 +29,16 @@
 # Overview
 
 This utility streamlines automatic
-camera calibration to **solve for the intrinsic and extrinsic parameters for two or more 
+camera calibration to **solve for the intrinsic and extrinsic parameters for two or more
 cameras mounted in a fixed pose relative to each other on a robot**
-based off of moving the robot to view a Charuco target from different poses. If you already 
-have an existing dataset of synchronized stereo (or multi-stereo) photos of a Charuco target from different viewpoints, 
-you can use the CLI tool to compute the intrinsic/extrinsic parameters. Additionally, if you have saved the poses the images are taken at (as homogenous 4x4 transforms from the "world" frame [most likely the robot base] to the robot planning frame [most likely the 
-robot end-effector]), you can also calibrate
-the camera to robot extrinsic (eye-to-hand registration). If you don't have a dataset,
-you can use this tool both to generate the dataset and calibrate the cameras.
-
-The CLI tool's saving capability allows to store multiple unique calibration runs in one configuration file
+based off of moving the robot to view a Charuco target from different poses. If you already
+have an existing dataset of synchronized stereo (or multi-stereo) photos of a Charuco target from different viewpoints,
+you can use the CLI tool to compute the intrinsic/extrinsic parameters. Additionally,
+the CLI tool's saving capability allows to store multiple unique calibration runs in one configuration file
 with calibration metadata, to document related runs with different setups or parameters.
 
-This was developed to calibrate the two cameras at the 
-end of Spot's optional manipulator payload, while being **as general as possible 
+This was developed to calibrate the two cameras at the
+end of Spot's optional manipulator payload, while being **as general as possible
 to be easily adapted to new robots and camera configurations. The core calibration utilities depend only on NumPy and OpenCV.**
 
 This utility works by sampling viewpoints relative to the Charuco calibration board,
@@ -55,7 +53,7 @@ do most of the heavy lifting.
 
 Assuming that you have a charuco board you'd like to automatically calibrate your cameras/robot with:
 
-**To calibrate a new robot with new cameras using the utility**, implement the abstract class ```AutomaticCameraCalibrationRobot``` from ```automatic_camera_calibration_robot.py``` 
+**To calibrate a new robot with new cameras using the utility**, implement the abstract class ```AutomaticCameraCalibrationRobot``` from ```automatic_camera_calibration_robot.py```
 (Only five methods, that are likely analogous to what's needed for automatic calibration even if this utility isn't used.
 in Spot's case , excluding comments, it's under ~250 lines of code, see ```spot_in_hand_camera_calibration.py```),
 and pass the implemented class as an argument to ```get_multiple_perspective_camera_calibration_dataset``` from ```calibration_util.py``` (see ```calibrate_spot_hand_camera_cli.py``` for an example).
@@ -89,50 +87,51 @@ in the top left corner, then it legacy (so supply true argument to legacy.)
 
 # Calibrate Spot Manipulator Eye-In-Hand Cameras With the CLI tool
 
-There is an [existing method to calibrate the gripper cameras with the Spot Api](https://dev.bostondynamics.com/protos/bosdyn/api/proto_reference#bosdyn-api-spot-GripperCameraCalibrationCommandRequest). However, you don't have 
+There is an [existing method to calibrate the gripper cameras with the Spot Api](https://dev.bostondynamics.com/protos/bosdyn/api/proto_reference#bosdyn-api-spot-GripperCameraCalibrationCommandRequest). However, you don't have
 as much control and extensibility in the existing method as with this custom procedure.
 
-In Spot's hand, there is an RGB camera, as well as a ToF camera, which ```calibrate_spot_hand_camera_cli.py``` 
+In Spot's hand, there is an RGB camera, as well as a ToF camera, which ```calibrate_spot_hand_camera_cli.py```
 automatically co-registers using the calibration utility via the default calibration board included
 with most Spots. You can also use a different board if you'd like, just set the right CLI parameters
 (see example usage below)
 
 ## Robot and Target Setup
+
 Have Spot sit on the ground with the arm stowed such that nothing is within a meter of the robot.
 Spot should NOT be on its charging dock.
 
-No program should have robot control authority. Make sure Spot is sitting 
+No program should have robot control authority. Make sure Spot is sitting
 with the arm stowed before releasing robot authority.
-If you are using the ROS 2 Driver, disconnect from Spot. If you are using the tablet to control Spot, 
+If you are using the ROS 2 Driver, disconnect from Spot. If you are using the tablet to control Spot,
 select power icon (top) -> Advanced -> Release control.
 
 Place the Spot default calibration board on the ground leaning against something in front of Spot, so
 that the calibration board's pattern is facing Spot front (where the stowed arm points).
 The up arrow should point in the direction of the sky. The board should be tilted away from
 Spot at a 45 degree angle, so that the bottom of the board is closer Spot than the top of the board. The ground beneath
-the board should be at about a 45 degree angle from the board. The board's bottom should be about a meter away 
+the board should be at about a 45 degree angle from the board. The board's bottom should be about a meter away
 from the front of Spot while sitting. Nothing should be within a meter of the robot.
 
 **See the first reference image at the top of this README to see good board placement relative to Spot.**
 
-When calibrating, Spot will stand up, ready its arm, lower its base slightly, and 
+When calibrating, Spot will stand up, ready its arm, lower its base slightly, and
 lower its arm slightly. As soon as this happens, if Spot
-can see a Charuco board it will start to move the arm around for the calibration. 
+can see a Charuco board it will start to move the arm around for the calibration.
 
 If the calibration board isn't placed at the right location, or there is more
 than one board visible to the robot, this may lead to potentially unsafe behavior, so be ready to
-E-Stop the robot at any moment. If the robot starts exhibiting unexpected behavior, stopping the program, 
+E-Stop the robot at any moment. If the robot starts exhibiting unexpected behavior, stopping the program,
 turning off the computer running the calibration, and hijacking control from the tablet can help stop robot movement.
 
-It is possible to calibrate at further distances 
+It is possible to calibrate at further distances
 (see ```--dist_from_board_viewpoint_range``` arg), but the sampling of the viewpoint
-distance from the board must be feasible to reach with where the base of the 
-robot is started relative to the board. The previously recommended Spot and Target setup is what worked well 
+distance from the board must be feasible to reach with where the base of the
+robot is started relative to the board. The previously recommended Spot and Target setup is what worked well
 in testing for the default distance viewpoint range.
 
 After the calibration is finished, Spot stows its arm and sits back down. At this point,
 it is safe to take control of Spot from the tablet or ROS 2 , even if the calibration script is still
-running. Just don't stop the script or it will stop calculating the parameters :) 
+running. Just don't stop the script or it will stop calculating the parameters :)
 
 If Spot is shaking while moving the arm around, it is likely that
 your viewpoint range is too close or too far (most often, adjusting
@@ -141,31 +140,37 @@ also try to drive the Spot to a better location to start the calibration
 that fits the distance from viewpoint range better.
 
 ## Example Usage (a.k.a Hand Specific Live Incantations)
+
 For all possible arguments to the Hand Specific CLI tool, run ```python3 calibrate_spot_hand_camera_cli.py -h```.
 Many parameters are customizable.
 
-If you'd like to calibrate depth to rgb, with rgb at default resolution, saving photos to ```~/my_collection/calibrated.yaml```, 
+If you'd like to calibrate depth to rgb, with rgb at default resolution, saving photos to ```~/my_collection/calibrated.yaml```,
 here is an example CLI command template, under the default tag (recommended for first time).
 Note that the default Spot Board is a legacy pattern for OpenCV > 4.7, so ensure to pass
-the --legacy_charuco_pattern flag 
+the --legacy_charuco_pattern flag
+
 ```
 python3 calibrate_spot_hand_camera_cli.py --ip <IP> -u user -pw <SECRET> --data_path ~/my_collection/ \
 --save_data --result_path ~/my_collection/calibrated.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0)]" --legacy_charuco_pattern True \
 --spot_rgb_photo_width=640 --spot_rgb_photo_height=480 --tag default
 ```
-If you'd like to load photos, and run the calibration with slightly different parameters, 
+
+If you'd like to load photos, and run the calibration with slightly different parameters,
 while saving both the resuls and the parameters to same the config file as in the previous example.
 Here is an example CLI command template (from recorded images, no data collection)
+
 ```
 python3 calibrate_multistereo_cameras_with_charuco_cli.py --data_path ~/my_collection/ 
 --result_path ~/my_collection/bottle_calibrated.yaml --photo_utilization_ratio 2 --stereo_pairs "[(1,0)]" --legacy_charuco_pattern True \
 --spot_rgb_photo_width=640 --spot_rgb_photo_height=480 --tag less_photos_used_test_v1
 ```
+
 If you'd like to calibrate depth to rgb, at a greater resolution, while sampling
 viewpoints at finer X-rotation steps relative to the board, and slightly further from the board
 with finer steps, here is an example CLI command template. Also,
-to demonstrate the stereo pairs argument, let's assume that you also want to find rgb to depth (redundant for 
+to demonstrate the stereo pairs argument, let's assume that you also want to find rgb to depth (redundant for
 demonstration purposes), while writing to the same config files as above.
+
 ```
 python3 calibrate_spot_hand_camera_cli.py --ip <IP> -u user -pw <SECRET> --data_path ~/my_collection/ \
 --save_data --result_path ~/my_collection/calibrated.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0), (0,1)]" --legacy_charuco_pattern True\
@@ -174,31 +179,36 @@ python3 calibrate_spot_hand_camera_cli.py --ip <IP> -u user -pw <SECRET> --data_
 ```
 
 ## Improving Calibration Quality
+
 If you find that the calibration quality isn't high enough, try a longer calibration
-with a wider variety of viewpoints (decrease the step size, increase the bounds). 
+with a wider variety of viewpoints (decrease the step size, increase the bounds).
 The default calibration viewpoint parameters are meant to facilitate a quick calibration
-even on more inexpensive hardware, and as such uses a minimal amount of viewpoints. 
+even on more inexpensive hardware, and as such uses a minimal amount of viewpoints.
 
 However, in calibration, less is more. It is better to collect fewer high quality
 viewpoints then many low quality ones. Play with the viewpoint sampling parameters
 to find what takes the most diverse high quality photos of the board.
 
-Also, [make you are checking if your board is legacy, and if you can 
+Also, [make you are checking if your board is legacy, and if you can
 allow default corner ordering](#check-if-you-have-a-legacy-charuco-board).
 
 If you are using a robot to collect your dataset, such as Spot, you can
 also try increasing the settle time prior to taking an image (see ```--settle_time```)
 
 ## Using the Registered Information with Spot ROS 2
+
 If you have the [Spot ROS 2 Driver](https://github.com/bdaiinstitute/spot_ros2) installed,
 you can leverage the output of the automatic calibration to publish a depth image registered
 to the RGB image frame. For more info, see the ```Optional Automatic Eye-in-Hand Stereo Calibration Routine for Manipulator (Arm) Payload```
 section in the [spot_ros2 main README](https://github.com/bdaiinstitute/spot_ros2?tab=readme-ov-file#optional-automatic-eye-in-hand-stereo-calibration-routine-for-manipulator-arm-payload)
+
 # Using the CLI Tool To Calibrate On an Existing Dataset
-To use the CLI Tool, please ensure that you have one parent folder, 
-where each camera has a folder under the parent (Numbered from 0 to N). Synchronized photos 
+
+To use the CLI Tool, please ensure that you have one parent folder,
+where each camera has a folder under the parent (Numbered from 0 to N). Synchronized photos
 for each camera should appear in their respective directories, where matching photos have ids, ascending
 upwards, starting from 0. The file structure should appear something like the following:
+
 ```
 existing_dataset/
 ├── 0/
@@ -221,11 +231,11 @@ existing_dataset/
 
 Optionally, you can also include pose information, to find the camera to robot extrinsic.
 
-
 To see all possible arguments for calibration, please run  ```python3 calibrate_multistereo_cameras_with_charuco_cli.py -h```.
     Many parameters such as board proportions and Agmruco dictionary are customizable.
 
 If you'd like to register camera 1 to camera 0, and camera 2 to camera 0, you could do the following:
+
 ```
 python3 calibrate_multistereo_cameras_with_charuco_cli.py --data_path ~/existing_dataset/ \
 --result_path ~/existing_dataset/eye_in_hand_calib.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0), (2, 0)]" \
@@ -236,7 +246,7 @@ python3 calibrate_multistereo_cameras_with_charuco_cli.py --data_path ~/existing
 # Understanding the Output Calibration Config File from the CLI
 
 A calibration produced with ```multistereo_calibration_charuco``` from ```calibration_util```
-can be saved as a ```.yaml```file with ```save_calibration_parameters``` from ```calibration_util```. 
+can be saved as a ```.yaml```file with ```save_calibration_parameters``` from ```calibration_util```.
 Here is a demonstration output calibration config file for example purposes:
 
 ```
@@ -272,13 +282,13 @@ default:
 ```
 
 Each calibration run
-that creates or modifies a config file is tagged with a unique name, to allow for tracking of several experiments, 
+that creates or modifies a config file is tagged with a unique name, to allow for tracking of several experiments,
 which is the main title (in the above case, ```default```).
 Under the main title, there are the fields relevant to the calibration.
 Under ```intrinsic```, the intrinsic (camera matrix, distortion coefficents, and image height/width)
 for each camera are recorded as a flattened representation
-under the camera's index number as it appears in the list of images 
-returned by ```capture_images```. For example, if ```capture_images``` produces a list that is 
+under the camera's index number as it appears in the list of images
+returned by ```capture_images```. For example, if ```capture_images``` produces a list that is
 ```[image_by_primary_camera, image_by_reference_camera]```, then the intrinsic for the ```primary_camera```
 would be stored under ```0```, and the intrinsic for ```reference_camera``` would be stored under ```1```.
 
@@ -286,22 +296,27 @@ Under ```extrinsic```, the first sublevel, again a camera index, corresponds to 
 is the origin for the ```extrinsic``` transform between two cameras as the first
 field in a requested stereo pair. The second sublevel corresponds to the index of which camera
 the ```extrinsic``` maps to from the origin camera. See the comments in the example config file
-above for more information. 
-Additionally, arguments from an argparser can also be dumped into the yaml, which will be saved 
+above for more information.
+Additionally, arguments from an argparser can also be dumped into the yaml, which will be saved
 under ```run_param``` (excluding args that are: ```password``` or ```username```)
 
 # Recreate the Core Calibration CLI Tool Without Depending On Spot Wrapper
-If you like the core tools of this utility, and you'd like a more portable version (```standalone_cli.py```) for 
+
+If you like the core tools of this utility, and you'd like a more portable version (```standalone_cli.py```) for
 use independent of Spot that doesn't depend on Spot Wrapper, you could recreate
 the CLI tool with no dependency on Spot Wrapper with the following command:
+
 ```
 cat calibration_util.py <(tail -n +3 automatic_camera_calibration_robot.py) <(tail -n +26 calibrate_multistereo_cameras_with_charuco_cli.py) > standalone_cli.py
 ```
+
 The core capability above depends primarily on NumPy, OpenCV and standard Python libraries.
 
 # Contributors
+
 Gary Lvov
 
-# Special Thanks To...
-Michael Pickett, Katie Hughes, Tiffany Cappellari, Andrew Messing, 
+# Special Thanks To
+
+Michael Pickett, Katie Hughes, Tiffany Cappellari, Andrew Messing,
 Emmanuel Panov, Eric Rosen, Brian Okorn, Joseph St Germain and Ken Baker.
