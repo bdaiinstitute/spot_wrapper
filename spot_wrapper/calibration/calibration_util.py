@@ -1127,7 +1127,7 @@ def save_calibration_parameters(
         tag = "default"
 
     # Load existing YAML file if it exists
-    output_path = os.path.expanduser(output_path)
+    output_path = os.path.abspath(os.path.expanduser(output_path))
     if os.path.exists(output_path):
         with open(output_path, "r") as file:
             existing_data = yaml.safe_load(file) or {}
