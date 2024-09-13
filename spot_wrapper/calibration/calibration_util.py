@@ -253,7 +253,7 @@ def multistereo_calibration_charuco(
             to their distortion coefficients.
             If coefficients are not provided for a camera, they will be computed during calibration.
             Defaults to an empty dictionary.
-        poses (Optional[np.ndarray]): Either a list of 4x4 homogenous transforms from which
+        poses (Union[np.ndarray, None]): Either a list of 4x4 homogenous transforms from which
             pictures where taken, or None if unknown. Needs to be supplied for robot to camera cal.
             (planning frame to base frame), or None
 
@@ -635,7 +635,7 @@ def stereo_calibration_charuco(
             matrix to assign to camera 1. If none, is computed. . Defaults to None.
         dist_coeffs_reference (Optional[np.ndarray], optional): What distortion coefficients
             to assign to camera 1. If None, is computed. Defaults to None.
-        poses (Optional[np.ndarray]): Either a list of 4x4 homogenous transforms from which
+        poses (Union[np.ndarray, None]): Either a list of 4x4 homogenous transforms from which
             pictures where taken, or None if unknown. Needs to be supplied for robot to camera cal.
             (planning frame to base frame), or None
     Raises:

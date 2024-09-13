@@ -33,8 +33,12 @@ camera calibration to **solve for the intrinsic and extrinsic parameters for two
 cameras mounted in a fixed pose relative to each other on a robot**
 based off of moving the robot to view a Charuco target from different poses. If you already
 have an existing dataset of synchronized stereo (or multi-stereo) photos of a Charuco target from different viewpoints,
-you can use the CLI tool to compute the intrinsic/extrinsic parameters. Additionally,
-the CLI tool's saving capability allows to store multiple unique calibration runs in one configuration file
+you can use the CLI tool to compute the intrinsic/extrinsic parameters. Additionally, if you have saved the poses the images are taken at (as homogenous 4x4 transforms from the "world" frame [most likely the robot base] to the robot planning frame [most likely the
+robot end-effector]), you can also calibrate
+the camera to robot extrinsic (eye-to-hand registration). If you don't have a dataset,
+you can use this tool both to generate the dataset and calibrate the cameras.
+
+The CLI tool's saving capability allows to store multiple unique calibration runs in one configuration file
 with calibration metadata, to document related runs with different setups or parameters.
 
 This was developed to calibrate the two cameras at the
