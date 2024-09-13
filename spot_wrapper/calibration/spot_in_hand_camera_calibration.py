@@ -42,7 +42,7 @@ from spot_wrapper.calibration.calibration_util import (
     convert_camera_t_viewpoint_to_origin_t_planning_frame,
     est_camera_t_charuco_board_center,
 )
-
+from time import sleep
 logging.basicConfig(
     level=logging.INFO,
 )
@@ -230,8 +230,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             command_id,
             timeout_sec=duration_sec * 2,
         )
-
-        return (initial_pose, new_pose)  # second value is new value
+        return (initial_pose, grab_state_as_transform())  # second value is new value
 
     def shutdown(self) -> None:
         stow_arm_command = RobotCommandBuilder.arm_stow_command()
