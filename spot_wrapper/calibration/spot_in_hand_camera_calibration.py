@@ -43,7 +43,7 @@ from spot_wrapper.calibration.calibration_util import (
     convert_camera_t_viewpoint_to_origin_t_planning_frame,
     est_camera_t_charuco_board_center,
 )
-from time import sleep
+
 logging.basicConfig(
     level=logging.INFO,
 )

@@ -173,6 +173,7 @@ def calibrate_robot_cli(parser: argparse.ArgumentParser = None) -> argparse.Argu
 
     return parser
 
+
 def spot_cli(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
     if parser is None:
         parser = calibrate_robot_cli()
