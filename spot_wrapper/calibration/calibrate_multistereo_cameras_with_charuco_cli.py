@@ -64,7 +64,7 @@ def calibration_helper(
     args: argparse.Namespace,
     charuco: cv2.aruco_CharucoBoard,
     aruco_dict: cv2.aruco_Dictionary,
-    poses: np.ndarray
+    poses: np.ndarray,
 ):
     logger.warning(
         f"Calibrating from {len(images)} images.. for every "
@@ -85,7 +85,7 @@ def calibration_helper(
         desired_stereo_pairs=args.stereo_pairs,
         charuco_board=charuco,
         aruco_dict=aruco_dict,
-        poses=poses
+        poses=poses,
     )
     logger.info(f"Finished script, obtained {calibration}")
     logger.info("Saving calibration param")
@@ -118,8 +118,7 @@ def main():
 
     if args.data_path is not None:
         images, poses = load_dataset_from_path(args.data_path)
-        calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict,
-                           poses=poses)
+        calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses)
     else:
         logger.warning("Could not load any images to calibrate from, supply --data_path")
 

@@ -2,7 +2,6 @@
 
 import argparse
 import logging
-from time import sleep
 
 import numpy as np
 
@@ -25,7 +24,8 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-def create_robot(args, charuco, aruco_dict): # Replace with your AutomaticCameraCalibrationRobot
+
+def create_robot(args, charuco, aruco_dict):  # Replace with your AutomaticCameraCalibrationRobot
     in_hand_bot = SpotInHandCalibration(args.ip, args.username, args.password)
     in_hand_bot._set_localization_param(
         charuco_board=charuco,
@@ -42,9 +42,11 @@ def create_robot(args, charuco, aruco_dict): # Replace with your AutomaticCamera
         args.robot_name = "unknown"
     return in_hand_bot, args
 
+
 def create_robot_parser():
     parser = calibrate_robot_cli()
-    return spot_cli(parser=parser) # Replace with robot specific parsing
+    return spot_cli(parser=parser)  # Replace with robot specific parsing
+
 
 def spot_main() -> None:
     parser = create_robot_parser()
@@ -55,7 +57,7 @@ def spot_main() -> None:
         logger.warning("HOLD Ctrl + C NOW TO CANCEL")
         logger.warning("The calibration board should be about a meter away with nothing within a meter of the robot.")
         logger.warning("The robot should NOT be docked, and nobody should have robot control")
-        #sleep(5)
+        # sleep(5)
 
         in_hand_bot, args = create_robot(args, charuco=charuco, aruco_dict=aruco_dict)
 
@@ -75,14 +77,13 @@ def spot_main() -> None:
         logger.info(f"Loading images from {args.data_path}")
         images, poses = load_dataset_from_path(args.data_path)
 
-    calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict,
-                       poses=poses)
+    calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses)
 
 
-def calibrate_robot_cli(parser:argparse.ArgumentParser = None) -> argparse.ArgumentParser:
+def calibrate_robot_cli(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
     if parser is None:
         parser = calibrator_cli()
-   
+
     parser.add_argument(
         "--dist_from_board_viewpoint_range",
         "-dfbvr",
@@ -165,6 +166,7 @@ def calibrate_robot_cli(parser:argparse.ArgumentParser = None) -> argparse.Argum
     )
 
     return parser
+
 
 def spot_cli(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
     if parser is None:
