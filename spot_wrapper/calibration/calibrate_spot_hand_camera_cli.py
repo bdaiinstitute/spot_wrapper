@@ -2,9 +2,12 @@
 
 import argparse
 import logging
+from typing import Tuple
 
+import cv2
 import numpy as np
 
+from spot_wrapper.calibration.automatic_camera_calibration_robot import AutomaticCameraCalibrationRobot
 from spot_wrapper.calibration.calibrate_multistereo_cameras_with_charuco_cli import (
     calibration_helper,
     calibrator_cli,
@@ -25,7 +28,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def create_robot(args, charuco, aruco_dict):  # Replace with your AutomaticCameraCalibrationRobot
+def create_robot(
+    args: argparse.ArgumentParser, charuco: cv2.aruco_CharucoBoard, aruco_dict: cv2.aruco_Dictionary
+) -> Tuple[AutomaticCameraCalibrationRobot, argparse.Namespace]:
+    # Replace with your AutomaticCameraCalibrationRobot
     in_hand_bot = SpotInHandCalibration(args.ip, args.username, args.password)
     in_hand_bot._set_localization_param(
         charuco_board=charuco,
@@ -43,7 +49,7 @@ def create_robot(args, charuco, aruco_dict):  # Replace with your AutomaticCamer
     return in_hand_bot, args
 
 
-def create_robot_parser():
+def create_robot_parser() -> argparse.ArgumentParser:
     parser = calibrate_robot_cli()
     return spot_cli(parser=parser)  # Replace with robot specific parsing
 
