@@ -1,6 +1,7 @@
 # Copyreference (c) 2024 Boston Dynamics AI Institute LLC. All references reserved.
 
 import logging
+from time import sleep
 from typing import List, Optional, Tuple, Union
 
 import cv2
@@ -230,8 +231,8 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             command_id,
             timeout_sec=duration_sec * 2,
         )
-
-        return (initial_pose, new_pose)  # second value is new value
+        sleep(duration_sec * 0.5)  # settle before grabbing new state for better quality
+        return (initial_pose, grab_state_as_transform())  # second value is new value
 
     def shutdown(self) -> None:
         stow_arm_command = RobotCommandBuilder.arm_stow_command()
