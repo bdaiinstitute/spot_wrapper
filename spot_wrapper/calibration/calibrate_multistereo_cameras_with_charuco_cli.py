@@ -13,7 +13,7 @@ from spot_wrapper.calibration.calibration_util import (
     create_charuco_board,
     create_ideal_charuco_image,
     detect_charuco_corners,
-    load_images_from_path,
+    load_dataset_from_path,
     multistereo_calibration_charuco,
     save_calibration_parameters,
 )
@@ -64,6 +64,7 @@ def calibration_helper(
     args: argparse.Namespace,
     charuco: cv2.aruco_CharucoBoard,
     aruco_dict: cv2.aruco_Dictionary,
+    poses: np.ndarray,
 ):
     logger.warning(
         f"Calibrating from {len(images)} images.. for every "
@@ -84,6 +85,7 @@ def calibration_helper(
         desired_stereo_pairs=args.stereo_pairs,
         charuco_board=charuco,
         aruco_dict=aruco_dict,
+        poses=poses,
     )
     logger.info(f"Finished script, obtained {calibration}")
     logger.info("Saving calibration param")
@@ -115,8 +117,8 @@ def main():
     logger.info(f"Loading images from {args.data_path}")
 
     if args.data_path is not None:
-        images = load_images_from_path(args.data_path)
-        calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict)
+        images, poses = load_dataset_from_path(args.data_path)
+        calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses)
     else:
         logger.warning("Could not load any images to calibrate from, supply --data_path")
 

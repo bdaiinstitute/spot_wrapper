@@ -1,5 +1,8 @@
 # Automatic Robotic Stereo Camera Calibration Utility with Charuco Target (a.k.a Multi-Stereo Madness)
 
+## Find where your cameras are relative to each other, and relative to your robot
+##  Find how your cameras project 3D points into pixels
+
 ### Recommended Setup
 
 ![spot eye in hand cal](spot_eye_in_hand_setup.jpg)
@@ -22,13 +25,18 @@
 7. [Recreate the Core Calibration CLI Tool Without Depending On Spot Wrapper](#recreate-the-core-calibration-cli-tool-without-depending-on-spot-wrapper)
 
 # Overview
+
 This utility streamlines automatic
 camera calibration to **solve for the intrinsic and extrinsic parameters for two or more 
 cameras mounted in a fixed pose relative to each other on a robot**
 based off of moving the robot to view a Charuco target from different poses. If you already 
 have an existing dataset of synchronized stereo (or multi-stereo) photos of a Charuco target from different viewpoints, 
-you can use the CLI tool to compute the intrinsic/extrinsic parameters. Additionally,
-the CLI tool's saving capability allows to store multiple unique calibration runs in one configuration file
+you can use the CLI tool to compute the intrinsic/extrinsic parameters. Additionally, if you have saved the poses the images are taken at (as homogenous 4x4 transforms from the "world" frame [most likely the robot base] to the robot planning frame [most likely the 
+robot end-effector]), you can also calibrate
+the camera to robot extrinsic (eye-to-hand registration). If you don't have a dataset,
+you can use this tool both to generate the dataset and calibrate the cameras.
+
+The CLI tool's saving capability allows to store multiple unique calibration runs in one configuration file
 with calibration metadata, to document related runs with different setups or parameters.
 
 This was developed to calibrate the two cameras at the 
@@ -205,7 +213,14 @@ existing_dataset/
 │   ├── 0.png # taken at viewpoint 0
 │   ├── 1.png
 │   └── 2.png
+├── poses/ # optional, for camera to robot cal
+│   ├── 0.npy # base to planning frame 4x4 homgenous transform at viewpoint 0
+│   ├── 1.npy # .npy files generated with np.save(FILENAME, 4x4_POSE)
+│   └── 2.npy
 ```
+
+Optionally, you can also include pose information, to find the camera to robot extrinsic.
+
 
 To see all possible arguments for calibration, please run  ```python3 calibrate_multistereo_cameras_with_charuco_cli.py -h```.
     Many parameters such as board proportions and Agmruco dictionary are customizable.
@@ -240,6 +255,9 @@ default:
       0:  # reference camera index, second sublevel
         R: flattened_3x3_rotation_matrix_from_primary_to_reference_camera_now_9x1
         T: 3x1_translation_matrix_from_primary_to_reference_camera
+      planning_frame: # the planning frame (in Spot's case, the hand)
+       R: flattened_3x3_rotation_matrix_from_primary_to_robot_planning_frame_now_9x1
+       T: 3x1_translation_matrix_from_primary_to_robot_planning_frame
   run_param:
     num_images: 729
     timestamp: '2024-08-19 03:43:06'

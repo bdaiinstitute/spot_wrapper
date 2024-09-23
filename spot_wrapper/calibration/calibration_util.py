@@ -110,7 +110,7 @@ def get_multiple_perspective_camera_calibration_dataset(
     settle_time: float = 0.1,
     data_path: str = os.path.expanduser("~"),
     save_data: Optional[bool] = True,
-) -> np.ndarray:
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Move the robot around to look at the calibration target from different viewpoints,
     capturing time-synchronized
@@ -168,6 +168,7 @@ def get_multiple_perspective_camera_calibration_dataset(
     calibration_images = []
     logger.info("Beginning Calibration")
     idx = 0
+    poses = []
     while idx < max_num_images and idx < len(viewpoints):
         logger.info(f"Visiting viewpoint {idx} of {min(len(viewpoints), max_num_images)}")
         viewpoint = viewpoints[idx]
@@ -176,6 +177,7 @@ def get_multiple_perspective_camera_calibration_dataset(
             origin_t_planning_frame=primed_pose,
             duration_sec=0.1,
         )
+        poses.append(new_pose)
         logger.info("At viewpoint, waiting to settle")
         sleep(settle_time)
         images = auto_cam_cal_robot.capture_images()
@@ -191,9 +193,10 @@ def get_multiple_perspective_camera_calibration_dataset(
                     os.path.join(data_path, str(jdx), f"{idx}.png"),
                     image,
                 )
+            np.save(os.path.join(data_path, "poses", f"{idx}.npy"), new_pose)
     calibration_images = np.array(calibration_images, dtype=object)
     auto_cam_cal_robot.shutdown()
-    return np.array(calibration_images, dtype=object)
+    return (calibration_images, poses)
 
 
 def multistereo_calibration_charuco(
@@ -203,6 +206,7 @@ def multistereo_calibration_charuco(
     aruco_dict: cv2.aruco_Dictionary = SPOT_DEFAULT_ARUCO_DICT,
     camera_matrices: Optional[Dict] = {},
     dist_coeffs: Optional[Dict] = {},
+    poses: Optional[np.ndarray] = None,
 ) -> Dict:
     """
     Calibrates the intrinsic and extrinsic parameters for multiple stereo camera pairs
@@ -249,6 +253,9 @@ def multistereo_calibration_charuco(
             to their distortion coefficients.
             If coefficients are not provided for a camera, they will be computed during calibration.
             Defaults to an empty dictionary.
+        poses (Optional[np.ndarray]): Either a list of 4x4 homogenous transforms from which
+            pictures where taken, or None if unknown. Needs to be supplied for robot to camera cal.
+            (planning frame to base frame), or None
 
     Raises:
         ValueError: Raised if fewer than two cameras are provided, as stereo calibration
@@ -318,6 +325,7 @@ def multistereo_calibration_charuco(
                     dist_coeffs_origin=dist_coeffs[origin_camera_idx],
                     camera_matrix_reference=camera_matrices[reference_camera_idx],
                     dist_coeffs_reference=dist_coeffs[reference_camera_idx],
+                    poses=poses,
                 )
                 camera_matrices[origin_camera_idx] = stereo_dict["camera_matrix_origin"]
                 dist_coeffs[origin_camera_idx] = stereo_dict["dist_coeffs_origin"]
@@ -536,7 +544,7 @@ def calibrate_single_camera_charuco(
     charuco_board: cv2.aruco_CharucoBoard = SPOT_DEFAULT_CHARUCO,
     aruco_dict: cv2.aruco_Dictionary = SPOT_DEFAULT_ARUCO_DICT,
     debug_str: str = "",
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Calibrate a monocular camera from a charuco board.
 
@@ -554,12 +562,12 @@ def calibrate_single_camera_charuco(
         ValueError: Not enough data to calibrate
 
     Returns:
-        Tuple[np.ndarray, np.ndarray]: the camera matrix and distortion coefficients
+        Tuple[np.ndarray, np.ndarray]: the camera matrix, distortion coefficients,
+        rotation matrices, tvecs
     """
     all_corners = []
     all_ids = []
     img_size = None
-
     for idx, img in enumerate(images):
         if img_size is None:
             img_size = img.shape[:2][::-1]
@@ -575,13 +583,14 @@ def calibrate_single_camera_charuco(
     if len(all_corners) > 1:
         obj_points_all = []
         img_points = []
+        ids = []
         for corners, ids in zip(all_corners, all_ids):
             obj_points = get_charuco_board_object_points(charuco_board, ids)
             obj_points_all.append(obj_points)
             img_points.append(corners)
         logger.info(f"About to process {len(obj_points_all)} points for single camera cal | {debug_str}")
         # Long term improvement: could pull tvec for use to localize camera relative to robot?
-        _, camera_matrix, dist_coeffs, _, _ = cv2.calibrateCamera(  # use LU flag critical for speed
+        _, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(  # use LU flag critical for speed
             obj_points_all,
             img_points,
             img_size,
@@ -589,8 +598,8 @@ def calibrate_single_camera_charuco(
             None,
             flags=cv2.CALIB_USE_LU,
         )
-
-        return camera_matrix, dist_coeffs
+        rmats = np.array([cv2.Rodrigues(rvec)[0] for rvec in rvecs])
+        return camera_matrix, dist_coeffs, rmats, tvecs
     else:
         raise ValueError(f"Not enough valid points to individually calibrate {debug_str}")
 
@@ -604,6 +613,7 @@ def stereo_calibration_charuco(
     dist_coeffs_origin: Optional[np.ndarray] = None,
     camera_matrix_reference: Optional[np.ndarray] = None,
     dist_coeffs_reference: Optional[np.ndarray] = None,
+    poses: Optional[np.ndarray] = None,
 ) -> Dict:
     """
     Perform a stereo calibration from a set of synchronized stereo images of a charuco calibration
@@ -624,7 +634,9 @@ def stereo_calibration_charuco(
             matrix to assign to camera 1. If none, is computed. . Defaults to None.
         dist_coeffs_reference (Optional[np.ndarray], optional): What distortion coefficients
             to assign to camera 1. If None, is computed. Defaults to None.
-
+        poses (Optional[np.ndarray]): Either a list of 4x4 homogenous transforms from which
+            pictures where taken, or None if unknown. Needs to be supplied for robot to camera cal.
+            (planning frame to base frame), or None
     Raises:
         ValueError: Could not calibrate a camera individually
         ValueError: Not enough points to stereo calibrate
@@ -635,7 +647,7 @@ def stereo_calibration_charuco(
     """
     if camera_matrix_origin is None or dist_coeffs_origin is None:
         logger.info("Calibrating Origin Camera individually")
-        camera_matrix_origin, dist_coeffs_origin = calibrate_single_camera_charuco(
+        (camera_matrix_origin, dist_coeffs_origin, rmats_origin, tvecs_origin) = calibrate_single_camera_charuco(
             images=origin_images,
             charuco_board=charuco_board,
             aruco_dict=aruco_dict,
@@ -643,11 +655,13 @@ def stereo_calibration_charuco(
         )
     if camera_matrix_reference is None or dist_coeffs_origin is None:
         logger.info("Calibrating reference Camera individually ")
-        camera_matrix_reference, dist_coeffs_reference = calibrate_single_camera_charuco(
-            images=reference_images,
-            charuco_board=charuco_board,
-            aruco_dict=aruco_dict,
-            debug_str="for reference camera",
+        (camera_matrix_reference, dist_coeffs_reference, rmats_reference, tvecs_reference) = (
+            calibrate_single_camera_charuco(
+                images=reference_images,
+                charuco_board=charuco_board,
+                aruco_dict=aruco_dict,
+                debug_str="for reference camera",
+            )
         )
 
     if camera_matrix_origin is None or camera_matrix_reference is None:
@@ -659,7 +673,15 @@ def stereo_calibration_charuco(
     all_ids_reference = []
     img_size = None
 
-    for origin_img, reference_img in zip(origin_images, reference_images):
+    no_poses = poses is None
+    if no_poses:  # fill up poses with dummy values so that you can iterate over poses
+        # with images zip(origin_images, reference_images, poses) together regardless of if poses
+        # are actually supplied (for the sake of brevity)
+        poses = [x for x in range(len(origin_images))]
+    else:
+        filtered_poses = []
+
+    for origin_img, reference_img, pose in zip(origin_images, reference_images, poses):
         if img_size is None:
             img_size = origin_img.shape[:2][::-1]
 
@@ -668,6 +690,8 @@ def stereo_calibration_charuco(
             reference_img, charuco_board, aruco_dict
         )
 
+        if not no_poses and origin_charuco_corners is not None:  # Only want to use poses that have a matching tvec/rmat
+            filtered_poses.append(pose)  # no matching tvec/rmat if the corners are not found in the image.
         if origin_charuco_corners is not None and reference_charuco_corners is not None:
             all_corners_origin.append(origin_charuco_corners)
             all_corners_reference.append(reference_charuco_corners)
@@ -698,7 +722,6 @@ def stereo_calibration_charuco(
 
         if len(obj_points_all) > 0:
             logger.info(f"Collected {len(obj_points_all)} shared point sets for stereo calibration.")
-            # logger.info(f"{np.array(obj_points_all).shape = } {np.array()}")
             _, _, _, _, _, R, T, _, _ = cv2.stereoCalibrate(
                 obj_points_all,
                 img_points_origin,
@@ -716,8 +739,7 @@ def stereo_calibration_charuco(
                 flags=cv2.CALIB_USE_LU,
             )
             logger.info("Stereo calibration completed.")
-
-            return {
+            result_dict = {
                 "dist_coeffs_origin": dist_coeffs_origin,
                 "camera_matrix_origin": camera_matrix_origin,
                 "image_dim_origin": np.array(origin_images[0].shape[:2]),
@@ -727,6 +749,39 @@ def stereo_calibration_charuco(
                 "R": R,
                 "T": T,
             }
+
+            if not no_poses:
+                logger.info("Attempting hand-eye calibation....")
+                # filtered_poses = np.array([np.linalg.inv(pose) for pose in filtered_poses])
+                filtered_poses = np.array(filtered_poses)
+                # Use the filtered poses for the target-to-camera transformation
+                R_gripper2base = np.array([pose[:3, :3] for pose in filtered_poses])
+                t_gripper2base = np.array([pose[:3, 3] for pose in filtered_poses])
+
+                R_handeye, T_handeye = cv2.calibrateHandEye(
+                    R_gripper2base=R_gripper2base,
+                    t_gripper2base=t_gripper2base,
+                    R_target2cam=rmats_origin,
+                    t_target2cam=tvecs_origin,
+                    method=cv2.CALIB_HAND_EYE_DANIILIDIS,
+                )
+                robot_to_cam = np.eye(4)  # Initialize 4x4 identity matrix
+                robot_to_cam[:3, :3] = R_handeye  # Populate rotation
+                robot_to_cam[:3, 3] = T_handeye.flatten()  # Populate translation
+
+                # Invert the homogeneous matrix
+                cam_to_robot = np.linalg.inv(robot_to_cam)
+
+                # Extract rotation and translation from the inverted matrix
+                camera_to_robot_R = cam_to_robot[:3, :3]  # Extract rotation
+                camera_to_robot_T = cam_to_robot[:3, 3]  # Extract translation
+                logger.info("Hand-eye calibration completed.")
+
+                # Add the hand-eye calibration results to the final result dictionary
+                result_dict["R_handeye"] = camera_to_robot_R
+                result_dict["T_handeye"] = camera_to_robot_T
+
+            return result_dict
         else:
             raise ValueError("Not enough valid points for stereo calibration.")
     else:
@@ -942,12 +997,15 @@ def create_calibration_save_folders(path: str, num_folders: int) -> None:
 
             logger.info(f"Creating image folder at {cam_path}")
             os.makedirs(cam_path, exist_ok=True)
+        os.makedirs(os.path.join(path, "poses"))
         logger.info(f"Done creating {num_folders} folders.")
 
 
-def load_images_from_path(path: str) -> np.ndarray:
+def load_dataset_from_path(path: str) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     """
     Load image dataset from path in a way that's compatible with multistereo_calibration_charuco.
+
+    Also, load the poses if they are available.
 
     See Using the CLI Tool To Calibrate On an Existing Dataset section in the README
     to see the expected folder/data structure for this method to work
@@ -961,34 +1019,39 @@ def load_images_from_path(path: str) -> np.ndarray:
     Returns:
         np.ndarray: The image dataset
     """
+
+    def alpha_numeric(x):
+        return re.search("(\\d+)(?=\\D*$)", x).group() if re.search("(\\d+)(?=\\D*$)", x) else x
+
     # List all directories within the given path and sort them
     dirs = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
     if len(dirs) == 0:
         raise ValueError("No sub-dirs found in datapath from which to load images.")
-    dirs = sorted(dirs, key=lambda x: int(x))  # Assuming dir names are integers like "0", "1", etc.
+    dirs = sorted(dirs, key=alpha_numeric)  # Assuming dir names are integers like "0", "1", etc.
 
     # Initialize an empty list to store images
     images = []
+    poses = None
 
     for dir_name in dirs:
-        # Construct the glob pattern for the images in the current directory
-        pic_path_match = os.path.join(path, dir_name, "*")
-        # Get a sorted list of image files based on the numerical order in their filenames
-        image_files = sorted(
-            glob(pic_path_match),
-            key=lambda x: int(re.search(r"(\d+)(?=\D*$)", x).group()),
+        path_match = os.path.join(path, dir_name, "*")
+        files = sorted(
+            glob(path_match),
+            key=alpha_numeric,
         )
-        # Read images and store them
-        images.append([cv2.imread(fn) for fn in image_files])
+        if dir_name != "poses":
+            # Read images and store them
+            images.append([cv2.imread(fn) for fn in files])
+        else:
+            poses = np.array([np.load(fn) for fn in files])
 
     # Convert the list of lists into a NumPy array
     # The array shape will be (number_of_images, number_of_directories)
     images = np.array(images, dtype=object)
-
     # Transpose the array so that you can access it as images[:, axis]
     images = np.transpose(images, (1, 0))
 
-    return images
+    return images, poses
 
 
 def save_calibration_parameters(
@@ -1042,13 +1105,20 @@ def save_calibration_parameters(
                     "image_dim": flatten_matrix(value["image_dim_reference"]),
                 }
 
-            # Store the rotation and translation in a nested dictionary structure
+            # Store the stereo calibration rotation and translation
             if origin_cam not in relations:
                 relations[origin_cam] = {}
             relations[origin_cam][reference_cam] = {
                 "R": flatten_matrix(value["R"]),
                 "T": flatten_matrix(value["T"]),
             }
+
+            # Now add R_handeye and T_handeye if they exist in the data
+            if "R_handeye" in value and "T_handeye" in value:
+                relations[origin_cam]["planning_frame"] = {
+                    "R": flatten_matrix(value["R_handeye"]),
+                    "T": flatten_matrix(value["T_handeye"]),
+                }
 
         return cameras, relations
 
@@ -1057,7 +1127,7 @@ def save_calibration_parameters(
         tag = "default"
 
     # Load existing YAML file if it exists
-    output_path = os.path.expanduser(output_path)
+    output_path = os.path.abspath(os.path.expanduser(output_path))
     if os.path.exists(output_path):
         with open(output_path, "r") as file:
             existing_data = yaml.safe_load(file) or {}
