@@ -400,7 +400,7 @@ class SpotArm:
 
         return True, "Closed gripper successfully"
 
-    def gripper_angle_open(self, gripper_ang: float, ensure_power_on_and_stand=True) -> typing.Tuple[bool, str]:
+    def gripper_angle_open(self, gripper_ang: float, ensure_power_on_and_stand: bool = True) -> typing.Tuple[bool, str]:
         """
         Takes an angle between 0 (closed) and 90 (fully opened) and opens the gripper at this angle
 
