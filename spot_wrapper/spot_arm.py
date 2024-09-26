@@ -400,7 +400,7 @@ class SpotArm:
 
         return True, "Closed gripper successfully"
 
-    def gripper_angle_open(self, gripper_ang: float) -> typing.Tuple[bool, str]:
+    def gripper_angle_open(self, gripper_ang: float, ensure_power_on_and_stand: bool = True) -> typing.Tuple[bool, str]:
         """
         Takes an angle between 0 (closed) and 90 (fully opened) and opens the gripper at this angle
 
@@ -413,17 +413,24 @@ class SpotArm:
         if gripper_ang > 90 or gripper_ang < 0:
             return False, "Gripper angle must be between 0 and 90"
         try:
-            success, msg = self.ensure_arm_power_and_stand()
-            if not success:
-                self._logger.info(msg)
-                return False, msg
+            if ensure_power_on_and_stand:
+                success, msg = self.ensure_arm_power_and_stand()
+                if not success:
+                    self._logger.info(msg)
+                    return False, msg
             else:
-                command = RobotCommandBuilder.claw_gripper_open_fraction_command(gripper_ang / 90.0)
+                powered_on = self._robot.is_powered_on()
+                if not powered_on:
+                    return False, "Robot not powered on and will not force power on"
+                else:
+                    self._logger.info("Already powered on. Continuing")
 
-                # Command issue with RobotCommandClient
-                cmd_id = self._robot_command_client.robot_command(command)
-                self._logger.info("Command gripper open angle sent")
-                self.block_until_gripper_command_completes(self._robot_command_client, cmd_id)
+            command = RobotCommandBuilder.claw_gripper_open_fraction_command(gripper_ang / 90.0)
+
+            # Command issue with RobotCommandClient
+            cmd_id = self._robot_command_client.robot_command(command)
+            self._logger.info("Command gripper open angle sent")
+            self.block_until_gripper_command_completes(self._robot_command_client, cmd_id)
 
         except Exception as e:
             return False, f"Exception occured while gripper was moving: {e}"
@@ -564,8 +571,9 @@ class SpotArm:
 
         while timeout_sec is None or now < end_time:
             feedback_resp = robot_command_client.robot_command_feedback(cmd_id)
-            gripper_state = feedback_resp.feedback.gripper_command_feedback.claw_gripper_feedback.status
-
+            gripper_state = (
+                feedback_resp.feedback.synchronized_feedback.gripper_command_feedback.claw_gripper_feedback.status
+            )
             if gripper_state in [
                 gripper_command_pb2.ClawGripperCommand.Feedback.STATUS_AT_GOAL,
                 gripper_command_pb2.ClawGripperCommand.Feedback.STATUS_APPLYING_FORCE,
