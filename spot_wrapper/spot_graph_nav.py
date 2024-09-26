@@ -295,7 +295,7 @@ class SpotGraphNav:
 
         self._lease = self._get_lease()
         self._lease_keepalive = LeaseKeepAlive(self._lease_client)
-        
+
         robot_state = self._robot_state_client.get_robot_state()
         current_odom_tform_body = get_odom_tform_body(robot_state.kinematic_state.transforms_snapshot).to_proto()
         # Create an initial localization to the specified waypoint as the identity.
