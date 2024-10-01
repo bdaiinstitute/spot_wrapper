@@ -9,6 +9,8 @@
 
 This Python package is a wrapper around the [Boston Dynamics Spot SDK](https://dev.bostondynamics.com), intended as a united point of entry to the SDK for use with the [spot_ros](https://github.com/heuristicus/spot_ros) and [spot_ros2](https://github.com/bdaiinstitute/spot_ros2) packages.
 
+This package currently corresponds to `spot-sdk` release 4.1.0. As support for Python 3.8 and 3.9 was dropped in this release, the minimum supported version of Python this package supports is 3.10. 
+
 # Installation
 
 To install this package clone it and run
