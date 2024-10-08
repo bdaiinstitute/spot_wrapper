@@ -458,8 +458,9 @@ class SpotArm:
             x, y, z: float positions for the pose
             qx, qy, qz, qw: float quaternion for the pose
             duration: target duration of the trajectory, in seconds
-            ref_frame: base frame for the pose. This needs to be something Spot knows about, ie "body" or "arm0.link_sh0"
-            ensure_power_on_and_stand: bool for whether or not to ensure Spot is standing/powered on before executing
+            ref_frame: base frame for the pose. This needs to be something Spot knows about, ie "body" or
+                "arm0.link_sh0" ensure_power_on_and_stand: bool for whether or not to ensure Spot is standing/powered on
+                before executing
 
         Returns:
             Boolean success, string message
