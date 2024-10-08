@@ -437,63 +437,74 @@ class SpotArm:
 
         return True, "Opened gripper successfully"
 
-    def hand_pose(self, data) -> typing.Tuple[bool, str]:
+    def hand_pose(
+        self,
+        *,
+        x: float,
+        y: float,
+        z: float,
+        qx: float,
+        qy: float,
+        qz: float,
+        qw: float,
+        duration: float = 0.125,
+        ref_frame: str = "body",
+        ensure_power_on_and_stand: bool = True,
+    ) -> typing.Tuple[bool, str]:
         """
         Set the pose of the hand
 
         Args:
-            data:
+            x, y, z: float positions for the pose
+            qx, qy, qz, qw: float quaternion for the pose
+            duration: target duration of the trajectory, in seconds
+            ref_frame: base frame for the pose. This needs to be something Spot knows about, ie "body" or
+                "arm0.link_sh0" ensure_power_on_and_stand: bool for whether or not to ensure Spot is standing/powered on
+                before executing
 
         Returns:
             Boolean success, string message
         """
         try:
-            success, msg = self.ensure_arm_power_and_stand()
-            if not success:
-                self._logger.info(msg)
-                return False, msg
+            if ensure_power_on_and_stand:
+                success, msg = self.ensure_arm_power_and_stand()
+                if not success:
+                    self._logger.info(msg)
+                    return False, msg
             else:
-                pose_point = data.pose_point
-                # Move the arm to a spot in front of the robot given a pose for the gripper.
-                # Build a position to move the arm to (in meters, relative to the body frame origin.)
-                position = geometry_pb2.Vec3(
-                    x=pose_point.position.x,
-                    y=pose_point.position.y,
-                    z=pose_point.position.z,
-                )
+                powered_on = self._robot.is_powered_on()
+                if not powered_on:
+                    return False, "Robot not powered on and will not force power on"
 
-                # # Rotation as a quaternion.
-                rotation = geometry_pb2.Quaternion(
-                    w=pose_point.orientation.w,
-                    x=pose_point.orientation.x,
-                    y=pose_point.orientation.y,
-                    z=pose_point.orientation.z,
-                )
+            # Move the arm to a spot in front of the robot given a pose for the gripper.
+            # Build a position to move the arm to (in meters, relative to the body frame origin.)
+            position = geometry_pb2.Vec3(x=x, y=y, z=z)
 
-                seconds = data.duration
-                duration = seconds_to_duration(seconds)
+            # Rotation as a quaternion.
+            rotation = geometry_pb2.Quaternion(w=qw, x=qx, y=qy, z=qz)
 
-                # Build the SE(3) pose of the desired hand position in the moving body frame.
-                hand_pose = geometry_pb2.SE3Pose(position=position, rotation=rotation)
-                hand_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(pose=hand_pose, time_since_reference=duration)
-                hand_trajectory = trajectory_pb2.SE3Trajectory(points=[hand_pose_traj_point])
+            traj_duration = seconds_to_duration(duration)
 
-                arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
-                    root_frame_name=data.frame,
-                    pose_trajectory_in_task=hand_trajectory,
-                    force_remain_near_current_joint_configuration=True,
-                )
-                arm_command = arm_command_pb2.ArmCommand.Request(arm_cartesian_command=arm_cartesian_command)
-                synchronized_command = synchronized_command_pb2.SynchronizedCommand.Request(arm_command=arm_command)
+            # Build the SE(3) pose of the desired hand position in the moving body frame.
+            hand_pose = geometry_pb2.SE3Pose(position=position, rotation=rotation)
+            hand_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(pose=hand_pose, time_since_reference=traj_duration)
+            hand_trajectory = trajectory_pb2.SE3Trajectory(points=[hand_pose_traj_point])
 
-                robot_command = robot_command_pb2.RobotCommand(synchronized_command=synchronized_command)
+            arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
+                root_frame_name=ref_frame,
+                pose_trajectory_in_task=hand_trajectory,
+                force_remain_near_current_joint_configuration=True,
+            )
+            arm_command = arm_command_pb2.ArmCommand.Request(arm_cartesian_command=arm_cartesian_command)
+            synchronized_command = synchronized_command_pb2.SynchronizedCommand.Request(arm_command=arm_command)
 
-                RobotCommandBuilder.build_synchro_command(robot_command)
+            robot_command = robot_command_pb2.RobotCommand(synchronized_command=synchronized_command)
 
-                # Send the request
-                cmd_id = self._robot_command_client.robot_command(robot_command)
-                self._logger.info("Moving arm to position.")
-                self.wait_for_arm_command_to_complete(cmd_id)
+            RobotCommandBuilder.build_synchro_command(robot_command)
+
+            # Send the request
+            cmd_id = self._robot_command_client.robot_command(robot_command)
+            self.wait_for_arm_command_to_complete(cmd_id)
 
         except Exception as e:
             return (
