@@ -457,7 +457,7 @@ class SpotArm:
         Args:
             x, y, z: float positions for the pose
             qx, qy, qz, qw: float quaternion for the pose
-            duration: secodns for the trajectory
+            duration: target duration of the trajectory, in seconds
             ref_frame: base frame for the pose. This needs to be something Spot knows about, ie "body" or "arm0.link_sh0"
             ensure_power_on_and_stand: bool for whether or not to ensure Spot is standing/powered on before executing
 
@@ -479,7 +479,7 @@ class SpotArm:
             # Build a position to move the arm to (in meters, relative to the body frame origin.)
             position = geometry_pb2.Vec3(x=x, y=y, z=z)
 
-            # # Rotation as a quaternion.
+            # Rotation as a quaternion.
             rotation = geometry_pb2.Quaternion(w=qw, x=qx, y=qy, z=qz)
 
             traj_duration = seconds_to_duration(duration)
