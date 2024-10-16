@@ -489,7 +489,9 @@ class SpotArm:
             hand_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(pose=hand_pose)
             if duration != 0.0:
                 traj_duration = seconds_to_duration(duration)
-                hand_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(pose=hand_pose, time_since_reference=traj_duration)
+                hand_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(
+                    pose=hand_pose, time_since_reference=traj_duration
+                )
             hand_trajectory = trajectory_pb2.SE3Trajectory(points=[hand_pose_traj_point])
 
             arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
