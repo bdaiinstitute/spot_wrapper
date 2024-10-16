@@ -447,9 +447,10 @@ class SpotArm:
         qy: float,
         qz: float,
         qw: float,
-        duration: float = 0.125,
+        duration: float = 0.0,
         ref_frame: str = "body",
         ensure_power_on_and_stand: bool = True,
+        blocking: bool = True,
     ) -> typing.Tuple[bool, str]:
         """
         Set the pose of the hand
@@ -483,11 +484,12 @@ class SpotArm:
             # Rotation as a quaternion.
             rotation = geometry_pb2.Quaternion(w=qw, x=qx, y=qy, z=qz)
 
-            traj_duration = seconds_to_duration(duration)
-
             # Build the SE(3) pose of the desired hand position in the moving body frame.
             hand_pose = geometry_pb2.SE3Pose(position=position, rotation=rotation)
-            hand_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(pose=hand_pose, time_since_reference=traj_duration)
+            hand_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(pose=hand_pose)
+            if duration != 0.0:
+                traj_duration = seconds_to_duration(duration)
+                hand_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(pose=hand_pose, time_since_reference=traj_duration)
             hand_trajectory = trajectory_pb2.SE3Trajectory(points=[hand_pose_traj_point])
 
             arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
@@ -504,7 +506,8 @@ class SpotArm:
 
             # Send the request
             cmd_id = self._robot_command_client.robot_command(robot_command)
-            self.wait_for_arm_command_to_complete(cmd_id)
+            if blocking:
+                self.wait_for_arm_command_to_complete(cmd_id)
 
         except Exception as e:
             return (
