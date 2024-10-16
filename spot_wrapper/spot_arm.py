@@ -447,7 +447,7 @@ class SpotArm:
         qy: float,
         qz: float,
         qw: float,
-        duration: float = 0.0,
+        duration: float | None = None,
         ref_frame: str = "body",
         ensure_power_on_and_stand: bool = True,
         blocking: bool = True,
@@ -487,7 +487,7 @@ class SpotArm:
             # Build the SE(3) pose of the desired hand position in the moving body frame.
             hand_pose = geometry_pb2.SE3Pose(position=position, rotation=rotation)
             hand_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(pose=hand_pose)
-            if duration != 0.0:
+            if duration is not None:
                 traj_duration = seconds_to_duration(duration)
                 hand_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(
                     pose=hand_pose, time_since_reference=traj_duration
