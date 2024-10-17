@@ -1299,7 +1299,7 @@ class SpotWrapper:
         return self._mobility_params
 
     def velocity_cmd(
-        self, v_x: float, v_y: float, v_rot: float, cmd_duration: float = 0.125
+        self, v_x: float, v_y: float, v_rot: float, cmd_duration: float = 0.125, body_height: float = 0.0
     ) -> typing.Tuple[bool, str]:
         """
 
@@ -1311,11 +1311,22 @@ class SpotWrapper:
             v_rot: Angular velocity around the Z axis in radians
             cmd_duration: (optional) Time-to-live for the command in seconds.  Default is 125ms (assuming 10Hz command
                           rate).
+            body_height: Offset of the body relative to nominal stand height, in metres
 
         Returns:
             Tuple of bool success and a string message
         """
         end_time = time.time() + cmd_duration
+        if body_height:
+            current_mobility_params = self.get_mobility_params()
+            height_adjusted_params = RobotCommandBuilder.mobility_params(
+                body_height=body_height,
+                locomotion_hint=current_mobility_params.locomotion_hint,
+                stair_hint=current_mobility_params.stair_hint,
+                external_force_params=current_mobility_params.external_force_params,
+                stairs_mode=current_mobility_params.stairs_mode,
+            )
+            self.set_mobility_params(height_adjusted_params)
         response = self._robot_command(
             RobotCommandBuilder.synchro_velocity_command(v_x=v_x, v_y=v_y, v_rot=v_rot, params=self._mobility_params),
             end_time_secs=end_time,
