@@ -30,6 +30,8 @@ class SpotGraphNav:
         self._robot = robot
         self._logger = logger
         self._graph_nav_client = graph_nav_client
+        # TODO: re-enable streaming graph uploads when fixed upstream
+        self._graph_nav_client._use_streaming_graph_upload = False
         self._map_processing_client = map_processing_client
         self._robot_state_client = robot_state_client
         self._lease_client = lease_client
