@@ -114,22 +114,36 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         raise ValueError("Did not mean to go this far")
 
 
-    def write_calibration_to_robot(self, cal = {}):
+    def write_calibration_to_robot(self, cal=None):
+        from bosdyn.api import gripper_camera_param_pb2
+        from bosdyn.api.geometry_pb2 import SE3Pose
+        from bosdyn.api.image_pb2 import PinholeModel
+        ## The following works and is tested to return blank parameters on unset robot
+        ############################################################################
+        # get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
+        # cal = self.gripper_camera_client.get_camera_calib(get_req)
+        # print(f"Pre-Set Cal (get cam param req): \n {cal}")
+        # get_req = gripper_camera_param_pb2.GetGripperCameraCalibrationRequest()
+        # cal = self.gripper_camera_client.get_camera_calib(get_req)
+        # print(f"Pre-Set Cal (get calib param req): \n{cal}")
+        #############################################################################
+
         def convert_pinhole_intrinsic_to_proto(intrinsic_matrix):
             """Converts a 3x3 intrinsic matrix to a PinholeModel protobuf."""
             pinhole_model = PinholeModel()
-            pinhole_model.intrinsics.focal_length.x = intrinsic_matrix[0, 0]
-            pinhole_model.intrinsics.focal_length.y = intrinsic_matrix[1, 1]
-            pinhole_model.intrinsics.principal_point.x = intrinsic_matrix[0, 2]
-            pinhole_model.intrinsics.principal_point.y = intrinsic_matrix[1, 2]
+            pinhole_model.focal_length_x = intrinsic_matrix[0, 0]
+            pinhole_model.focal_length_y = intrinsic_matrix[1, 1]
+            pinhole_model.principal_point_x = intrinsic_matrix[0, 2]
+            pinhole_model.principal_point_y = intrinsic_matrix[1, 2]
             return pinhole_model
 
         if cal is None:
             # Ripped from calib file
+            cal = {}
             cal["depth_intrinsic"] = np.array([215.78570285824208, 0.0, 113.50899498114939, 0.0, 215.81041358956026,
-        91.52930962720102, 0.0, 0.0, 1.0]).reshape((3,3))
+                                                91.52930962720102, 0.0, 0.0, 1.0]).reshape((3, 3))
             cal["rgb_intrinsic"] = np.array([[541.9417121434435, 0.0, 319.8759813692453, 0.0, 541.9183052872654,
-        235.87456783983524, 0.0, 0.0, 1.0]]).reshape((3,3))
+                                                235.87456783983524, 0.0, 0.0, 1.0]]).reshape((3, 3))
             cal["depth_to_rgb"] = np.array([
                 [0.0008540850814552694, -0.9999762875319601, 0.006833367579213797, 0.02068056344450553],
                 [0.999950571032565, 0.0009217136573264173, 0.009899794724194794, 0.014867920369954562],
@@ -144,28 +158,36 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             ])
             cal["rgb_to_planning_frame"] = np.linalg.inv(cal["depth_to_rgb"]) @ cal["depth_to_planning_frame"]
 
-            cal["depth_to_planning_frame"] = SE3Pose.from_matrix(cal["depth_to_planning_frame"]).to_proto()
-            cal["rgb_to_planning_frame"] = SE3Pose.from_matrix(cal["rgb_to_planning_frame"]).to_proto()
+        # Converting calibration data to protobuf format
+        depth_intrinsics_proto = convert_pinhole_intrinsic_to_proto(cal["depth_intrinsic"])
+        rgb_intrinsics_proto = convert_pinhole_intrinsic_to_proto(cal["rgb_intrinsic"])
+        depth_to_planning_frame_proto = SE3Pose.from_matrix(cal["depth_to_planning_frame"]).to_proto()
+        rgb_to_planning_frame_proto = SE3Pose.from_matrix(cal["rgb_to_planning_frame"]).to_proto()
 
-        from bosdyn.api import gripper_camera_param_pb2
-        from bosdyn.api.image_pb2.ImageSource import PinholeModel
-        ## The following works and is tested to return blank parameters on unset robot
-        ############################################################################
-        # get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
-        # cal = self.gripper_camera_client.get_camera_calib(get_req)
-        # print(f"Pre-Set Cal (get cam param req): \n {cal}")
-        # get_req = gripper_camera_param_pb2.GetGripperCameraCalibrationRequest()
-        # cal = self.gripper_camera_client.get_camera_calib(get_req)
-        # print(f"Pre-Set Cal (get calib param req): \n{cal}")
-        #############################################################################
-        set_req = gripper_camera_param_pb2.GripperCameraCalibrationRequest(
+        set_req = gripper_camera_param_pb2.SetGripperCameraCalibrationRequest(
             gripper_cam_cal=gripper_camera_param_pb2.GripperCameraCalibrationProto(
-                depth=gripper_camera_param_pb2.GripperDepthCameraCalibrationParams(),
-                rgb=gripper_camera_param_pb2.GripperColorCameraCalibrationParams()))
-        
-        results = self.gripper_camera_client.set_camera_calib(set_req)
-        print(results)
+                depth=gripper_camera_param_pb2.GripperDepthCameraCalibrationParams(
+                    wr1_tform_sensor=depth_to_planning_frame_proto,
+                    intrinsics=gripper_camera_param_pb2.GripperDepthCameraCalibrationParams.DepthCameraIntrinsics(
+                        camera_models=gripper_camera_param_pb2.GripperDepthCameraCalibrationParams.DepthCameraIntrinsics.PinholeModel(
+                            pinhole=depth_intrinsics_proto
+                        )
+                    )
+                ),
+                rgb=gripper_camera_param_pb2.GripperColorCameraCalibrationParams(
+                    wr1_tform_sensor=rgb_to_planning_frame_proto,
+                    intrinsics=[
+                        gripper_camera_param_pb2.GripperColorCameraCalibrationParams.ColorCameraIntrinsics(
+                            pinhole=rgb_intrinsics_proto
+                        )
+                    ]
+                )
+            )
+        )
 
+        # Send the request to the robot
+        result = self.gripper_camera_client.set_camera_calib(set_req)
+        print(result)
 
 
     def capture_images(
