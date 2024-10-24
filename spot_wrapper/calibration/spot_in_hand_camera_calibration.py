@@ -19,7 +19,6 @@ from bosdyn.client.frame_helpers import (
     HAND_FRAME_NAME,
     get_a_tform_b,
 )
-from bosdyn.client.math_helpers import SE3Pose
 from bosdyn.client.gripper_camera_param import GripperCameraParamClient
 from bosdyn.client.image import ImageClient, build_image_request
 from bosdyn.client.lease import (
@@ -116,8 +115,9 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
 
     def write_calibration_to_robot(self, cal=None):
         from bosdyn.api import gripper_camera_param_pb2
-        from bosdyn.api.geometry_pb2 import SE3Pose
-        from bosdyn.api.image_pb2 import PinholeModel
+        from bosdyn.api.image_pb2 import ImageSource
+        from bosdyn.client.math_helpers import SE3Pose
+
         ## The following works and is tested to return blank parameters on unset robot
         ############################################################################
         # get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
@@ -130,7 +130,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
 
         def convert_pinhole_intrinsic_to_proto(intrinsic_matrix):
             """Converts a 3x3 intrinsic matrix to a PinholeModel protobuf."""
-            pinhole_model = PinholeModel()
+            pinhole_model = ImageSource.PinholeModel()
             pinhole_model.focal_length_x = intrinsic_matrix[0, 0]
             pinhole_model.focal_length_y = intrinsic_matrix[1, 1]
             pinhole_model.principal_point_x = intrinsic_matrix[0, 2]
