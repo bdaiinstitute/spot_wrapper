@@ -496,6 +496,7 @@ class SpotArm:
 
             arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
                 root_frame_name=ref_frame,
+                wrist_tform_tool=geometry_pb2.SE3Pose(position=geometry_pb2.Vec3(x=0.0, y=0.0, z=0.0), rotation=geometry_pb2.Quaternion(w=1.0, x=0.0, y=0.0, z=0.0)),
                 pose_trajectory_in_task=hand_trajectory,
                 force_remain_near_current_joint_configuration=True,
             )
