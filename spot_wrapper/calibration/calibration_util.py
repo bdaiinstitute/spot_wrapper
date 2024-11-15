@@ -757,32 +757,33 @@ def stereo_calibration_charuco(
                 filtered_poses_list = []
                 filtered_rmats = []
                 filtered_tvecs = []
-                
+
                 for idx, (pose, rmat, tvec) in enumerate(zip(filtered_poses, rmats_origin, tvecs_origin)):
                     if rmat is not None and tvec is not None and pose is not None:
                         valid_indices.append(idx)
                         filtered_poses_list.append(pose)
                         filtered_rmats.append(rmat)
                         filtered_tvecs.append(tvec)
-                
+
                 if len(filtered_poses_list) < 4:  # Hand-eye calibration typically needs at least 4 poses
                     logger.warning(f"Not enough valid poses for hand-eye calibration. Found {len(filtered_poses_list)}")
                     return result_dict
                 # Convert to numpy arrays
                 filtered_poses = np.array(filtered_poses_list)
-                
+
                 # Extract rotations and translations from filtered poses
                 R_gripper2base = np.array([pose[:3, :3] for pose in filtered_poses])
                 t_gripper2base = np.array([pose[:3, 3] for pose in filtered_poses])
-                
+
                 # Use filtered camera transformations
                 R_target2cam = np.array(filtered_rmats)
                 t_target2cam = np.array(filtered_tvecs)
-                
+
                 # Verify sizes match
-                assert R_gripper2base.shape[0] == t_gripper2base.shape[0] == R_target2cam.shape[0] == t_target2cam.shape[0], \
-                    "Mismatch in number of transformations"
-                    
+                assert (
+                    R_gripper2base.shape[0] == t_gripper2base.shape[0] == R_target2cam.shape[0] == t_target2cam.shape[0]
+                ), "Mismatch in number of transformations"
+
                 try:
                     R_handeye, T_handeye = cv2.calibrateHandEye(
                         R_gripper2base=R_gripper2base,
@@ -791,26 +792,28 @@ def stereo_calibration_charuco(
                         t_target2cam=t_target2cam,
                         method=cv2.CALIB_HAND_EYE_DANIILIDIS,
                     )
-                    
+
                     robot_to_cam = np.eye(4)
                     robot_to_cam[:3, :3] = R_handeye
                     robot_to_cam[:3, 3] = T_handeye.flatten()
-                    
+
                     cam_to_robot = np.linalg.inv(robot_to_cam)
                     camera_to_robot_R = cam_to_robot[:3, :3]
                     camera_to_robot_T = cam_to_robot[:3, 3]
-                    
+
                     logger.info("Hand-eye calibration completed.")
-                    
+
                     result_dict["R_handeye"] = camera_to_robot_R
                     result_dict["T_handeye"] = camera_to_robot_T
                 except cv2.error as e:
                     logger.error(f"Hand-eye calibration failed: {str(e)}")
-                    logger.debug(f"Sizes - R_gripper2base: {R_gripper2base.shape}, "
-                                f"t_gripper2base: {t_gripper2base.shape}, "
-                                f"R_target2cam: {R_target2cam.shape}, "
-                                f"t_target2cam: {t_target2cam.shape}")
-            
+                    logger.debug(
+                        f"Sizes - R_gripper2base: {R_gripper2base.shape}, "
+                        f"t_gripper2base: {t_gripper2base.shape}, "
+                        f"R_target2cam: {R_target2cam.shape}, "
+                        f"t_target2cam: {t_target2cam.shape}"
+                    )
+
             return result_dict
         else:
             raise ValueError("Not enough valid points for stereo calibration.")
@@ -1049,6 +1052,7 @@ def load_dataset_from_path(path: str) -> Tuple[np.ndarray, Optional[np.ndarray]]
     Returns:
         np.ndarray: The image dataset
     """
+
     def alpha_numeric(x):
         return re.search(r"(\d+)(?=\D*$)", x).group() if re.search(r"(\d+)(?=\D*$)", x) else x
 
@@ -1056,11 +1060,11 @@ def load_dataset_from_path(path: str) -> Tuple[np.ndarray, Optional[np.ndarray]]
     dirs = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
     if len(dirs) == 0:
         raise ValueError("No sub-dirs found in datapath from which to load images.")
-    
+
     # Separate 'poses' directory from image directories
     image_dirs = [d for d in dirs if d != "poses"]
     image_dirs = sorted(image_dirs, key=alpha_numeric)
-    
+
     if not image_dirs:
         raise ValueError("No image directories found after filtering")
 
@@ -1069,7 +1073,7 @@ def load_dataset_from_path(path: str) -> Tuple[np.ndarray, Optional[np.ndarray]]
     reference_files = sorted(glob(os.path.join(first_dir, "*")), key=alpha_numeric)
     num_images = len(reference_files)
     num_dirs = len(image_dirs)
-    
+
     if num_images == 0:
         raise ValueError(f"No images found in reference directory: {first_dir}")
 
@@ -1082,13 +1086,12 @@ def load_dataset_from_path(path: str) -> Tuple[np.ndarray, Optional[np.ndarray]]
     for dir_idx, dir_name in enumerate(image_dirs):
         dir_path = os.path.join(path, dir_name)
         files = sorted(glob(os.path.join(dir_path, "*")), key=alpha_numeric)
-        
+
         if len(files) != num_images:
             raise ValueError(
-                f"Inconsistent number of images in directory {dir_name}. "
-                f"Expected {num_images}, found {len(files)}"
+                f"Inconsistent number of images in directory {dir_name}. Expected {num_images}, found {len(files)}"
             )
-        
+
         for img_idx, file_path in enumerate(files):
             img = cv2.imread(file_path)
             if img is None:
