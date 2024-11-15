@@ -562,14 +562,14 @@ def calibrate_single_camera_charuco(
         ValueError: Not enough data to calibrate
 
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[int]]: 
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[int]]:
             camera matrix, distortion coefficients, rotation matrices, tvecs, valid image indices
     """
     all_corners = []
     all_ids = []
     valid_indices = []
     img_size = None
-    
+
     for idx, img in enumerate(images):
         if img_size is None:
             img_size = img.shape[:2][::-1]
@@ -590,9 +590,9 @@ def calibrate_single_camera_charuco(
             obj_points = get_charuco_board_object_points(charuco_board, ids)
             obj_points_all.append(obj_points)
             img_points.append(corners)
-            
+
         logger.info(f"About to process {len(obj_points_all)} points for single camera cal | {debug_str}")
-        _, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera( # use LU flag critical for speed
+        _, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(  # use LU flag critical for speed
             obj_points_all,
             img_points,
             img_size,
@@ -649,21 +649,21 @@ def stereo_calibration_charuco(
     """
     if camera_matrix_origin is None or dist_coeffs_origin is None:
         logger.info("Calibrating Origin Camera individually")
-        (camera_matrix_origin, dist_coeffs_origin, rmats_origin, tvecs_origin, valid_indices_origin) = calibrate_single_camera_charuco(
-            images=origin_images,
-            charuco_board=charuco_board,
-            aruco_dict=aruco_dict,
-            debug_str="for origin camera",
+        (camera_matrix_origin, dist_coeffs_origin, rmats_origin, tvecs_origin, valid_indices_origin) = (
+            calibrate_single_camera_charuco(
+                images=origin_images,
+                charuco_board=charuco_board,
+                aruco_dict=aruco_dict,
+                debug_str="for origin camera",
+            )
         )
     if camera_matrix_reference is None or dist_coeffs_origin is None:
         logger.info("Calibrating reference Camera individually ")
-        (camera_matrix_reference, dist_coeffs_reference, _, _, _) = (
-            calibrate_single_camera_charuco(
-                images=reference_images,
-                charuco_board=charuco_board,
-                aruco_dict=aruco_dict,
-                debug_str="for reference camera",
-            )
+        (camera_matrix_reference, dist_coeffs_reference, _, _, _) = calibrate_single_camera_charuco(
+            images=reference_images,
+            charuco_board=charuco_board,
+            aruco_dict=aruco_dict,
+            debug_str="for reference camera",
         )
 
     if camera_matrix_origin is None or camera_matrix_reference is None:
@@ -740,13 +740,15 @@ def stereo_calibration_charuco(
 
             if poses is not None:
                 logger.info("Attempting hand-eye calibation....")
-                
+
                 # Filter poses using valid indices from origin camera calibration
                 filtered_poses = np.array([poses[i] for i in valid_indices_origin])
-                
+
                 # Need at least 4 poses for a good hand-eye calibration
                 if len(filtered_poses) < 4:
-                    logger.warning(f"Not enough poses for hand-eye calibration. Found {len(filtered_poses)}, need at least 4")
+                    logger.warning(
+                        f"Not enough poses for hand-eye calibration. Found {len(filtered_poses)}, need at least 4"
+                    )
                     return result_dict
 
                 # Convert to numpy arrays
