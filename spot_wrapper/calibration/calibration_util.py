@@ -740,7 +740,21 @@ def stereo_calibration_charuco(
 
             if poses is not None:
                 logger.info("Attempting hand-eye calibation....")
-
+                try:
+                    # We cache camera matrices, but hard to elegantly cache localizations
+                    # This checks if we need to recompute real quick
+                    valid_indices_origin
+                except UnboundLocalError:
+                    logger.warning("!Could not cache localizations, recomputing")
+                    logger.info("Calibrating Origin Camera individually")
+                    (camera_matrix_origin, dist_coeffs_origin, rmats_origin, tvecs_origin, valid_indices_origin) = (
+                        calibrate_single_camera_charuco(
+                            images=origin_images,
+                            charuco_board=charuco_board,
+                            aruco_dict=aruco_dict,
+                            debug_str="for origin camera",
+                        )
+                    )
                 # Filter poses using valid indices from origin camera calibration
                 filtered_poses = np.array([poses[i] for i in valid_indices_origin])
 
