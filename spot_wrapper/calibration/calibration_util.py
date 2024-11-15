@@ -752,35 +752,65 @@ def stereo_calibration_charuco(
 
             if not no_poses:
                 logger.info("Attempting hand-eye calibation....")
-                # filtered_poses = np.array([np.linalg.inv(pose) for pose in filtered_poses])
-                filtered_poses = np.array(filtered_poses)
-                # Use the filtered poses for the target-to-camera transformation
+                # Filter out poses that don't have corresponding camera transformations
+                valid_indices = []
+                filtered_poses_list = []
+                filtered_rmats = []
+                filtered_tvecs = []
+                
+                for idx, (pose, rmat, tvec) in enumerate(zip(filtered_poses, rmats_origin, tvecs_origin)):
+                    if rmat is not None and tvec is not None and pose is not None:
+                        valid_indices.append(idx)
+                        filtered_poses_list.append(pose)
+                        filtered_rmats.append(rmat)
+                        filtered_tvecs.append(tvec)
+                
+                if len(filtered_poses_list) < 4:  # Hand-eye calibration typically needs at least 4 poses
+                    logger.warning(f"Not enough valid poses for hand-eye calibration. Found {len(filtered_poses_list)}")
+                    return result_dict
+                # Convert to numpy arrays
+                filtered_poses = np.array(filtered_poses_list)
+                
+                # Extract rotations and translations from filtered poses
                 R_gripper2base = np.array([pose[:3, :3] for pose in filtered_poses])
                 t_gripper2base = np.array([pose[:3, 3] for pose in filtered_poses])
-
-                R_handeye, T_handeye = cv2.calibrateHandEye(
-                    R_gripper2base=R_gripper2base,
-                    t_gripper2base=t_gripper2base,
-                    R_target2cam=rmats_origin,
-                    t_target2cam=tvecs_origin,
-                    method=cv2.CALIB_HAND_EYE_DANIILIDIS,
-                )
-                robot_to_cam = np.eye(4)  # Initialize 4x4 identity matrix
-                robot_to_cam[:3, :3] = R_handeye  # Populate rotation
-                robot_to_cam[:3, 3] = T_handeye.flatten()  # Populate translation
-
-                # Invert the homogeneous matrix
-                cam_to_robot = np.linalg.inv(robot_to_cam)
-
-                # Extract rotation and translation from the inverted matrix
-                camera_to_robot_R = cam_to_robot[:3, :3]  # Extract rotation
-                camera_to_robot_T = cam_to_robot[:3, 3]  # Extract translation
-                logger.info("Hand-eye calibration completed.")
-
-                # Add the hand-eye calibration results to the final result dictionary
-                result_dict["R_handeye"] = camera_to_robot_R
-                result_dict["T_handeye"] = camera_to_robot_T
-
+                
+                # Use filtered camera transformations
+                R_target2cam = np.array(filtered_rmats)
+                t_target2cam = np.array(filtered_tvecs)
+                
+                # Verify sizes match
+                assert R_gripper2base.shape[0] == t_gripper2base.shape[0] == R_target2cam.shape[0] == t_target2cam.shape[0], \
+                    "Mismatch in number of transformations"
+                    
+                try:
+                    R_handeye, T_handeye = cv2.calibrateHandEye(
+                        R_gripper2base=R_gripper2base,
+                        t_gripper2base=t_gripper2base,
+                        R_target2cam=R_target2cam,
+                        t_target2cam=t_target2cam,
+                        method=cv2.CALIB_HAND_EYE_DANIILIDIS,
+                    )
+                    
+                    robot_to_cam = np.eye(4)
+                    robot_to_cam[:3, :3] = R_handeye
+                    robot_to_cam[:3, 3] = T_handeye.flatten()
+                    
+                    cam_to_robot = np.linalg.inv(robot_to_cam)
+                    camera_to_robot_R = cam_to_robot[:3, :3]
+                    camera_to_robot_T = cam_to_robot[:3, 3]
+                    
+                    logger.info("Hand-eye calibration completed.")
+                    
+                    result_dict["R_handeye"] = camera_to_robot_R
+                    result_dict["T_handeye"] = camera_to_robot_T
+                except cv2.error as e:
+                    logger.error(f"Hand-eye calibration failed: {str(e)}")
+                    logger.debug(f"Sizes - R_gripper2base: {R_gripper2base.shape}, "
+                                f"t_gripper2base: {t_gripper2base.shape}, "
+                                f"R_target2cam: {R_target2cam.shape}, "
+                                f"t_target2cam: {t_target2cam.shape}")
+            
             return result_dict
         else:
             raise ValueError("Not enough valid points for stereo calibration.")
@@ -1019,37 +1049,61 @@ def load_dataset_from_path(path: str) -> Tuple[np.ndarray, Optional[np.ndarray]]
     Returns:
         np.ndarray: The image dataset
     """
-
     def alpha_numeric(x):
-        return re.search("(\\d+)(?=\\D*$)", x).group() if re.search("(\\d+)(?=\\D*$)", x) else x
+        return re.search(r"(\d+)(?=\D*$)", x).group() if re.search(r"(\d+)(?=\D*$)", x) else x
 
     # List all directories within the given path and sort them
     dirs = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
     if len(dirs) == 0:
         raise ValueError("No sub-dirs found in datapath from which to load images.")
-    dirs = sorted(dirs, key=alpha_numeric)  # Assuming dir names are integers like "0", "1", etc.
+    
+    # Separate 'poses' directory from image directories
+    image_dirs = [d for d in dirs if d != "poses"]
+    image_dirs = sorted(image_dirs, key=alpha_numeric)
+    
+    if not image_dirs:
+        raise ValueError("No image directories found after filtering")
 
-    # Initialize an empty list to store images
-    images = []
+    # First check number of images in first directory
+    first_dir = os.path.join(path, image_dirs[0])
+    reference_files = sorted(glob(os.path.join(first_dir, "*")), key=alpha_numeric)
+    num_images = len(reference_files)
+    num_dirs = len(image_dirs)
+    
+    if num_images == 0:
+        raise ValueError(f"No images found in reference directory: {first_dir}")
+
+    # Pre-allocate the numpy array with the correct shape
+    # Shape: (num_images, num_dirs), where each element will be a numpy array
+    images = np.empty((num_images, num_dirs), dtype=object)
     poses = None
 
-    for dir_name in dirs:
-        path_match = os.path.join(path, dir_name, "*")
-        files = sorted(
-            glob(path_match),
-            key=alpha_numeric,
-        )
-        if dir_name != "poses":
-            # Read images and store them
-            images.append([cv2.imread(fn) for fn in files])
-        else:
-            poses = np.array([np.load(fn) for fn in files])
+    # Load images into pre-allocated array
+    for dir_idx, dir_name in enumerate(image_dirs):
+        dir_path = os.path.join(path, dir_name)
+        files = sorted(glob(os.path.join(dir_path, "*")), key=alpha_numeric)
+        
+        if len(files) != num_images:
+            raise ValueError(
+                f"Inconsistent number of images in directory {dir_name}. "
+                f"Expected {num_images}, found {len(files)}"
+            )
+        
+        for img_idx, file_path in enumerate(files):
+            img = cv2.imread(file_path)
+            if img is None:
+                raise ValueError(f"Failed to load image: {file_path}")
+            images[img_idx, dir_idx] = img
 
-    # Convert the list of lists into a NumPy array
-    # The array shape will be (number_of_images, number_of_directories)
-    images = np.array(images, dtype=object)
-    # Transpose the array so that you can access it as images[:, axis]
-    images = np.transpose(images, (1, 0))
+    # Load poses if available
+    poses_dir = os.path.join(path, "poses")
+    if os.path.exists(poses_dir):
+        pose_files = sorted(glob(os.path.join(poses_dir, "*")), key=alpha_numeric)
+        if pose_files:
+            try:
+                poses = np.array([np.load(fn) for fn in pose_files])
+            except Exception as e:
+                raise ValueError(f"Failed to load poses: {str(e)}")
 
     return images, poses
 
