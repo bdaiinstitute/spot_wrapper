@@ -27,7 +27,7 @@ jobs:
         config:
         - { python: "3.10" }
     name: Run pre-commit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -46,7 +46,7 @@ jobs:
         config:
         - { python: "3.10" }
     name: Test spot_wrapper package
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
