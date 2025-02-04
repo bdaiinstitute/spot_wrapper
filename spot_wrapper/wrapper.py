@@ -1046,7 +1046,11 @@ class SpotWrapper:
         if self._use_take_lease:
             lease = self._lease_client.take()
         else:
-            lease = self._lease_client.acquire()
+            try:
+                lease = self._lease_client.acquire()
+            except Exception as e:
+                self._logger.error("Failed to acquire lease: " + str(e))
+
         have_new_lease = (self._lease is None and lease is not None) or (
             str(lease.lease_proto) != str(self._lease.lease_proto)
         )
