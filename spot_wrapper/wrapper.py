@@ -42,7 +42,7 @@ from bosdyn.client.estop import (
 from bosdyn.client.graph_nav import GraphNavClient
 from bosdyn.client.gripper_camera_param import GripperCameraParamClient
 from bosdyn.client.image import ImageClient
-from bosdyn.client.lease import Lease, LeaseClient, LeaseKeepAlive
+from bosdyn.client.lease import Lease, LeaseClient, LeaseKeepAlive, LeaseResponseError
 from bosdyn.client.license import LicenseClient
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.map_processing import MapProcessingServiceClient
@@ -1029,7 +1029,7 @@ class SpotWrapper:
             self._estop_endpoint = None
 
     def takeLease(self) -> typing.Tuple[bool, typing.Optional[Lease]]:
-        """Take lease for the robot, which may have been taken already."""
+        """Forcefully take the lease for the robot, which may have been taken already."""
         lease = self._lease_client.take()
         have_new_lease = (self._lease is None and lease is not None) or (
             str(lease.lease_proto) != str(self._lease.lease_proto)
@@ -1042,23 +1042,23 @@ class SpotWrapper:
         return have_new_lease, self._lease
 
     def getLease(self) -> typing.Optional[Lease]:
-        """Get a lease for the robot and keep the lease alive automatically."""
+        """Get a lease for the robot (if available) and keep the lease alive automatically."""
         if self._use_take_lease:
             lease = self._lease_client.take()
         else:
             try:
                 lease = self._lease_client.acquire()
-            except Exception as e:
-                self._logger.error("Failed to acquire lease: " + str(e))
+                have_new_lease = (self._lease is None and lease is not None) or (
+                    str(lease.lease_proto) != str(self._lease.lease_proto)
+                )
+                if have_new_lease:
+                    if self._lease_keepalive is not None:
+                        self._lease_keepalive.shutdown()
+                    self._lease_keepalive = LeaseKeepAlive(self._lease_client)
+                    self._lease = lease
+            except LeaseResponseError as e:
+                self._logger.error("Unable to acquire lease: " + str(e))
 
-        have_new_lease = (self._lease is None and lease is not None) or (
-            str(lease.lease_proto) != str(self._lease.lease_proto)
-        )
-        if have_new_lease:
-            if self._lease_keepalive is not None:
-                self._lease_keepalive.shutdown()
-            self._lease_keepalive = LeaseKeepAlive(self._lease_client)
-            self._lease = lease
         return self._lease
 
     def releaseLease(self) -> None:
@@ -1083,7 +1083,7 @@ class SpotWrapper:
         self._valid = False
         if self._robot.time_sync:
             self._robot.time_sync.stop()
-        self.releaseLease()
+        self.release()
         self.releaseEStop()
 
     def _robot_command(
@@ -1110,6 +1110,8 @@ class SpotWrapper:
                 timesync_endpoint=timesync_endpoint,
             )
             return True, "Success", command_id
+        except LeaseResponseError as e:
+            return False, "Failed to acquire lease: " + str(e), None
         except Exception as e:
             self._logger.error(f"Unable to execute robot command: {e}")
             return False, str(e), None
