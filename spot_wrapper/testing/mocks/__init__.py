@@ -59,14 +59,18 @@ from bosdyn.api.point_cloud_service_pb2_grpc import PointCloudServiceServicer
 from bosdyn.api.power_service_pb2_grpc import (
     PowerServiceServicer as PowerCommandServiceServicer,
 )
-from bosdyn.api.robot_command_service_pb2_grpc import RobotCommandServiceServicer
+from bosdyn.api.robot_command_service_pb2_grpc import (
+    RobotCommandServiceServicer,
+    RobotCommandStreamingServiceServicer,
+)
 from bosdyn.api.robot_id_service_pb2_grpc import RobotIdServiceServicer
-from bosdyn.api.robot_state_service_pb2_grpc import RobotStateServiceServicer
+from bosdyn.api.robot_state_service_pb2_grpc import (
+    RobotStateServiceServicer,
+    RobotStateStreamingServiceServicer,
+)
 from bosdyn.api.spot.choreography_service_pb2_grpc import ChoreographyServiceServicer
 from bosdyn.api.spot.door_service_pb2_grpc import DoorServiceServicer
-from bosdyn.api.spot.inverse_kinematics_service_pb2_grpc import (
-    InverseKinematicsServiceServicer,
-)
+from bosdyn.api.spot.inverse_kinematics_service_pb2_grpc import InverseKinematicsServiceServicer
 from bosdyn.api.spot.spot_check_service_pb2_grpc import SpotCheckServiceServicer
 from bosdyn.api.spot_cam.service_pb2_grpc import (
     AudioServiceServicer,
@@ -145,8 +149,10 @@ class BaseMockSpot(
     PtzServiceServicer,
     RemoteMissionServiceServicer,
     RobotCommandServiceServicer,
+    RobotCommandStreamingServiceServicer,
     RobotIdServiceServicer,
     RobotStateServiceServicer,
+    RobotStateStreamingServiceServicer,
     SpotCheckServiceServicer,
     StreamQualityServiceServicer,
     TimeSyncServiceServicer,

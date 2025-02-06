@@ -14,7 +14,7 @@ from abc import ABC, abstractmethod
 import grpc
 from bosdyn.api.header_pb2 import CommonError
 
-from spot_wrapper.testing.helpers import ForwardingWrapper
+from spot_wrapper.testing.helpers import ForwardingWrapper, cache1
 
 
 def implemented(function: typing.Callable) -> bool:
@@ -273,9 +273,9 @@ class AutoCompletingStreamUnaryRpcHandler(ForwardingWrapper):
     """
 
     def __call__(self, request_iterator: typing.Iterator, context: grpc.ServicerContext) -> typing.Any:
-        *head_requests, tail_request = request_iterator
-        response = self.__wrapped__(iter([*head_requests, tail_request]), context)
-        fill_response_header(tail_request, response)
+        cached_request_iterator = cache1(request_iterator)
+        response = self.__wrapped__(cached_request_iterator, context)
+        fill_response_header(cached_request_iterator.cache, response)
         return response
 
 
@@ -295,9 +295,9 @@ class AutoCompletingStreamStreamRpcHandler(ForwardingWrapper):
     """
 
     def __call__(self, request_iterator: typing.Iterator, context: grpc.ServicerContext) -> typing.Iterator:
-        *head_requests, tail_request = request_iterator
-        for response in self.__wrapped__(iter([*head_requests, tail_request]), context):
-            fill_response_header(tail_request, response)
+        cached_request_iterator = cache1(request_iterator)
+        for response in self.__wrapped__(cached_request_iterator, context):
+            fill_response_header(cached_request_iterator.cache, response)
             yield response
 
 
