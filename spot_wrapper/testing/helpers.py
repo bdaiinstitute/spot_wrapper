@@ -39,3 +39,26 @@ def walk_resource_tree(resource_tree: ResourceTree) -> typing.Iterable[ResourceT
     yield resource_tree
     for subtree in resource_tree.sub_resources:
         yield from walk_resource_tree(subtree)
+
+
+_T = typing.TypeVar("_T")
+
+
+class cache1(typing.Iterator[_T]):
+    """Iterator wrapper that caches the last item retrieved."""
+
+    def __init__(self, inner: typing.Iterator[_T]):
+        """Initialize cached iterator
+
+        Args:
+            inner: inner iterator to cache
+        """
+        self.__inner = inner
+        self.cache: typing.Optional[_T] = None
+
+    def __iter__(self) -> "cache1":
+        return self
+
+    def __next__(self) -> _T:
+        self.cache = next(self.__inner)
+        return self.cache
