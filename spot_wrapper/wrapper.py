@@ -265,21 +265,34 @@ class AsyncIdle(AsyncPeriodicQuery):
                 status = (
                     response.feedback.synchronized_feedback.mobility_command_feedback.se2_trajectory_feedback.status
                 )
-                # STATUS_AT_GOAL always means that the robot reached the goal. If the trajectory command did not
-                # request precise positioning, then STATUS_NEAR_GOAL also counts as reaching the goal
-                if status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_AT_GOAL or (
-                    status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_NEAR_GOAL
-                    and not self._spot_wrapper.last_trajectory_command_precise
-                ):
-                    self._spot_wrapper.at_goal = True
-                    # Clear the command once at the goal
-                    self._spot_wrapper.last_trajectory_command = None
-                    self._spot_wrapper._trajectory_status_unknown = False
-                elif status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_GOING_TO_GOAL:
+                final_goal_status = (
+                    response.feedback.synchronized_feedback.mobility_command_feedback.se2_trajectory_feedback.final_goal_status
+                )
+
+                if status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_STOPPED:
+                    self.stopped = True
+                    # Robot is stopped
+                    if final_goal_status == basic_command_pb2.SE2TrajectoryCommand.Feedback.FINAL_GOAL_STATUS_ACHIEVABLE:
+                        self._spot_wrapper.trajectory_complete = True
+                        self._spot_wrapper.at_goal = True
+                        # Clear the command once at the goal
+                        self._spot_wrapper.last_trajectory_command = None
+                        self._spot_wrapper._trajectory_status_unknown = False
+                    elif final_goal_status == basic_command_pb2.SE2TrajectoryCommand.Feedback.FINAL_GOAL_STATUS_BLOCKED:
+                        self._spot_wrapper.trajectory_complete = True
+                        self._spot_wrapper.last_trajectory_command = None
+                    elif final_goal_status == basic_command_pb2.SE2TrajectoryCommand.Feedback.FINAL_GOAL_STATUS_IN_PROGRESS:
+                        self._logger.info(
+                            "Robot stopped but trajectory still in progress. Perhaps something is in the way")
+                    else:
+                        self._logger.error(
+                            "Robot stopped but final goal status is unknown.")
+                        self._spot_wrapper.last_trajectory_command = None
+                elif status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_STOPPING:
                     is_moving = True
-                elif status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_NEAR_GOAL:
+                    self._spot_wrapper.is_stopping = True
+                elif status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_IN_PROGRESS:
                     is_moving = True
-                    self._spot_wrapper.near_goal = True
                 elif status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_UNKNOWN:
                     self._spot_wrapper.trajectory_status_unknown = True
                     self._spot_wrapper.last_trajectory_command = None
@@ -862,12 +875,12 @@ class SpotWrapper:
         self._state.is_moving = state
 
     @property
-    def near_goal(self) -> bool:
-        return self._state.near_goal
+    def is_stopping(self) -> bool:
+        return self._state.is_stopping
 
-    @near_goal.setter
-    def near_goal(self, state: bool) -> None:
-        self._state.near_goal = state
+    @is_stopping.setter
+    def is_stopping(self, state: bool) -> None:
+        self._state.is_stopping = state
 
     @property
     def at_goal(self) -> bool:
@@ -1386,8 +1399,10 @@ class SpotWrapper:
         if mobility_params is None:
             mobility_params = self._mobility_params
         self._trajectory_status_unknown = False
+        self.trajectory_complete = False
+        self.stopped = False
         self.at_goal = False
-        self.near_goal = False
+        self.is_stopping = False
         self.last_trajectory_command_precise = precise_position
         self._logger.info("got command duration of {}".format(cmd_duration))
         end_time = time.time() + cmd_duration
