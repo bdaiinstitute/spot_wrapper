@@ -272,7 +272,10 @@ class AsyncIdle(AsyncPeriodicQuery):
                 if status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_STOPPED:
                     self.stopped = True
                     # Robot is stopped
-                    if final_goal_status == basic_command_pb2.SE2TrajectoryCommand.Feedback.FINAL_GOAL_STATUS_ACHIEVABLE:
+                    if (
+                        final_goal_status
+                        == basic_command_pb2.SE2TrajectoryCommand.Feedback.FINAL_GOAL_STATUS_ACHIEVABLE
+                    ):
                         self._spot_wrapper.trajectory_complete = True
                         self._spot_wrapper.at_goal = True
                         # Clear the command once at the goal
@@ -281,12 +284,15 @@ class AsyncIdle(AsyncPeriodicQuery):
                     elif final_goal_status == basic_command_pb2.SE2TrajectoryCommand.Feedback.FINAL_GOAL_STATUS_BLOCKED:
                         self._spot_wrapper.trajectory_complete = True
                         self._spot_wrapper.last_trajectory_command = None
-                    elif final_goal_status == basic_command_pb2.SE2TrajectoryCommand.Feedback.FINAL_GOAL_STATUS_IN_PROGRESS:
+                    elif (
+                        final_goal_status
+                        == basic_command_pb2.SE2TrajectoryCommand.Feedback.FINAL_GOAL_STATUS_IN_PROGRESS
+                    ):
                         self._logger.info(
-                            "Robot stopped but trajectory still in progress. Perhaps something is in the way")
+                            "Robot stopped but trajectory still in progress. Perhaps something is in the way"
+                        )
                     else:
-                        self._logger.error(
-                            "Robot stopped but final goal status is unknown.")
+                        self._logger.error("Robot stopped but final goal status is unknown.")
                         self._spot_wrapper.last_trajectory_command = None
                 elif status == basic_command_pb2.SE2TrajectoryCommand.Feedback.STATUS_STOPPING:
                     is_moving = True
