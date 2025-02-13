@@ -273,16 +273,17 @@ class AsyncIdle(AsyncPeriodicQuery):
                     # Robot is stopped
                     self.stopped = True
                     self._spot_wrapper._trajectory_status_unknown = False
-                    self._spot_wrapper.last_trajectory_command = None
                     if (
                         final_goal_status
                         == basic_command_pb2.SE2TrajectoryCommand.Feedback.FINAL_GOAL_STATUS_ACHIEVABLE
                     ):
                         self._spot_wrapper.trajectory_complete = True
                         self._spot_wrapper.at_goal = True
+                        self._spot_wrapper.last_trajectory_command = None
                         # Clear the command once at the goal
                     elif final_goal_status == basic_command_pb2.SE2TrajectoryCommand.Feedback.FINAL_GOAL_STATUS_BLOCKED:
                         self._spot_wrapper.trajectory_complete = True
+                        self._spot_wrapper.last_trajectory_command = None
                     elif (
                         final_goal_status
                         == basic_command_pb2.SE2TrajectoryCommand.Feedback.FINAL_GOAL_STATUS_IN_PROGRESS
