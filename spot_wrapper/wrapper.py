@@ -374,6 +374,7 @@ class SpotWrapper:
         port: int,
         robot_name: str,
         logger: logging.Logger,
+        frame_prefix: typing.Optional[str] = None,
         start_estop: bool = True,
         estop_timeout: float = 9.0,
         rates: typing.Optional[typing.Dict[str, float]] = None,
@@ -392,6 +393,8 @@ class SpotWrapper:
             password: Password for authentication with the robot
             hostname: ip address or hostname of the robot
             robot_name: Optional name of the robot
+            frame_prefix: Optional prefix to be used for published message frames. If not provided, robot_name will
+                          be used to construct the prefix instead.
             start_estop: If true, the wrapper will be an estop endpoint
             estop_timeout: Timeout for the estop in seconds. The SDK will check in with the wrapper at a rate of
                            estop_timeout/3 and if there is no communication the robot will execute a gentle stop.
@@ -420,9 +423,7 @@ class SpotWrapper:
         self.decorate_functions()
         self._continually_try_stand = continually_try_stand
         self._rgb_cameras = rgb_cameras
-        self._frame_prefix = ""
-        if robot_name is not None:
-            self._frame_prefix = robot_name + "/"
+        self._frame_prefix = frame_prefix if frame_prefix is not None else (robot_name + "/" if robot_name else "")
         self._logger = logger
         self._estop_timeout = estop_timeout
         self._start_estop = start_estop
