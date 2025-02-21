@@ -372,8 +372,8 @@ class SpotWrapper:
         password: str,
         hostname: str,
         port: int,
+        robot_name: str,
         logger: logging.Logger,
-        robot_name: typing.Optional[str] = None,
         frame_prefix: typing.Optional[str] = None,
         start_estop: bool = True,
         estop_timeout: float = 9.0,
@@ -415,6 +415,7 @@ class SpotWrapper:
         self._password = password
         self._hostname = hostname
         self._payload_credentials_file = payload_credentials_file
+        self._robot_name = robot_name
         self._rates = rates or {}
         self._callbacks = callbacks or {}
         self._use_take_lease = use_take_lease
@@ -422,10 +423,7 @@ class SpotWrapper:
         self.decorate_functions()
         self._continually_try_stand = continually_try_stand
         self._rgb_cameras = rgb_cameras
-        self._robot_name = robot_name if robot_name is not None else ""
-        self._frame_prefix = (
-            frame_prefix if frame_prefix is not None else (robot_name + "/" if robot_name is not None else "")
-        )
+        self._frame_prefix = frame_prefix if frame_prefix is not None else (robot_name + "/" if robot_name else "")
         self._logger = logger
         self._estop_timeout = estop_timeout
         self._start_estop = start_estop
