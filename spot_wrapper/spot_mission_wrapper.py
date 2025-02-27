@@ -3,7 +3,6 @@ from typing import Optional
 
 from bosdyn.api.mission import nodes_pb2
 from bosdyn.client import RpcError, robot_command
-from bosdyn.client.lease import LeaseClient, LeaseWallet
 from bosdyn.client.robot import Robot
 from bosdyn.mission.client import (
     CompilationError,
@@ -28,17 +27,12 @@ class SpotMission:
         robot_state: RobotState,
         mission_client: MissionClient,
         robot_command_client: robot_command.RobotCommandClient,
-        lease_client: LeaseClient,
     ) -> None:
         self._robot = robot
         self._logger = logger
         self._mission_client: MissionClient = mission_client
         self._robot_command_client = robot_command_client
-        self._lease_client = lease_client
         self._robot_state = robot_state
-        self._spot_check_resp = None
-        self._lease = None
-        self._lease_wallet: LeaseWallet = self._lease_client.lease_wallet
 
     def load_mission(self, root: nodes_pb2.Node, leases=None, data_chunk_byte_size: Optional[int] = None):
         """Load a mission
