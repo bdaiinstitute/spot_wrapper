@@ -172,4 +172,4 @@ class SpotLeash(SpotLeashProtocol):
             self._lease = None
 
     def tie(self, target: Any) -> SpotLeashContext:
-        return SpotLeashContext(target, self.lease_on_action)
+        return SpotLeashContext(target, self._lease_on_action)
