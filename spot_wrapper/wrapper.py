@@ -42,7 +42,7 @@ from bosdyn.client.estop import (
 from bosdyn.client.graph_nav import GraphNavClient
 from bosdyn.client.gripper_camera_param import GripperCameraParamClient
 from bosdyn.client.image import ImageClient
-from bosdyn.client.lease import Lease, LeaseClient, LeaseKeepAlive
+from bosdyn.client.lease import Lease
 from bosdyn.client.license import LicenseClient
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.map_processing import MapProcessingServiceClient
@@ -65,9 +65,10 @@ from .spot_docking import SpotDocking
 from .spot_eap import SpotEAP
 from .spot_graph_nav import SpotGraphNav
 from .spot_images import SpotImages
+from .spot_leash import SpotLeash, SpotLeashProtocol
 from .spot_mission_wrapper import SpotMission
 from .spot_world_objects import SpotWorldObjects
-from .wrapper_helpers import ClaimAndPowerDecorator, RobotCommandData, RobotState
+from .wrapper_helpers import RobotCommandData, RobotState
 
 SPOT_CLIENT_NAME = "ros_spot"
 MAX_COMMAND_DURATION = 1e5
@@ -152,30 +153,6 @@ class AsyncMetrics(AsyncPeriodicQuery):
     def _start_query(self):
         if self._callback:
             callback_future = self._client.get_robot_metrics_async()
-            callback_future.add_done_callback(self._callback)
-            return callback_future
-
-
-class AsyncLease(AsyncPeriodicQuery):
-    """Class to get lease state at regular intervals.  list_leases_async query sent to the robot at every tick.
-    Callback registered to defined callback function.
-
-    Attributes:
-        client: The Client to a service on the robot
-        logger: Logger object
-        rate: Rate (Hz) to trigger the query
-        callback: Callback function to call when the results of the query are available
-    """
-
-    def __init__(self, client, logger, rate, callback):
-        super(AsyncLease, self).__init__("lease", client, logger, period_sec=1.0 / max(rate, 1.0))
-        self._callback = None
-        if rate > 0.0:
-            self._callback = callback
-
-    def _start_query(self):
-        if self._callback:
-            callback_future = self._client.list_leases_async()
             callback_future.add_done_callback(self._callback)
             return callback_future
 
@@ -379,6 +356,7 @@ class SpotWrapper:
         estop_timeout: float = 9.0,
         rates: typing.Optional[typing.Dict[str, float]] = None,
         callbacks: typing.Optional[typing.Dict[str, typing.Callable]] = None,
+        leash_interface: typing.Optional[SpotLeashProtocol] = None,
         use_take_lease: bool = False,
         get_lease_on_action: bool = False,
         continually_try_stand: bool = True,
@@ -402,6 +380,8 @@ class SpotWrapper:
                    # TODO this should be an object to be unambiguous
             callbacks: Dictionary of callbacks which should be called when certain data is retrieved
                        # TODO this should be an object to be unambiguous
+            leash_interface: Optional interface for lease and power management.
+                             Defaults to SpotLeash if none is provided.
             use_take_lease: Use take instead of acquire to get leases. This will forcefully take the lease from any
                             other lease owner.
             get_lease_on_action: If true, attempt to acquire a lease when performing an action which requires a
@@ -419,8 +399,6 @@ class SpotWrapper:
         self._rates = rates or {}
         self._callbacks = callbacks or {}
         self._use_take_lease = use_take_lease
-        self._claim_decorator = ClaimAndPowerDecorator(self.power_on, self.claim, get_lease_on_action)
-        self.decorate_functions()
         self._continually_try_stand = continually_try_stand
         self._rgb_cameras = rgb_cameras
         self._frame_prefix = frame_prefix if frame_prefix is not None else (robot_name + "/" if robot_name else "")
@@ -428,7 +406,6 @@ class SpotWrapper:
         self._estop_timeout = estop_timeout
         self._start_estop = start_estop
         self._keep_alive = True
-        self._lease_keepalive = None
         self._valid = True
         self.gripperless = gripperless
 
@@ -479,8 +456,6 @@ class SpotWrapper:
                 self._graph_nav_client = self._robot.ensure_client(GraphNavClient.default_service_name)
                 self._map_processing_client = self._robot.ensure_client(MapProcessingServiceClient.default_service_name)
                 self._power_client = self._robot.ensure_client(PowerClient.default_service_name)
-                self._lease_client = self._robot.ensure_client(LeaseClient.default_service_name)
-                self._lease_wallet = self._lease_client.lease_wallet
                 self._image_client = self._robot.ensure_client(ImageClient.default_service_name)
                 self._estop_client = self._robot.ensure_client(EstopClient.default_service_name)
                 self._docking_client = self._robot.ensure_client(DockingClient.default_service_name)
@@ -527,6 +502,46 @@ class SpotWrapper:
                 )
                 time.sleep(sleep_secs)
 
+        if leash_interface is None:
+            leash_interface = SpotLeash(
+                robot=self._robot,
+                logger=self._logger,
+                always_take=use_take_lease,
+                lease_on_action=get_lease_on_action,
+                rate=max(0.0, self._rates.get("lease", 0.0)),
+                callback=self._callbacks.get("lease", None),
+            )
+        self._spot_leash = leash_interface
+
+        self._spot_leash_context = self._spot_leash.tie(self)
+        self._spot_leash_context.bind(
+            self,
+            [
+                self.stop,
+                self.self_right,
+                self.sit,
+                self.simple_stand,
+                self.stand,
+                self.battery_change_pose,
+                self.velocity_cmd,
+                self.trajectory_cmd,
+                self.execute_dance,
+                self._robot_command,
+                self._manipulation_request,
+            ],
+        )
+
+        self._spot_leash_context.bind(
+            self,
+            [
+                self.stop,
+                self.power_on,
+                self.safe_power_off,
+                self.toggle_power,
+            ],
+            passive=True,
+        )
+
         # Async Tasks
         self._async_task_list = []
         self._robot_state_task = AsyncRobotState(
@@ -541,12 +556,6 @@ class SpotWrapper:
             max(0.0, self._rates.get("metrics", 0.0)),
             self._callbacks.get("metrics", None),
         )
-        self._lease_task = AsyncLease(
-            self._lease_client,
-            self._logger,
-            max(0.0, self._rates.get("lease", 0.0)),
-            self._callbacks.get("lease", None),
-        )
         self._idle_task = AsyncIdle(self._robot_command_client, self._logger, 10.0, self)
         self._estop_monitor = AsyncEStopMonitor(self._estop_client, self._logger, 20.0, self)
 
@@ -556,10 +565,11 @@ class SpotWrapper:
         robot_tasks = [
             self._robot_state_task,
             self._robot_metrics_task,
-            self._lease_task,
             self._idle_task,
             self._estop_monitor,
         ]
+
+        robot_tasks.extend(self._spot_leash.async_tasks)
 
         self._spot_check = SpotCheck(
             self._robot,
@@ -567,7 +577,6 @@ class SpotWrapper:
             self._state,
             self._spot_check_client,
             self._robot_command_client,
-            self._lease_client,
         )
 
         self._spot_mission = SpotMission(
@@ -576,7 +585,6 @@ class SpotWrapper:
             self._state,
             self._mission_client,
             self._robot_command_client,
-            self._lease_client,
         )
 
         if self._robot.has_arm():
@@ -587,8 +595,8 @@ class SpotWrapper:
                 self._robot_command_client,
                 self._manipulation_api_client,
                 self._robot_state_client,
+                self._spot_leash_context,
                 MAX_COMMAND_DURATION,
-                self._claim_decorator,
             )
         else:
             self._spot_arm = None
@@ -608,7 +616,7 @@ class SpotWrapper:
             self._command_data,
             self._docking_client,
             self._robot_command_client,
-            self._claim_decorator,
+            self._spot_leash_context,
         )
 
         self._spot_graph_nav = SpotGraphNav(
@@ -617,8 +625,7 @@ class SpotWrapper:
             self._graph_nav_client,
             self._map_processing_client,
             self._robot_state_client,
-            self._lease_client,
-            self._claim_decorator,
+            self._spot_leash_context,
         )
 
         if self._point_cloud_client:
@@ -648,36 +655,6 @@ class SpotWrapper:
             self._spot_dance = SpotDance(self._robot, self._choreography_client, self._logger)
 
         self._robot_id = None
-        self._lease = None
-
-    def decorate_functions(self):
-        """
-        Many of the functions in the wrapper need to have the lease claimed and the robot powered on before they will
-        function. The TryClaimDecorator object includes a decorator which is the mechanism we use to make sure that
-        is the case, assuming the get_lease_on_action variable is true. Otherwise, it is up to the user to ensure
-        that the lease is claimed and the power is on before running commands, otherwise the commands will fail.
-        """
-        decorated_funcs = [
-            self.stop,
-            self.self_right,
-            self.sit,
-            self.simple_stand,
-            self.stand,
-            self.battery_change_pose,
-            self.velocity_cmd,
-            self.trajectory_cmd,
-            self.execute_dance,
-            self._robot_command,
-            self._manipulation_request,
-        ]
-        decorated_funcs_no_power = [
-            self.stop,
-            self.power_on,
-            self.safe_power_off,
-            self.toggle_power,
-        ]
-
-        self._claim_decorator.decorate_functions(self, decorated_funcs, decorated_funcs_no_power)
 
     @staticmethod
     def authenticate(robot: Robot, username: str, password: str, logger: logging.Logger) -> bool:
@@ -822,12 +799,12 @@ class SpotWrapper:
     @property
     def lease(self) -> typing.List[lease_pb2.LeaseResource]:
         """Return latest proto from the _lease_task"""
-        return self._lease_task.proto
+        return self._spot_leash.resources
 
     @property
     def lease2(self) -> typing.Optional[Lease]:
         """Return the most recently `take`n or `acquire`d lease, or `None` if it is `release`d."""
-        return self._lease
+        return self._spot_leash.lease
 
     @property
     def spot_images(self) -> SpotImages:
@@ -978,14 +955,11 @@ class SpotWrapper:
         if not self._valid:
             return False, "Wrapper is not valid"
 
-        if self.lease is not None:
-            for resource in self.lease:
-                if resource.resource == "all-leases" and SPOT_CLIENT_NAME in resource.lease_owner.client_name:
-                    return True, "We already claimed the lease"
-
         try:
+            if not self._spot_leash.claim():
+                return True, "We already claimed the lease"
+
             self._robot_id = self._robot.get_id()
-            self.getLease()
             if self._start_estop and not self.check_is_powered_on():
                 # If we are requested to start the estop, and the robot is not already powered on, then we reset the
                 # estop. The robot already being powered on is relevant when the lease is being taken from someone
@@ -1050,40 +1024,18 @@ class SpotWrapper:
 
     def takeLease(self) -> typing.Tuple[bool, typing.Optional[Lease]]:
         """Take lease for the robot, which may have been taken already."""
-        lease = self._lease_client.take()
-        have_new_lease = (self._lease is None and lease is not None) or (
-            str(lease.lease_proto) != str(self._lease.lease_proto)
-        )
-        if have_new_lease:
-            if self._lease_keepalive is not None:
-                self._lease_keepalive.shutdown()
-            self._lease_keepalive = LeaseKeepAlive(self._lease_client)
-            self._lease = lease
-        return have_new_lease, self._lease
+        return self._spot_leash.grab(force=True)
 
-    def getLease(self) -> typing.Optional[Lease]:
+    def getLease(self) -> typing.Tuple[bool, typing.Optional[Lease]]:
         """Get a lease for the robot and keep the lease alive automatically."""
-        if self._use_take_lease:
-            lease = self._lease_client.take()
-        else:
-            lease = self._lease_client.acquire()
-        have_new_lease = (self._lease is None and lease is not None) or (
-            str(lease.lease_proto) != str(self._lease.lease_proto)
-        )
-        if have_new_lease:
-            if self._lease_keepalive is not None:
-                self._lease_keepalive.shutdown()
-            self._lease_keepalive = LeaseKeepAlive(self._lease_client)
-            self._lease = lease
-        return self._lease
+        return self._spot_leash.grab()
+
+    def yieldLease(self) -> None:
+        self._spot_leash.yield_()
 
     def releaseLease(self) -> None:
         """Return the lease on the body."""
-        if self._lease:
-            self._lease_keepalive.shutdown()
-            self._lease_keepalive = None
-            self._lease_client.return_lease(self._lease)
-            self._lease = None
+        self._spot_leash.release()
 
     def release(self) -> typing.Tuple[bool, str]:
         """Return the lease on the body and the eStop handle."""

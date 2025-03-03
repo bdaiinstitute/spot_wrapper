@@ -7,13 +7,13 @@ import typing
 from bosdyn.api.graph_nav import graph_nav_pb2, map_pb2, map_processing_pb2, nav_pb2
 from bosdyn.client.frame_helpers import get_odom_tform_body
 from bosdyn.client.graph_nav import GraphNavClient
-from bosdyn.client.lease import Lease, LeaseClient, LeaseKeepAlive, LeaseWallet
+from bosdyn.client.lease import Lease, LeaseWallet
 from bosdyn.client.map_processing import MapProcessingServiceClient
 from bosdyn.client.robot import Robot
 from bosdyn.client.robot_state import RobotStateClient
 from google.protobuf import wrappers_pb2
 
-from spot_wrapper.wrapper_helpers import ClaimAndPowerDecorator
+from spot_wrapper.spot_leash import SpotLeashContextProtocol
 
 
 class SpotGraphNav:
@@ -24,8 +24,7 @@ class SpotGraphNav:
         graph_nav_client: GraphNavClient,
         map_processing_client: MapProcessingServiceClient,
         robot_state_client: RobotStateClient,
-        lease_client: LeaseClient,
-        claim_and_power_decorator: ClaimAndPowerDecorator,
+        leash_context: SpotLeashContextProtocol,
     ):
         self._robot = robot
         self._logger = logger
@@ -34,12 +33,11 @@ class SpotGraphNav:
         self._graph_nav_client._use_streaming_graph_upload = False
         self._map_processing_client = map_processing_client
         self._robot_state_client = robot_state_client
-        self._lease_client = lease_client
-        self._lease_wallet: LeaseWallet = self._lease_client.lease_wallet
-        self._claim_and_power_decorator = claim_and_power_decorator
-        self._claim_and_power_decorator.decorate_functions(
+        self._lease_wallet: LeaseWallet = self._robot.lease_wallet
+
+        leash_context.bind(
             self,
-            decorated_funcs=[
+            [
                 self._navigate_to,
                 self._navigate_route,
                 self.navigate_through_route,
@@ -96,9 +94,6 @@ class SpotGraphNav:
         self._started_powered_on = power_state.motor_power_state == power_state.STATE_ON
         self._powered_on = self._started_powered_on
 
-        # Claim lease, power on robot, start graphnav.
-        self._lease = self._get_lease()
-        self._lease_keepalive = LeaseKeepAlive(self._lease_client)
         if upload_filepath:
             self.clear_graph()
             self._upload_graph_and_snapshots(upload_filepath)
@@ -294,9 +289,6 @@ class SpotGraphNav:
         if not destination_waypoint:
             self._logger.error("Failed to find waypoint id.")
             return
-
-        self._lease = self._get_lease()
-        self._lease_keepalive = LeaseKeepAlive(self._lease_client)
 
         robot_state = self._robot_state_client.get_robot_state()
         current_odom_tform_body = get_odom_tform_body(robot_state.kinematic_state.transforms_snapshot).to_proto()
@@ -508,7 +500,6 @@ class SpotGraphNav:
 
     def _navigate_to(self, waypoint_id: str) -> typing.Tuple[bool, str]:
         """Navigate to a specific waypoint."""
-        self._lease = self._get_lease()
         destination_waypoint = self._find_unique_waypoint_id(
             waypoint_id,
             self._current_graph,
@@ -522,10 +513,9 @@ class SpotGraphNav:
                 "Failed to find the appropriate unique waypoint id for the navigation command.",
             )
 
-        # Stop the lease keepalive and create a new sublease for graphnav.
+        # Create a new sublease for graphnav.
         self._lease = self._lease_wallet.advance()
         sublease = self._lease.create_sublease()
-        self._lease_keepalive.shutdown()
 
         # Navigate to the destination waypoint.
         is_finished = False
@@ -539,7 +529,6 @@ class SpotGraphNav:
             is_finished = self._check_success(nav_to_cmd_id)
 
         self._lease = self._lease_wallet.advance()
-        self._lease_keepalive = LeaseKeepAlive(self._lease_client)
 
         status = self._graph_nav_client.navigation_feedback(nav_to_cmd_id)
         if status.status == graph_nav_pb2.NavigationFeedbackResponse.STATUS_REACHED_GOAL:
@@ -590,10 +579,9 @@ class SpotGraphNav:
                     f"Failed to find an edge between waypoints: {start_wp} and {end_wp}",
                 )
 
-        # Stop the lease keepalive and create a new sublease for graphnav.
+        # Create a new sublease for graphnav.
         self._lease = self._lease_wallet.advance()
         sublease = self._lease.create_sublease()
-        self._lease_keepalive.shutdown()
 
         # Navigate a specific route.
         route = self._graph_nav_client.build_route(waypoint_ids, edge_ids_list)
@@ -607,9 +595,6 @@ class SpotGraphNav:
             time.sleep(0.5)  # Sleep for half a second to allow for command execution.
             # Poll the robot for feedback to determine if the route is complete.
             is_finished = self._check_success(nav_route_command_id)
-
-            self._lease = self._lease_wallet.advance()
-            self._lease_keepalive = LeaseKeepAlive(self._lease_client)
 
         return True, "Finished navigating route!"
 

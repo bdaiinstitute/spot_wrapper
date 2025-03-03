@@ -4,7 +4,7 @@ import typing
 
 from bosdyn.api import header_pb2
 from bosdyn.client import robot_command
-from bosdyn.client.lease import Lease, LeaseClient, LeaseWallet
+from bosdyn.client.lease import Lease
 from bosdyn.client.robot import Robot
 from bosdyn.client.spot_check import SpotCheckClient, run_spot_check, spot_check_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -24,25 +24,20 @@ class SpotCheck:
         robot_state: RobotState,
         spot_check_client: SpotCheckClient,
         robot_command_client: robot_command.RobotCommandClient,
-        lease_client: LeaseClient,
     ) -> None:
         self._robot = robot
         self._logger = logger
         self._spot_check_client: SpotCheckClient = spot_check_client
         self._robot_command_client = robot_command_client
-        self._lease_client = lease_client
         self._robot_state = robot_state
         self._spot_check_resp = None
-        self._lease = None
-        self._lease_wallet: LeaseWallet = self._lease_client.lease_wallet
 
     @property
     def spot_check_resp(self) -> spot_check_pb2.SpotCheckFeedbackResponse:
         return self._spot_check_resp
 
     def _get_lease(self) -> Lease:
-        self._lease = self._lease_wallet.get_lease()
-        return self._lease
+        return self._robot.lease_wallet.get_lease()
 
     def _feedback_error_check(self, resp: spot_check_pb2.SpotCheckFeedbackResponse) -> typing.Tuple[bool, str]:
         """Check for errors in the feedback response"""

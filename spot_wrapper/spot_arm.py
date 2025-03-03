@@ -24,7 +24,8 @@ from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.util import seconds_to_duration
 
-from spot_wrapper.wrapper_helpers import ClaimAndPowerDecorator, RobotState
+from spot_wrapper.spot_leash import SpotLeashContextProtocol
+from spot_wrapper.wrapper_helpers import RobotState
 
 
 class SpotArm:
@@ -36,8 +37,8 @@ class SpotArm:
         robot_command_client: RobotCommandClient,
         manipulation_api_client: ManipulationApiClient,
         robot_state_client: RobotStateClient,
+        spot_leash_context: SpotLeashContextProtocol,
         max_command_duration: float,
-        claim_and_power_decorator: ClaimAndPowerDecorator,
     ) -> None:
         """
         Constructor for SpotArm class.
@@ -49,7 +50,6 @@ class SpotArm:
             manipulation_api_client: Command client to send manipulation commands to the robot
             robot_state_client: Client to retrieve state of the robot
             max_command_duration: Maximum duration for commands when using the manipulation command method
-            claim_and_power_decorator: Object to use to decorate the functions on this object
         """
         self._robot = robot
         self._logger = logger
@@ -58,10 +58,10 @@ class SpotArm:
         self._robot_command_client = robot_command_client
         self._manipulation_api_client = manipulation_api_client
         self._robot_state_client = robot_state_client
-        self._claim_and_power_decorator = claim_and_power_decorator
-        self._claim_and_power_decorator.decorate_functions(
+
+        spot_leash_context.bind(
             self,
-            decorated_funcs=[
+            [
                 self.ensure_arm_power_and_stand,
                 self.arm_stow,
                 self.arm_unstow,
