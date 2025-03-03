@@ -145,7 +145,6 @@ class SpotLeash(SpotLeashProtocol):
         return True
 
     def grab(self, force: bool = False) -> Tuple[bool, Optional[Lease]]:
-        """Take lease for the robot, which may have been taken already."""
         if self._always_take or force:
             lease = self._lease_client.take()
         else:
@@ -164,7 +163,6 @@ class SpotLeash(SpotLeashProtocol):
         self.release()
 
     def release(self) -> None:
-        """Return the lease on the body."""
         if self._lease:
             self._lease_keepalive.shutdown()
             self._lease_keepalive = None
