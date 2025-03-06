@@ -149,9 +149,7 @@ class SpotLeash(SpotLeashProtocol):
             lease = self._lease_client.take()
         else:
             lease = self._lease_client.acquire()
-        have_new_lease = self._lease is not None and (
-            self._lease is None or str(lease.lease_proto) != str(self._lease.lease_proto)
-        )
+        have_new_lease = self._lease is None or str(lease.lease_proto) != str(self._lease.lease_proto)
         if have_new_lease:
             if self._lease_keepalive is not None:
                 self._lease_keepalive.shutdown()
