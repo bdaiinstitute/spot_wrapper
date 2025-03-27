@@ -9,6 +9,7 @@ import queue
 import sys
 import threading
 import typing
+import weakref
 from abc import ABC, abstractmethod
 
 import grpc
@@ -355,6 +356,11 @@ class DeferredRpcHandler(ForwardingWrapper):
             """Call details, if complete and failed."""
             return self._details
 
+        @property
+        def completed(self) -> bool:
+            """Whether call is complete or not."""
+            return self._completed
+
         def wait_for_completion(self, timeout: typing.Optional[float] = None) -> bool:
             """
             Waits for call completion.
@@ -523,9 +529,16 @@ class DeferredRpcHandler(ForwardingWrapper):
         super().__init__(handler)
         self._future = DeferredRpcHandler.Future()
         self._callqueue: queue.SimpleQueue = queue.SimpleQueue()
+        self._callset: weakref.WeakSet = weakref.WeakSet()
 
     def shutdown(self) -> None:
         """Shutdown handler, aborting all pending calls."""
+        for call in self._callset:
+            if not call.completed:
+                if "PYTEST_CURRENT_TEST" in os.environ:
+                    logging.warning(f"{self.__name__} call not completed, aborted during shutdown")
+                call.fails(grpc.StatusCode.ABORTED, "call aborted")
+        self._callset.clear()
         while not self._callqueue.empty():
             call = self._callqueue.get_nowait()
             if "PYTEST_CURRENT_TEST" in os.environ:
@@ -549,7 +562,9 @@ class DeferredRpcHandler(ForwardingWrapper):
             a deferred call to be served or none on timeout.
         """
         try:
-            return self._callqueue.get(timeout=timeout)
+            call = self._callqueue.get(timeout=timeout)
+            self._callset.add(call)
+            return call
         except queue.Empty:
             return None
 
