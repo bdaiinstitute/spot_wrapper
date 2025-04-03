@@ -997,6 +997,10 @@ class SpotWrapper:
             on the ground first
         """
         try:
+            if self._estop_keepalive is None:
+                self._logger.warning("Software e-stop keepalive does not exist; creating one now and asserting e-stop.")
+                self.resetEStop()
+
             if severe:
                 self._estop_keepalive.stop()
             else:
