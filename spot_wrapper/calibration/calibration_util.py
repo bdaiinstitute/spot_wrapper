@@ -544,7 +544,7 @@ def calibrate_single_camera_charuco(
     charuco_board: cv2.aruco_CharucoBoard = SPOT_DEFAULT_CHARUCO,
     aruco_dict: cv2.aruco_Dictionary = SPOT_DEFAULT_ARUCO_DICT,
     debug_str: str = "",
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[int]]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Calibrate a monocular camera from a charuco board.
 
@@ -562,14 +562,12 @@ def calibrate_single_camera_charuco(
         ValueError: Not enough data to calibrate
 
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[int]]:
-            camera matrix, distortion coefficients, rotation matrices, tvecs, valid image indices
+        Tuple[np.ndarray, np.ndarray]: the camera matrix, distortion coefficients,
+        rotation matrices, tvecs
     """
     all_corners = []
     all_ids = []
-    valid_indices = []
     img_size = None
-
     for idx, img in enumerate(images):
         if img_size is None:
             img_size = img.shape[:2][::-1]
@@ -579,19 +577,19 @@ def calibrate_single_camera_charuco(
         if charuco_corners is not None and len(charuco_corners) >= 8:
             all_corners.append(charuco_corners)
             all_ids.append(charuco_ids)
-            valid_indices.append(idx)
         else:
             logger.warning(f"Not enough corners detected in image index {idx} {debug_str}; ignoring")
 
     if len(all_corners) > 1:
         obj_points_all = []
         img_points = []
+        ids = []
         for corners, ids in zip(all_corners, all_ids):
             obj_points = get_charuco_board_object_points(charuco_board, ids)
             obj_points_all.append(obj_points)
             img_points.append(corners)
-
         logger.info(f"About to process {len(obj_points_all)} points for single camera cal | {debug_str}")
+        # Long term improvement: could pull tvec for use to localize camera relative to robot?
         _, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(  # use LU flag critical for speed
             obj_points_all,
             img_points,
@@ -601,7 +599,7 @@ def calibrate_single_camera_charuco(
             flags=cv2.CALIB_USE_LU,
         )
         rmats = np.array([cv2.Rodrigues(rvec)[0] for rvec in rvecs])
-        return camera_matrix, dist_coeffs, rmats, tvecs, valid_indices
+        return camera_matrix, dist_coeffs, rmats, tvecs
     else:
         raise ValueError(f"Not enough valid points to individually calibrate {debug_str}")
 
@@ -649,21 +647,21 @@ def stereo_calibration_charuco(
     """
     if camera_matrix_origin is None or dist_coeffs_origin is None:
         logger.info("Calibrating Origin Camera individually")
-        (camera_matrix_origin, dist_coeffs_origin, rmats_origin, tvecs_origin, valid_indices_origin) = (
-            calibrate_single_camera_charuco(
-                images=origin_images,
-                charuco_board=charuco_board,
-                aruco_dict=aruco_dict,
-                debug_str="for origin camera",
-            )
+        (camera_matrix_origin, dist_coeffs_origin, rmats_origin, tvecs_origin) = calibrate_single_camera_charuco(
+            images=origin_images,
+            charuco_board=charuco_board,
+            aruco_dict=aruco_dict,
+            debug_str="for origin camera",
         )
     if camera_matrix_reference is None or dist_coeffs_origin is None:
         logger.info("Calibrating reference Camera individually ")
-        (camera_matrix_reference, dist_coeffs_reference, _, _, _) = calibrate_single_camera_charuco(
-            images=reference_images,
-            charuco_board=charuco_board,
-            aruco_dict=aruco_dict,
-            debug_str="for reference camera",
+        (camera_matrix_reference, dist_coeffs_reference, rmats_reference, tvecs_reference) = (
+            calibrate_single_camera_charuco(
+                images=reference_images,
+                charuco_board=charuco_board,
+                aruco_dict=aruco_dict,
+                debug_str="for reference camera",
+            )
         )
 
     if camera_matrix_origin is None or camera_matrix_reference is None:
@@ -675,7 +673,15 @@ def stereo_calibration_charuco(
     all_ids_reference = []
     img_size = None
 
-    for origin_img, reference_img in zip(origin_images, reference_images):
+    no_poses = poses is None
+    if no_poses:  # fill up poses with dummy values so that you can iterate over poses
+        # with images zip(origin_images, reference_images, poses) together regardless of if poses
+        # are actually supplied (for the sake of brevity)
+        poses = [x for x in range(len(origin_images))]
+    else:
+        filtered_poses = []
+
+    for origin_img, reference_img, pose in zip(origin_images, reference_images, poses):
         if img_size is None:
             img_size = origin_img.shape[:2][::-1]
 
@@ -684,6 +690,8 @@ def stereo_calibration_charuco(
             reference_img, charuco_board, aruco_dict
         )
 
+        if not no_poses and origin_charuco_corners is not None:  # Only want to use poses that have a matching tvec/rmat
+            filtered_poses.append(pose)  # no matching tvec/rmat if the corners are not found in the image.
         if origin_charuco_corners is not None and reference_charuco_corners is not None:
             all_corners_origin.append(origin_charuco_corners)
             all_corners_reference.append(reference_charuco_corners)
@@ -723,7 +731,11 @@ def stereo_calibration_charuco(
                 camera_matrix_reference,
                 dist_coeffs_reference,
                 img_size,
-                criteria=(cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, 100, 1e-6),
+                criteria=(
+                    cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS,
+                    100,
+                    1e-6,
+                ),
                 flags=cv2.CALIB_USE_LU,
             )
             logger.info("Stereo calibration completed.")
@@ -738,53 +750,31 @@ def stereo_calibration_charuco(
                 "T": T,
             }
 
-            if poses is not None:
+            if not no_poses:
                 logger.info("Attempting hand-eye calibation....")
-                try:
-                    # We cache camera matrices, but hard to elegantly cache localizations
-                    # This checks if we need to recompute real quick
-                    valid_indices_origin
-                except UnboundLocalError:
-                    logger.warning("!Could not cache localizations, recomputing")
-                    logger.info("Calibrating Origin Camera individually")
-                    (camera_matrix_origin, dist_coeffs_origin, rmats_origin, tvecs_origin, valid_indices_origin) = (
-                        calibrate_single_camera_charuco(
-                            images=origin_images,
-                            charuco_board=charuco_board,
-                            aruco_dict=aruco_dict,
-                            debug_str="for origin camera",
-                        )
-                    )
-                # Filter poses using valid indices from origin camera calibration
-                filtered_poses = np.array([poses[i] for i in valid_indices_origin])
-
-                # Need at least 4 poses for a good hand-eye calibration
-                if len(filtered_poses) < 4:
-                    logger.warning(
-                        f"Not enough poses for hand-eye calibration. Found {len(filtered_poses)}, need at least 4"
-                    )
-                    return result_dict
-
-                # Convert to numpy arrays
+                # filtered_poses = np.array([np.linalg.inv(pose) for pose in filtered_poses])
+                filtered_poses = np.array(filtered_poses)
+                # Use the filtered poses for the target-to-camera transformation
                 R_gripper2base = np.array([pose[:3, :3] for pose in filtered_poses])
                 t_gripper2base = np.array([pose[:3, 3] for pose in filtered_poses])
-                R_target2cam = np.array(rmats_origin)
-                t_target2cam = np.array(tvecs_origin)
 
                 R_handeye, T_handeye = cv2.calibrateHandEye(
                     R_gripper2base=R_gripper2base,
                     t_gripper2base=t_gripper2base,
-                    R_target2cam=R_target2cam,
-                    t_target2cam=t_target2cam,
+                    R_target2cam=rmats_origin,
+                    t_target2cam=tvecs_origin,
                     method=cv2.CALIB_HAND_EYE_DANIILIDIS,
                 )
+                robot_to_cam = np.eye(4)  # Initialize 4x4 identity matrix
+                robot_to_cam[:3, :3] = R_handeye  # Populate rotation
+                robot_to_cam[:3, 3] = T_handeye.flatten()  # Populate translation
 
-                robot_to_cam = np.eye(4)
-                robot_to_cam[:3, :3] = R_handeye
-                robot_to_cam[:3, 3] = T_handeye.flatten()
+                # Invert the homogeneous matrix
                 cam_to_robot = np.linalg.inv(robot_to_cam)
-                camera_to_robot_R = cam_to_robot[:3, :3]
-                camera_to_robot_T = cam_to_robot[:3, 3]
+
+                # Extract rotation and translation from the inverted matrix
+                camera_to_robot_R = cam_to_robot[:3, :3]  # Extract rotation
+                camera_to_robot_T = cam_to_robot[:3, 3]  # Extract translation
                 logger.info("Hand-eye calibration completed.")
 
                 # Add the hand-eye calibration results to the final result dictionary
@@ -1031,59 +1021,35 @@ def load_dataset_from_path(path: str) -> Tuple[np.ndarray, Optional[np.ndarray]]
     """
 
     def alpha_numeric(x):
-        return re.search(r"(\d+)(?=\D*$)", x).group() if re.search(r"(\d+)(?=\D*$)", x) else x
+        return re.search("(\\d+)(?=\\D*$)", x).group() if re.search("(\\d+)(?=\\D*$)", x) else x
 
     # List all directories within the given path and sort them
     dirs = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
     if len(dirs) == 0:
         raise ValueError("No sub-dirs found in datapath from which to load images.")
+    dirs = sorted(dirs, key=alpha_numeric)  # Assuming dir names are integers like "0", "1", etc.
 
-    # Separate 'poses' directory from image directories
-    image_dirs = [d for d in dirs if d != "poses"]
-    image_dirs = sorted(image_dirs, key=alpha_numeric)
-
-    if not image_dirs:
-        raise ValueError("No image directories found after filtering")
-
-    # First check number of images in first directory
-    first_dir = os.path.join(path, image_dirs[0])
-    reference_files = sorted(glob(os.path.join(first_dir, "*")), key=alpha_numeric)
-    num_images = len(reference_files)
-    num_dirs = len(image_dirs)
-
-    if num_images == 0:
-        raise ValueError(f"No images found in reference directory: {first_dir}")
-
-    # Pre-allocate the numpy array with the correct shape
-    # Shape: (num_images, num_dirs), where each element will be a numpy array
-    images = np.empty((num_images, num_dirs), dtype=object)
+    # Initialize an empty list to store images
+    images = []
     poses = None
 
-    # Load images into pre-allocated array
-    for dir_idx, dir_name in enumerate(image_dirs):
-        dir_path = os.path.join(path, dir_name)
-        files = sorted(glob(os.path.join(dir_path, "*")), key=alpha_numeric)
+    for dir_name in dirs:
+        path_match = os.path.join(path, dir_name, "*")
+        files = sorted(
+            glob(path_match),
+            key=alpha_numeric,
+        )
+        if dir_name != "poses":
+            # Read images and store them
+            images.append([cv2.imread(fn) for fn in files])
+        else:
+            poses = np.array([np.load(fn) for fn in files])
 
-        if len(files) != num_images:
-            raise ValueError(
-                f"Inconsistent number of images in directory {dir_name}. Expected {num_images}, found {len(files)}"
-            )
-
-        for img_idx, file_path in enumerate(files):
-            img = cv2.imread(file_path)
-            if img is None:
-                raise ValueError(f"Failed to load image: {file_path}")
-            images[img_idx, dir_idx] = img
-
-    # Load poses if available
-    poses_dir = os.path.join(path, "poses")
-    if os.path.exists(poses_dir):
-        pose_files = sorted(glob(os.path.join(poses_dir, "*")), key=alpha_numeric)
-        if pose_files:
-            try:
-                poses = np.array([np.load(fn) for fn in pose_files])
-            except Exception as e:
-                raise ValueError(f"Failed to load poses: {str(e)}")
+    # Convert the list of lists into a NumPy array
+    # The array shape will be (number_of_images, number_of_directories)
+    images = np.array(images, dtype=object)
+    # Transpose the array so that you can access it as images[:, axis]
+    images = np.transpose(images, (1, 0))
 
     return images, poses
 

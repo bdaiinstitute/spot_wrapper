@@ -230,7 +230,6 @@ If you'd like to register camera 1 to camera 0, and camera 2 to camera 0, you co
 python3 calibrate_multistereo_cameras_with_charuco_cli.py --data_path ~/existing_dataset/ \
 --result_path ~/existing_dataset/eye_in_hand_calib.yaml --photo_utilization_ratio 1 --stereo_pairs "[(1,0), (2, 0)]" \
 --legacy_charuco_pattern=SUPPLY_CHECK_BOARD_FLAG_TO_SEE_IF_LEGACY_NEEDED \
---allow_default_internal_corner_ordering \
 --tag default --unsafe_tag_save
 ```
 
