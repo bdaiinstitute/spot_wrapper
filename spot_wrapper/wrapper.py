@@ -1352,7 +1352,7 @@ class SpotWrapper:
             true, the robot must complete its final positioning before it will be considered to have successfully
             reached the goal.
             mobility_params: Mobility parameters to send along with this command
-            disable_vision_body_obstacle_avoidance: flag to easier set mobility_params.obstacle_params flag above
+            disable_vision_body_obstacle_avoidance: flag to easily set mobility_params.obstacle_params flag above
 
         Returns:
             (bool, str) tuple indicating whether the command was successfully sent, and a message
@@ -1360,9 +1360,11 @@ class SpotWrapper:
         if mobility_params is None:
             mobility_params = self._mobility_params
         if disable_vision_body_obstacle_avoidance:
-            self._logger.error("Caution: attempting to send mobility trajectory without obstacle avoidance")
-            mobility_params.obstacle_params.disable_vision_body_obstacle_avoidance = disable_vision_body_obstacle_avoidance
-        
+            self._logger.warning("Caution: attempting to send mobility trajectory without obstacle avoidance")
+            mobility_params.obstacle_params.disable_vision_body_obstacle_avoidance = (
+                disable_vision_body_obstacle_avoidance
+            )
+
         self._trajectory_status_unknown = False
         self.trajectory_complete = False
         self.stopped = False
