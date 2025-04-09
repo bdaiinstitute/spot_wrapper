@@ -1,6 +1,7 @@
 # Copyright (c) 2023 Boston Dynamics AI Institute LLC. See LICENSE file for more info.
 
 import collections.abc
+import concurrent.futures
 import inspect
 import logging
 import math
@@ -88,7 +89,14 @@ def collect_service_types(servicer: typing.Any) -> typing.Iterable[str]:
     yield from accumulator.service_types
 
 
-class AutoServicer(object):
+class BaseServicer:
+    def add_to(self, server: grpc.Server) -> None:
+        """Adds all service handlers to server."""
+        for add in collect_servicer_add_functions(self.__class__):
+            add(self, server)
+
+
+class AutoServicer(BaseServicer):
     """
     A mocking gRPC servicer to ease testing.
 
@@ -157,11 +165,6 @@ class AutoServicer(object):
                         underlying_callable = AutoCompletingUnaryUnaryRpcHandler(underlying_callable)
                     if underlying_callable is not handler.unary_unary:
                         setattr(self, unqualified_name, underlying_callable)
-
-    def add_to(self, server: grpc.Server) -> None:
-        """Adds all service handlers to server."""
-        for add in collect_servicer_add_functions(self.__class__):
-            add(self, server)
 
     def __enter__(self):
         return self
@@ -599,3 +602,84 @@ class DeferredStreamRpcHandler(DeferredRpcHandler):
             yield from call.response
         else:
             context.abort(call.code, call.details)
+
+
+class BackServicer(typing.Protocol):
+    """Protocol for a servicer that can handle back requests, typically from a proxy."""
+
+    def submit(self, request: typing.Any) -> concurrent.futures.Future:
+        """Submit a unary or streaming request.
+
+        Returns a future unary or streaming response.
+        """
+
+
+class ReverseProxyServicer(BaseServicer):
+    """
+    A gRPC servicer reverse proxy to relay requests.
+
+    Attributes:
+        proxy_services: optional set of services to reverse proxy.
+        If none is provided, proxy will apply to all found services.
+    """
+
+    proxy_services: typing.Optional[typing.Set[str]] = None
+
+    def __init__(self, *args, server: BackServicer, **kwargs) -> None:
+        """Initializes the reverse proxy, binding to the given `server`."""
+        super().__init__(*args, **kwargs)
+        for endpoint_name, handler in collect_method_handlers(self):
+            service_name, _, method_name = endpoint_name.rpartition("/")
+            if self.proxy_services is not None:
+                if not any(proxy_service_name.endswith(service_name) for proxy_service_name in self.proxy_services):
+                    continue
+            proxy_cls: typing.Type
+            if handler.response_streaming:
+                if handler.request_streaming:
+                    underlying_callable = handler.stream_stream
+                else:
+                    underlying_callable = handler.unary_stream
+                proxy_cls = ProxiedStreamRpcHandler
+            else:
+                if handler.request_streaming:
+                    underlying_callable = handler.stream_unary
+                else:
+                    underlying_callable = handler.unary_unary
+                proxy_cls = ProxiedUnaryRpcHandler
+            if implemented(underlying_callable):
+                raise RuntimeError(f"{endpoint_name} is already implemented")
+            setattr(self, method_name, proxy_cls(server, underlying_callable))
+
+
+class ProxiedRpcHandler(ABC):
+    """A generic gRPC handler that proxies requests."""
+
+    def __init__(self, server: BackServicer, stub: typing.Callable) -> None:
+        for name in ("__module__", "__name__", "__qualname__", "__doc__", "__annotations__", "__type_params__"):
+            try:
+                value = getattr(stub, name)
+            except AttributeError:
+                pass
+            else:
+                setattr(self, name, value)
+        self._server = server
+
+    @abstractmethod
+    def __call__(self, request: typing.Any, context: grpc.ServicerContext) -> typing.Any:
+        ...
+
+
+class ProxiedUnaryRpcHandler(ProxiedRpcHandler):
+    """A gRPC any-unary handler that proxies requests."""
+
+    def __call__(self, request: typing.Any, context: grpc.ServicerContext) -> typing.Any:
+        future = self._server.submit(request)
+        return future.result(timeout=context.time_remaining())
+
+
+class ProxiedStreamRpcHandler(ProxiedRpcHandler):
+    """A gRPC any-stream handler that proxies requests."""
+
+    def __call__(self, request: typing.Any, context: grpc.ServicerContext) -> typing.Any:
+        future = self._server.submit(request)
+        yield from future.result(timeout=context.time_remaining())

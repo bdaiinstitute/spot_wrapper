@@ -13,28 +13,29 @@ from spot_wrapper.testing.credentials import (
     DEFAULT_TESTING_CERTIFICATES,
     SpotSSLCertificates,
 )
-from spot_wrapper.testing.mocks import BaseMockSpot
+from spot_wrapper.testing.services import BaseSpotServicer
 
 
 @dataclasses.dataclass
 class SpotFixture:
     """
-    A fixture that emulates a Spot robot.
+    A fixture that provides Spot robot services.
 
     Attributes:
-        address: address for the emulated Spot robot gRPC server.
-        port: port for the emulated Spot robot gRPC server.
-        api: mocked API for the emulated Spot robot.
+        address: address of the underlying gRPC server.
+        port: port of the underlying gRPC server.
+        certificate_path: SSL certificates used by the underlying gRPC server.
+        api: access to Spot services implementation.
     """
 
     address: str
     port: int
     certificate_path: pathlib.Path
-    api: BaseMockSpot
+    api: BaseSpotServicer
 
 
 def fixture(
-    cls: typing.Optional[typing.Type[BaseMockSpot]] = None,
+    cls: typing.Optional[typing.Type[BaseSpotServicer]] = None,
     *,
     address: str = "127.0.0.1",
     max_workers: int = 10,
@@ -42,24 +43,22 @@ def fixture(
     **kwargs: typing.Any,
 ) -> typing.Callable:
     """
-    A `pytest.fixture` of a mocked Spot robot.
+    Spot robot services as a `pytest.fixture`.
 
-    This function takes a Spot mock class by decorating it. Spot mock classes may
-    request parameters like any `pytest.fixture` would do by specifying them in their
-    __init__ methods.
-
-    Mocked Spot robots are served through insecure gRPC channels. To enable Spot SDK
-    use, this fixture patches gRPC secure channel creation, forcing them to be insecure.
+    This function takes class that implements Spot robot services by decorating it.
+    Such classes request parameters like any `pytest.fixture` would do by specifying
+    them in their __init__ methods.
 
     Args:
-        address: address for underlying gRPC server.
-        port: port number for underlying gRPC server.
+        address: address for the underlying gRPC server.
+        port: port number for the underlying gRPC server.
+        certificate_path: SSL certificates for the the underlying gRPC server.
         max_workers: maximum number of threads to use for gRPC call servicing.
 
     Other keyword arguments are forwarded to `pytest.fixture`.
     """
 
-    def decorator(cls: typing.Type[BaseMockSpot]) -> typing.Callable:
+    def decorator(cls: typing.Type[BaseSpotServicer]) -> typing.Callable:
         def fixturefunc(**kwargs) -> typing.Iterator[SpotFixture]:
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as thread_pool:
                 server = grpc.server(thread_pool)
