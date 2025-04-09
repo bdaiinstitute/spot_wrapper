@@ -680,6 +680,6 @@ class ProxiedUnaryRpcHandler(ProxiedRpcHandler):
 class ProxiedStreamRpcHandler(ProxiedRpcHandler):
     """A gRPC any-stream handler that proxies requests."""
 
-    def __call__(self, request: typing.Any, context: grpc.ServicerContext) -> typing.Any:
+    def __call__(self, request: typing.Any, context: grpc.ServicerContext) -> typing.Iterator:
         future = self._server.submit(request)
         yield from future.result(timeout=context.time_remaining())
