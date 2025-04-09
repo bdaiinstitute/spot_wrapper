@@ -45,7 +45,7 @@ def fixture(
     """
     Spot robot services as a `pytest.fixture`.
 
-    This function takes class that implements Spot robot services by decorating it.
+    This function decorates a class that implements Spot robot services.
     Such classes request parameters like any `pytest.fixture` would do by specifying
     them in their __init__ methods.
 
