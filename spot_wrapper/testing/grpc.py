@@ -25,8 +25,12 @@ def implemented(function: typing.Callable) -> bool:
 
     To do so, its source code is inspected looking for NotImplementedError exception use.
     """
+    if not callable(function):
+        raise ValueError(f"{function} is not a callable")
     if inspect.ismethod(function):
         function = function.__func__
+    if not inspect.isfunction(function):
+        return True  # generic callable, assume implemented
     if not hasattr(function, "__code__"):
         raise ValueError(f"no code associated to {function}")
     return "NotImplementedError" not in function.__code__.co_names
@@ -631,7 +635,7 @@ class ReverseProxyServicer(BaseServicer):
         for endpoint_name, handler in collect_method_handlers(self):
             service_name, _, method_name = endpoint_name.rpartition("/")
             if self.proxy_services is not None:
-                if not any(proxy_service_name.endswith(service_name) for proxy_service_name in self.proxy_services):
+                if not any(service_name.endswith(proxy_service_name) for proxy_service_name in self.proxy_services):
                     continue
             proxy_cls: typing.Type
             if handler.response_streaming:
