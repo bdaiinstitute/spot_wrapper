@@ -45,7 +45,8 @@ class AsyncPointCloudService(AsyncPeriodicQuery):
 
         if self._callback is not None and len(self._point_cloud_requests) > 0:
             callback_future = self._client.get_point_cloud_async(self._point_cloud_requests)
-            callback_future.add_done_callback(self._callback)
+            #callback_future.add_done_callback(self._callback)
+            callback_future.add_done_callback(lambda future: self._callback(future.result()))
             return callback_future
 
 
