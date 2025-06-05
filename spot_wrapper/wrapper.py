@@ -129,7 +129,7 @@ class AsyncRobotState(AsyncPeriodicQuery):
     def _start_query(self):
         if self._callback:
             callback_future = self._client.get_robot_state_async()
-            callback_future.add_done_callback(self._callback)
+            callback_future.add_done_callback(lambda future: self._callback(future.result()))
             return callback_future
 
 
@@ -153,7 +153,7 @@ class AsyncMetrics(AsyncPeriodicQuery):
     def _start_query(self):
         if self._callback:
             callback_future = self._client.get_robot_metrics_async()
-            callback_future.add_done_callback(self._callback)
+            callback_future.add_done_callback(lambda future: self._callback(future.result()))
             return callback_future
 
 

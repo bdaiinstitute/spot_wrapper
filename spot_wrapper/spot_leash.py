@@ -90,7 +90,7 @@ class AsyncLease(AsyncPeriodicQuery):
     def _start_query(self):
         if self._callback:
             callback_future = self._client.list_leases_async()
-            callback_future.add_done_callback(self._callback)
+            callback_future.add_done_callback(lambda future: self._callback(future.result()))
             return callback_future
 
 
