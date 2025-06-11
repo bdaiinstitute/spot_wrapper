@@ -42,7 +42,7 @@ class AsyncWorldObjects(AsyncPeriodicQuery):
     def _start_query(self) -> typing.Optional[FutureWrapper]:
         if self._callback:
             callback_future = self._client.list_world_objects_async()
-            callback_future.add_done_callback(self._callback)
+            callback_future.add_done_callback(lambda future: self._callback(future.result()))
             return callback_future
 
 
