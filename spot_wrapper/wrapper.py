@@ -1275,7 +1275,13 @@ class SpotWrapper:
         return self._mobility_params
 
     def velocity_cmd(
-        self, v_x: float, v_y: float, v_rot: float, cmd_duration: float = 0.125, body_height: float = 0.0
+        self,
+        v_x: float,
+        v_y: float,
+        v_rot: float,
+        cmd_duration: float = 0.125,
+        body_height: float = 0.0,
+        use_obstacle_params: bool = False,
     ) -> typing.Tuple[bool, str]:
         """
 
@@ -1288,6 +1294,7 @@ class SpotWrapper:
             cmd_duration: (optional) Time-to-live for the command in seconds.  Default is 125ms (assuming 10Hz command
                           rate).
             body_height: Offset of the body relative to nominal stand height, in metres
+            use_obstacle_params: (Optional) Flag to include the current obstacle_params. Default is False
 
         Returns:
             Tuple of bool success and a string message
@@ -1302,6 +1309,8 @@ class SpotWrapper:
                 external_force_params=current_mobility_params.external_force_params,
                 stairs_mode=current_mobility_params.stairs_mode,
             )
+            if use_obstacle_params:
+                height_adjusted_params.obstacle_params.CopyFrom(current_mobility_params.obstacle_params)
             self.set_mobility_params(height_adjusted_params)
         response = self._robot_command(
             RobotCommandBuilder.synchro_velocity_command(v_x=v_x, v_y=v_y, v_rot=v_rot, params=self._mobility_params),
