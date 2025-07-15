@@ -520,7 +520,12 @@ class SpotArm:
         return True, "Moved arm successfully"
 
     def handle_arm_velocity(
-        self, arm_velocity_command: arm_command_pb2.ArmVelocityCommand.Request, cmd_duration: float = 0.15
+        self, 
+        cylindrical_velocity_command: arm_command_pb2.ArmVelocityCommand.CylindricalVelocity,
+        angular_velocity_of_hand_rt_odom_in_hand: geometry_pb2.Vec3,
+        seconds: int,
+        nanoseconds: int,
+        cmd_duration: float = 0.15
     ) -> typing.Tuple[bool, str]:
         """
         Set the velocity of the arm TCP
@@ -539,13 +544,13 @@ class SpotArm:
                 self._logger.info(msg)
                 return False, msg
             else:
-                end_time = self._robot.time_sync.robot_timestamp_from_local_secs(time.time() + cmd_duration)
+                float_time = seconds + nanoseconds * 1e-9
+                end_time = self._robot.time_sync.robot_timestamp_from_local_secs(float_time)
 
                 arm_velocity_command2 = arm_command_pb2.ArmVelocityCommand.Request(
-                    cylindrical_velocity=arm_velocity_command.cylindrical_velocity,
-                    angular_velocity_of_hand_rt_odom_in_hand=arm_velocity_command.angular_velocity_of_hand_rt_odom_in_hand,
-                    cartesian_velocity=arm_velocity_command.cartesian_velocity,
-                    maximum_acceleration=arm_velocity_command.maximum_acceleration,
+                    cylindrical_velocity= cylindrical_velocity_command,
+                    angular_velocity_of_hand_rt_odom_in_hand= angular_velocity_of_hand_rt_odom_in_hand,
+                    # The end time is set to the current time plus the command duration
                     end_time=end_time,
                 )
 
