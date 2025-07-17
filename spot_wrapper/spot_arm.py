@@ -540,17 +540,10 @@ class SpotArm:
                 return False, msg
             else:
                 end_time = self._robot.time_sync.robot_timestamp_from_local_secs(time.time() + cmd_duration)
-
-                arm_velocity_command2 = arm_command_pb2.ArmVelocityCommand.Request(
-                    cylindrical_velocity=arm_velocity_command.cylindrical_velocity,
-                    angular_velocity_of_hand_rt_odom_in_hand=arm_velocity_command.angular_velocity_of_hand_rt_odom_in_hand,
-                    cartesian_velocity=arm_velocity_command.cartesian_velocity,
-                    maximum_acceleration=arm_velocity_command.maximum_acceleration,
-                    end_time=end_time,
-                )
+                arm_velocity_command.end_time.CopyFrom(end_time)
 
                 robot_command = robot_command_pb2.RobotCommand()
-                robot_command.synchronized_command.arm_command.arm_velocity_command.CopyFrom(arm_velocity_command2)
+                robot_command.synchronized_command.arm_command.arm_velocity_command.CopyFrom(arm_velocity_command)
 
                 self._robot_command_client.robot_command(
                     command=robot_command, end_time_secs=time.time() + cmd_duration
