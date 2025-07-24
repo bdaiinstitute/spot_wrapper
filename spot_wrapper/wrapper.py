@@ -5,7 +5,10 @@ import typing
 
 import bosdyn.client.auth
 from bosdyn.api import (
+    arm_surface_contact_pb2,
+    arm_surface_contact_service_pb2,
     basic_command_pb2,
+    header_pb2,
     lease_pb2,
     manipulation_api_pb2,
     point_cloud_pb2,
@@ -32,6 +35,7 @@ from bosdyn.client import (
     frame_helpers,
     math_helpers,
 )
+from bosdyn.client.arm_surface_contact import ArmSurfaceContactClient
 from bosdyn.client.async_tasks import AsyncPeriodicQuery, AsyncTasks
 from bosdyn.client.docking import DockingClient
 from bosdyn.client.estop import (
@@ -489,10 +493,15 @@ class SpotWrapper:
                     self._manipulation_api_client = self._robot.ensure_client(
                         ManipulationApiClient.default_service_name
                     )
+                    self._arm_surface_contact_client = self._robot.ensure_client(
+                        ArmSurfaceContactClient.default_service_name
+                    )
                 else:
                     self._manipulation_api_client = None
-                    self._logger.info("Manipulation API is not available.")
-
+                    self._arm_surface_contact_client = None
+                    self._logger.info(
+                        "Manipulation and Arm Surface Contact APIs are not available (this robot doesn't have an arm)."
+                    )
                 initialised = True
             except Exception as e:
                 sleep_secs = 15
@@ -528,6 +537,7 @@ class SpotWrapper:
                 self.execute_dance,
                 self._robot_command,
                 self._manipulation_request,
+                self.arm_surface_contact_command,
             ],
         )
 
@@ -1445,6 +1455,29 @@ class SpotWrapper:
             end_time_secs=end_time,
             timesync_endpoint=self._robot.time_sync.endpoint,
         )
+
+    def arm_surface_contact_command(
+        self, request: arm_surface_contact_pb2.ArmSurfaceContact.Request
+    ) -> tuple[bool, str]:
+        """Generic function for sending arm surface contact commands.
+
+        Args:
+            request: Protobuf request
+
+        Returns: True/False on success/failure and a failure message
+        """
+        try:
+            response = self._arm_surface_contact_client.arm_surface_contact_command(
+                arm_surface_contact_service_pb2.ArmSurfaceContactCommand(request=request)
+            )
+            if (
+                response.header.error.code != header_pb2.CommonError.CODE_OK
+                and response.header.error.code != header_pb2.CommonError.CODE_UNSPECIFIED
+            ):
+                return False, f"Returned CommonError code {response.header.error.code}"
+            return True, "Success"
+        except Exception as e:
+            return False, str(e)
 
     def get_robot_command_feedback(self, cmd_id: int) -> robot_command_pb2.RobotCommandFeedbackResponse:
         return self._robot_command_client.robot_command_feedback(cmd_id)
