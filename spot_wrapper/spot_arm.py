@@ -2,13 +2,16 @@ import logging
 import time
 import typing
 
-from bosdyn.api import arm_command_pb2
-from bosdyn.api import geometry_pb2
-from bosdyn.api import gripper_command_pb2
-from bosdyn.api import manipulation_api_pb2
-from bosdyn.api import robot_command_pb2
-from bosdyn.api import synchronized_command_pb2
-from bosdyn.api import trajectory_pb2
+from bosdyn.api import (
+    arm_command_pb2,
+    geometry_pb2,
+    gripper_command_pb2,
+    manipulation_api_pb2,
+    robot_command_pb2,
+    synchronized_command_pb2,
+    trajectory_pb2,
+)
+from bosdyn.api.robot_state_pb2 import ManipulatorState
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.robot import Robot
 from bosdyn.client.robot_command import (
@@ -21,7 +24,8 @@ from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.util import seconds_to_duration
 
-from spot_wrapper.wrapper_helpers import RobotState, ClaimAndPowerDecorator
+from spot_wrapper.spot_leash import SpotLeashContextProtocol
+from spot_wrapper.wrapper_helpers import RobotState
 
 
 class SpotArm:
@@ -33,8 +37,8 @@ class SpotArm:
         robot_command_client: RobotCommandClient,
         manipulation_api_client: ManipulationApiClient,
         robot_state_client: RobotStateClient,
+        spot_leash_context: SpotLeashContextProtocol,
         max_command_duration: float,
-        claim_and_power_decorator: ClaimAndPowerDecorator,
     ) -> None:
         """
         Constructor for SpotArm class.
@@ -46,7 +50,6 @@ class SpotArm:
             manipulation_api_client: Command client to send manipulation commands to the robot
             robot_state_client: Client to retrieve state of the robot
             max_command_duration: Maximum duration for commands when using the manipulation command method
-            claim_and_power_decorator: Object to use to decorate the functions on this object
         """
         self._robot = robot
         self._logger = logger
@@ -55,10 +58,10 @@ class SpotArm:
         self._robot_command_client = robot_command_client
         self._manipulation_api_client = manipulation_api_client
         self._robot_state_client = robot_state_client
-        self._claim_and_power_decorator = claim_and_power_decorator
-        self._claim_and_power_decorator.decorate_functions(
+
+        spot_leash_context.bind(
             self,
-            decorated_funcs=[
+            [
                 self.ensure_arm_power_and_stand,
                 self.arm_stow,
                 self.arm_unstow,
@@ -104,9 +107,7 @@ class SpotArm:
         )
 
     def get_manipulation_command_feedback(self, cmd_id):
-        feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
-            manipulation_cmd_id=cmd_id
-        )
+        feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(manipulation_cmd_id=cmd_id)
 
         return self._manipulation_api_client.manipulation_api_feedback_command(
             manipulation_api_feedback_request=feedback_request
@@ -145,9 +146,7 @@ class SpotArm:
             timeout_sec: After this time, timeout regardless of what the robot state is
 
         """
-        block_until_arm_arrives(
-            self._robot_command_client, cmd_id=cmd_id, timeout_sec=timeout_sec
-        )
+        block_until_arm_arrives(self._robot_command_client, cmd_id=cmd_id, timeout_sec=timeout_sec)
 
     def arm_stow(self) -> typing.Tuple[bool, str]:
         """
@@ -227,18 +226,10 @@ class SpotArm:
         """Helper function to create a RobotCommand from an ArmJointTrajectory.
         Copy from 'spot-sdk/python/examples/arm_joint_move/arm_joint_move.py'"""
 
-        joint_move_command = arm_command_pb2.ArmJointMoveCommand.Request(
-            trajectory=arm_joint_trajectory
-        )
-        arm_command = arm_command_pb2.ArmCommand.Request(
-            arm_joint_move_command=joint_move_command
-        )
-        sync_arm = synchronized_command_pb2.SynchronizedCommand.Request(
-            arm_command=arm_command
-        )
-        arm_sync_robot_cmd = robot_command_pb2.RobotCommand(
-            synchronized_command=sync_arm
-        )
+        joint_move_command = arm_command_pb2.ArmJointMoveCommand.Request(trajectory=arm_joint_trajectory)
+        arm_command = arm_command_pb2.ArmCommand.Request(arm_joint_move_command=joint_move_command)
+        sync_arm = synchronized_command_pb2.SynchronizedCommand.Request(arm_command=arm_command)
+        arm_sync_robot_cmd = robot_command_pb2.RobotCommand(synchronized_command=sync_arm)
         return RobotCommandBuilder.build_synchro_command(arm_sync_robot_cmd)
 
     def arm_joint_move(self, joint_targets) -> typing.Tuple[bool, str]:
@@ -286,19 +277,15 @@ class SpotArm:
                 self._logger.info(msg)
                 return False, msg
             else:
-                trajectory_point = (
-                    RobotCommandBuilder.create_arm_joint_trajectory_point(
-                        joint_targets[0],
-                        joint_targets[1],
-                        joint_targets[2],
-                        joint_targets[3],
-                        joint_targets[4],
-                        joint_targets[5],
-                    )
+                trajectory_point = RobotCommandBuilder.create_arm_joint_trajectory_point(
+                    joint_targets[0],
+                    joint_targets[1],
+                    joint_targets[2],
+                    joint_targets[3],
+                    joint_targets[4],
+                    joint_targets[5],
                 )
-                arm_joint_trajectory = arm_command_pb2.ArmJointTrajectory(
-                    points=[trajectory_point]
-                )
+                arm_joint_trajectory = arm_command_pb2.ArmJointTrajectory(points=[trajectory_point])
                 arm_command = self.make_arm_trajectory_command(arm_joint_trajectory)
 
                 # Send the request
@@ -325,27 +312,17 @@ class SpotArm:
                 traj_duration = data.duration
 
                 # first point on trajectory
-                wrench0 = self.create_wrench_from_forces_and_torques(
-                    data.forces_pt0, data.torques_pt0
-                )
+                wrench0 = self.create_wrench_from_forces_and_torques(data.forces_pt0, data.torques_pt0)
                 t0 = seconds_to_duration(0)
-                traj_point0 = trajectory_pb2.WrenchTrajectoryPoint(
-                    wrench=wrench0, time_since_reference=t0
-                )
+                traj_point0 = trajectory_pb2.WrenchTrajectoryPoint(wrench=wrench0, time_since_reference=t0)
 
                 # Second point on the trajectory
-                wrench1 = self.create_wrench_from_forces_and_torques(
-                    data.forces_pt1, data.torques_pt1
-                )
+                wrench1 = self.create_wrench_from_forces_and_torques(data.forces_pt1, data.torques_pt1)
                 t1 = seconds_to_duration(traj_duration)
-                traj_point1 = trajectory_pb2.WrenchTrajectoryPoint(
-                    wrench=wrench1, time_since_reference=t1
-                )
+                traj_point1 = trajectory_pb2.WrenchTrajectoryPoint(wrench=wrench1, time_since_reference=t1)
 
                 # Build the trajectory
-                trajectory = trajectory_pb2.WrenchTrajectory(
-                    points=[traj_point0, traj_point1]
-                )
+                trajectory = trajectory_pb2.WrenchTrajectory(points=[traj_point0, traj_point1])
 
                 # Build the trajectory request, putting all axes into force mode
                 arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
@@ -358,17 +335,9 @@ class SpotArm:
                     ry_axis=arm_command_pb2.ArmCartesianCommand.Request.AXIS_MODE_FORCE,
                     rz_axis=arm_command_pb2.ArmCartesianCommand.Request.AXIS_MODE_FORCE,
                 )
-                arm_command = arm_command_pb2.ArmCommand.Request(
-                    arm_cartesian_command=arm_cartesian_command
-                )
-                synchronized_command = (
-                    synchronized_command_pb2.SynchronizedCommand.Request(
-                        arm_command=arm_command
-                    )
-                )
-                robot_command = robot_command_pb2.RobotCommand(
-                    synchronized_command=synchronized_command
-                )
+                arm_command = arm_command_pb2.ArmCommand.Request(arm_cartesian_command=arm_cartesian_command)
+                synchronized_command = synchronized_command_pb2.SynchronizedCommand.Request(arm_command=arm_command)
+                robot_command = robot_command_pb2.RobotCommand(synchronized_command=synchronized_command)
 
                 # Send the request
                 cmd_id = self._robot_command_client.robot_command(robot_command)
@@ -398,9 +367,7 @@ class SpotArm:
                 # Command issue with RobotCommandClient
                 cmd_id = self._robot_command_client.robot_command(command)
                 self._logger.info("Command gripper open sent")
-                self.block_until_gripper_command_completes(
-                    self._robot_command_client, cmd_id
-                )
+                self.block_until_gripper_command_completes(self._robot_command_client, cmd_id)
 
         except Exception as e:
             return False, f"Exception occured while gripper was moving: {e}"
@@ -426,16 +393,14 @@ class SpotArm:
                 # Command issue with RobotCommandClient
                 cmd_id = self._robot_command_client.robot_command(command)
                 self._logger.info("Command gripper close sent")
-                self.block_until_gripper_command_completes(
-                    self._robot_command_client, cmd_id
-                )
+                self.block_until_gripper_command_completes(self._robot_command_client, cmd_id)
 
         except Exception as e:
             return False, f"Exception occured while gripper was moving: {e}"
 
         return True, "Closed gripper successfully"
 
-    def gripper_angle_open(self, gripper_ang: float) -> typing.Tuple[bool, str]:
+    def gripper_angle_open(self, gripper_ang: float, ensure_power_on_and_stand: bool = True) -> typing.Tuple[bool, str]:
         """
         Takes an angle between 0 (closed) and 90 (fully opened) and opens the gripper at this angle
 
@@ -448,98 +413,102 @@ class SpotArm:
         if gripper_ang > 90 or gripper_ang < 0:
             return False, "Gripper angle must be between 0 and 90"
         try:
-            success, msg = self.ensure_arm_power_and_stand()
-            if not success:
-                self._logger.info(msg)
-                return False, msg
+            if ensure_power_on_and_stand:
+                success, msg = self.ensure_arm_power_and_stand()
+                if not success:
+                    self._logger.info(msg)
+                    return False, msg
             else:
-                # The open angle command does not take degrees but the limits
-                # defined in the urdf, that is why we have to interpolate
-                closed = 0.349066
-                opened = -1.396263
-                angle = gripper_ang / 90.0 * (opened - closed) + closed
-                command = RobotCommandBuilder.claw_gripper_open_angle_command(angle)
+                powered_on = self._robot.is_powered_on()
+                if not powered_on:
+                    return False, "Robot not powered on and will not force power on"
+                else:
+                    self._logger.info("Already powered on. Continuing")
 
-                # Command issue with RobotCommandClient
-                cmd_id = self._robot_command_client.robot_command(command)
-                self._logger.info("Command gripper open angle sent")
-                self.block_until_gripper_command_completes(
-                    self._robot_command_client, cmd_id
-                )
+            command = RobotCommandBuilder.claw_gripper_open_fraction_command(gripper_ang / 90.0)
+
+            # Command issue with RobotCommandClient
+            cmd_id = self._robot_command_client.robot_command(command)
+            self._logger.info("Command gripper open angle sent")
+            self.block_until_gripper_command_completes(self._robot_command_client, cmd_id)
 
         except Exception as e:
             return False, f"Exception occured while gripper was moving: {e}"
 
         return True, "Opened gripper successfully"
 
-    def hand_pose(self, data) -> typing.Tuple[bool, str]:
+    def hand_pose(
+        self,
+        *,
+        x: float,
+        y: float,
+        z: float,
+        qx: float,
+        qy: float,
+        qz: float,
+        qw: float,
+        duration: float | None = None,
+        ref_frame: str = "body",
+        ensure_power_on_and_stand: bool = True,
+        blocking: bool = True,
+    ) -> typing.Tuple[bool, str]:
         """
         Set the pose of the hand
 
         Args:
-            data:
+            x, y, z: float positions for the pose
+            qx, qy, qz, qw: float quaternion for the pose
+            duration: target duration of the trajectory, in seconds
+            ref_frame: base frame for the pose. This needs to be something Spot knows about, ie "body" or
+                "arm0.link_sh0" ensure_power_on_and_stand: bool for whether or not to ensure Spot is standing/powered on
+                before executing
 
         Returns:
             Boolean success, string message
         """
         try:
-            success, msg = self.ensure_arm_power_and_stand()
-            if not success:
-                self._logger.info(msg)
-                return False, msg
+            if ensure_power_on_and_stand:
+                success, msg = self.ensure_arm_power_and_stand()
+                if not success:
+                    self._logger.info(msg)
+                    return False, msg
             else:
-                pose_point = data.pose_point
-                # Move the arm to a spot in front of the robot given a pose for the gripper.
-                # Build a position to move the arm to (in meters, relative to the body frame origin.)
-                position = geometry_pb2.Vec3(
-                    x=pose_point.position.x,
-                    y=pose_point.position.y,
-                    z=pose_point.position.z,
-                )
+                powered_on = self._robot.is_powered_on()
+                if not powered_on:
+                    return False, "Robot not powered on and will not force power on"
 
-                # # Rotation as a quaternion.
-                rotation = geometry_pb2.Quaternion(
-                    w=pose_point.orientation.w,
-                    x=pose_point.orientation.x,
-                    y=pose_point.orientation.y,
-                    z=pose_point.orientation.z,
-                )
+            # Move the arm to a spot in front of the robot given a pose for the gripper.
+            # Build a position to move the arm to (in meters, relative to the body frame origin.)
+            position = geometry_pb2.Vec3(x=x, y=y, z=z)
 
-                seconds = data.duration
-                duration = seconds_to_duration(seconds)
+            # Rotation as a quaternion.
+            rotation = geometry_pb2.Quaternion(w=qw, x=qx, y=qy, z=qz)
 
-                # Build the SE(3) pose of the desired hand position in the moving body frame.
-                hand_pose = geometry_pb2.SE3Pose(position=position, rotation=rotation)
+            # Build the SE(3) pose of the desired hand position in the moving body frame.
+            hand_pose = geometry_pb2.SE3Pose(position=position, rotation=rotation)
+            hand_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(pose=hand_pose)
+            if duration is not None:
+                traj_duration = seconds_to_duration(duration)
                 hand_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(
-                    pose=hand_pose, time_since_reference=duration
+                    pose=hand_pose, time_since_reference=traj_duration
                 )
-                hand_trajectory = trajectory_pb2.SE3Trajectory(
-                    points=[hand_pose_traj_point]
-                )
+            hand_trajectory = trajectory_pb2.SE3Trajectory(points=[hand_pose_traj_point])
 
-                arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
-                    root_frame_name=data.frame,
-                    pose_trajectory_in_task=hand_trajectory,
-                    force_remain_near_current_joint_configuration=True,
-                )
-                arm_command = arm_command_pb2.ArmCommand.Request(
-                    arm_cartesian_command=arm_cartesian_command
-                )
-                synchronized_command = (
-                    synchronized_command_pb2.SynchronizedCommand.Request(
-                        arm_command=arm_command
-                    )
-                )
+            arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
+                root_frame_name=ref_frame,
+                pose_trajectory_in_task=hand_trajectory,
+                force_remain_near_current_joint_configuration=True,
+            )
+            arm_command = arm_command_pb2.ArmCommand.Request(arm_cartesian_command=arm_cartesian_command)
+            synchronized_command = synchronized_command_pb2.SynchronizedCommand.Request(arm_command=arm_command)
 
-                robot_command = robot_command_pb2.RobotCommand(
-                    synchronized_command=synchronized_command
-                )
+            robot_command = robot_command_pb2.RobotCommand(synchronized_command=synchronized_command)
 
-                command = RobotCommandBuilder.build_synchro_command(robot_command)
+            RobotCommandBuilder.build_synchro_command(robot_command)
 
-                # Send the request
-                cmd_id = self._robot_command_client.robot_command(robot_command)
-                self._logger.info("Moving arm to position.")
+            # Send the request
+            cmd_id = self._robot_command_client.robot_command(robot_command)
+            if blocking:
                 self.wait_for_arm_command_to_complete(cmd_id)
 
         except Exception as e:
@@ -548,6 +517,43 @@ class SpotArm:
                 f"An error occured while trying to move arm \n Exception: {e}",
             )
 
+        return True, "Moved arm successfully"
+
+    def handle_arm_velocity(
+        self, arm_velocity_command: arm_command_pb2.ArmVelocityCommand.Request, cmd_duration: float = 0.15
+    ) -> typing.Tuple[bool, str]:
+        """
+        Set the velocity of the arm TCP
+
+        Args:
+            arm_velocity_command: Protobuf message to set the arm velocity
+            cmd_duration: (optional) Time-to-live for the command in seconds.
+
+        Returns:
+            Boolean success, string message
+        """
+
+        try:
+            success, msg = self.ensure_arm_power_and_stand()
+            if not success:
+                self._logger.info(msg)
+                return False, msg
+            else:
+                end_time = self._robot.time_sync.robot_timestamp_from_local_secs(time.time() + cmd_duration)
+                arm_velocity_command.end_time.CopyFrom(end_time)
+
+                robot_command = robot_command_pb2.RobotCommand()
+                robot_command.synchronized_command.arm_command.arm_velocity_command.CopyFrom(arm_velocity_command)
+
+                self._robot_command_client.robot_command(
+                    command=robot_command, end_time_secs=time.time() + cmd_duration
+                )
+
+        except Exception as e:
+            return (
+                False,
+                f"An error occured while trying to move arm\n Exception: {e}",
+            )
         return True, "Moved arm successfully"
 
     @staticmethod
@@ -575,9 +581,8 @@ class SpotArm:
         while timeout_sec is None or now < end_time:
             feedback_resp = robot_command_client.robot_command_feedback(cmd_id)
             gripper_state = (
-                feedback_resp.feedback.gripper_command_feedback.claw_gripper_feedback.status
+                feedback_resp.feedback.synchronized_feedback.gripper_command_feedback.claw_gripper_feedback.status
             )
-
             if gripper_state in [
                 gripper_command_pb2.ClawGripperCommand.Feedback.STATUS_AT_GOAL,
                 gripper_command_pb2.ClawGripperCommand.Feedback.STATUS_APPLYING_FORCE,
@@ -585,10 +590,7 @@ class SpotArm:
                 # If the gripper is commanded to close, it is successful either if it reaches the goal, or if it is
                 # applying a force. Applying a force stops the command and puts it into force control mode.
                 return True
-            if (
-                gripper_state
-                == gripper_command_pb2.ClawGripperCommand.Feedback.STATUS_UNKNOWN
-            ):
+            if gripper_state == gripper_command_pb2.ClawGripperCommand.Feedback.STATUS_UNKNOWN:
                 return False
 
             time.sleep(0.1)
@@ -619,9 +621,7 @@ class SpotArm:
             now = time.time()
 
         while timeout_sec is None or now < end_time:
-            feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
-                manipulation_cmd_id=cmd_id
-            )
+            feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(manipulation_cmd_id=cmd_id)
 
             # Send the request
             response = manipulation_client.manipulation_api_feedback_command(
@@ -638,9 +638,7 @@ class SpotArm:
             now = time.time()
         return False
 
-    def grasp_3d(
-        self, frame: str, object_rt_frame: typing.List[float]
-    ) -> typing.Tuple[bool, str]:
+    def grasp_3d(self, frame: str, object_rt_frame: typing.List[float]) -> typing.Tuple[bool, str]:
         """
         Attempt to grasp an object
 
@@ -653,24 +651,18 @@ class SpotArm:
         """
         try:
             frm = str(frame)
-            pos = geometry_pb2.Vec3(
-                x=object_rt_frame[0], y=object_rt_frame[1], z=object_rt_frame[2]
-            )
+            pos = geometry_pb2.Vec3(x=object_rt_frame[0], y=object_rt_frame[1], z=object_rt_frame[2])
 
             grasp = manipulation_api_pb2.PickObject(frame_name=frm, object_rt_frame=pos)
 
             # Ask the robot to pick up the object
-            grasp_request = manipulation_api_pb2.ManipulationApiRequest(
-                pick_object=grasp
-            )
+            grasp_request = manipulation_api_pb2.ManipulationApiRequest(pick_object=grasp)
             # Send the request
             cmd_response = self._manipulation_api_client.manipulation_api_command(
                 manipulation_api_request=grasp_request
             )
 
-            success = self.block_until_manipulation_completes(
-                self._manipulation_api_client, cmd_response.cmd_id
-            )
+            success = self.block_until_manipulation_completes(self._manipulation_api_client, cmd_response.cmd_id)
 
             if success:
                 msg = "Grasped successfully"
@@ -682,3 +674,52 @@ class SpotArm:
                 return False, msg
         except Exception as e:
             return False, f"An error occured while trying to grasp from pose {e}"
+
+    def override_grasp_or_carry(
+        self,
+        grasp_override: manipulation_api_pb2.ApiGraspOverride.Override,
+        carry_override: ManipulatorState.CarryState,
+    ) -> typing.Tuple[bool, str]:
+        """
+        Override the robot's grasp and/or carry state.
+
+        Grasp Override:
+
+        The robot's grasp state is whether or not it's holding an object.  Usually the robot is aware of whether or not
+        it is grasping something but sometimes (e.g. when the object is small and the gripper is almost closed) it makes
+        mistakes.  Grasp override values:
+            OVERRIDE_UNKNOWN: If this is set, this function will not request that the grasp state be changed.
+            OVERRIDE_HOLDING: Grasp state will be changed to HOLDING
+            OVERRIDE_NOT_HOLDING: Grasp state will be changed to NOT HOLDING
+
+        Carry Override:
+
+        The robot's carry state governs what the robot will do when control of the arm is requested to stow (usually by
+        a hijack). This only matters if the grasp state is HOLDING (otherwise the arm will always stow) but this
+        function will send the request without checking the grasp state and will not alter the grasp state unless
+        requested to do so.  Carry override values:
+            CARRY_STATE_UNKNOWN: If this is set, this function will not request that the carry state be changed.
+            CARRY_STATE_NOT_CARRYABLE: When the arm is requested to stow, it will open the gripper (let go) first.
+            CARRY_STATE_CARRIABLE: When the arm is requested to stow, it will not do anything.
+            CARRY_STATE_CARRIABLE_AND_STOWABLE: When the arm is requested to stow, it will stow without attempting to
+                first release the object.
+        """
+        grasp_override_set = grasp_override != manipulation_api_pb2.ApiGraspOverride.Override.OVERRIDE_UNKNOWN
+        carry_override_set = carry_override != ManipulatorState.CarryState.CARRY_STATE_UNKNOWN
+        if not grasp_override_set and not carry_override_set:
+            return True, "No change requested"
+        request = manipulation_api_pb2.ApiGraspOverrideRequest()
+        if grasp_override_set:
+            request.api_grasp_override.override_request = grasp_override
+        if carry_override_set:
+            request.carry_state_override.override_request = carry_override
+        # This blocks by default since it's a single command
+        try:
+            self._manipulation_api_client.grasp_override_command(request)
+            if grasp_override_set and not carry_override_set:
+                return True, "Successfully overrode grasp state"
+            if not grasp_override_set:
+                return True, "Successfully overrode carry state"
+            return True, "Successfully overrode grasp and carry state"
+        except Exception as e:
+            return False, f"An error occurred while trying to override grasp or carry state: {e}"

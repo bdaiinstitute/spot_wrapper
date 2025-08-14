@@ -1,0 +1,75 @@
+# Copyright (c) 2023 Boston Dynamics AI Institute, Inc.  All rights reserved.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_call:
+    secrets:
+      CODECOV_TOKEN:
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || ''}}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    strategy:
+      matrix:
+        config:
+        - { python: "3.10" }
+    name: Run pre-commit
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.config.python }}
+    
+    - name: Pre-commit
+      uses: pre-commit/action@v3.0.1
+  
+  test_package:
+    strategy:
+      matrix:
+        config:
+        - { python: "3.10" }
+    name: Test spot_wrapper package
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.config.python }}
+
+      - name: Pip installs
+        run: |
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Run tests
+        run: python -m pytest --cov=spot_wrapper spot_wrapper/tests/
+
+      - if: ${{ matrix.config.python }} == "3.10"
+        name: Upload coverage to Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          fail-on-error: true
+          flag-name: unittests
+          debug: true
+          files: $(find ../../ -name "coverage.xml" -type f)

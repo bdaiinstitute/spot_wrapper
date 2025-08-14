@@ -44,10 +44,8 @@ class AsyncPointCloudService(AsyncPeriodicQuery):
             raise TypeError("Point cloud requests must be a list.")
 
         if self._callback is not None and len(self._point_cloud_requests) > 0:
-            callback_future = self._client.get_point_cloud_async(
-                self._point_cloud_requests
-            )
-            callback_future.add_done_callback(self._callback)
+            callback_future = self._client.get_point_cloud_async(self._point_cloud_requests)
+            callback_future.add_done_callback(lambda future: self._callback(future.result()))
             return callback_future
 
 
@@ -56,11 +54,14 @@ class SpotEAP:
     Get pointclouds from the EAP
     """
 
+    # Service name for getting pointcloud of VLP16 connected to Spot Core
+    POINT_CLOUD_SOURCES = ["velodyne-point-cloud"]
+
     def __init__(
         self,
         logger: logging.Logger,
         point_cloud_client: PointCloudClient,
-        point_cloud_sources: typing.List[str],
+        point_cloud_sources: typing.Optional[typing.List[str]] = None,
         rate: float = 10,
         callback: typing.Optional[typing.Callable] = None,
     ) -> None:
@@ -69,7 +70,7 @@ class SpotEAP:
         Args:
             logger: Logger to use
             point_cloud_client: Instantiated point cloud client
-            point_cloud_sources: Sources from which pointclouds should be retrieved
+            point_cloud_sources: Sources from which pointclouds should be retrieved. If not provided, uses default
             rate: Rate at which to retrieve clouds
             callback: Returned clouds will be passed to this callback
         """
@@ -77,6 +78,7 @@ class SpotEAP:
         self._point_cloud_client = point_cloud_client
 
         self._point_cloud_requests = []
+        point_cloud_sources = point_cloud_sources or self.POINT_CLOUD_SOURCES
         for source in point_cloud_sources:
             self._point_cloud_requests.append(build_pc_request(source))
 

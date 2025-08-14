@@ -12,16 +12,14 @@ import wave
 import bosdyn.client
 import cv2
 import numpy as np
-from PIL import Image
 from aiortc import RTCConfiguration
 from bosdyn.api import image_pb2
 from bosdyn.api.data_chunk_pb2 import DataChunk
 from bosdyn.api.spot_cam import audio_pb2
 from bosdyn.api.spot_cam.camera_pb2 import Camera
 from bosdyn.api.spot_cam.logging_pb2 import Logpoint
-from bosdyn.api.spot_cam.ptz_pb2 import PtzDescription, PtzVelocity, PtzPosition
-from bosdyn.client import Robot
-from bosdyn.client import spot_cam
+from bosdyn.api.spot_cam.ptz_pb2 import PtzDescription, PtzPosition, PtzVelocity
+from bosdyn.client import Robot, spot_cam
 from bosdyn.client.payload import PayloadClient
 from bosdyn.client.spot_cam.audio import AudioClient
 from bosdyn.client.spot_cam.compositor import CompositorClient
@@ -31,6 +29,7 @@ from bosdyn.client.spot_cam.media_log import MediaLogClient
 from bosdyn.client.spot_cam.power import PowerClient
 from bosdyn.client.spot_cam.ptz import PtzClient
 from bosdyn.client.spot_cam.streamquality import StreamQualityClient
+from PIL import Image
 
 from spot_wrapper.cam_webrtc_client import WebRTCClient
 from spot_wrapper.wrapper import SpotWrapper
@@ -53,9 +52,7 @@ class LightingWrapper:
 
     def __init__(self, robot: Robot, logger):
         self.logger = logger
-        self.client: LightingClient = robot.ensure_client(
-            LightingClient.default_service_name
-        )
+        self.client: LightingClient = robot.ensure_client(LightingClient.default_service_name)
 
     def set_led_brightness(self, brightness):
         """
@@ -139,9 +136,7 @@ class CompositorWrapper:
 
     def __init__(self, robot: Robot, logger):
         self.logger = logger
-        self.client: CompositorClient = robot.ensure_client(
-            CompositorClient.default_service_name
-        )
+        self.client: CompositorClient = robot.ensure_client(CompositorClient.default_service_name)
 
     def list_screens(self) -> typing.List[str]:
         """
@@ -211,9 +206,7 @@ class HealthWrapper:
     """
 
     def __init__(self, robot, logger):
-        self.client: HealthClient = robot.ensure_client(
-            HealthClient.default_service_name
-        )
+        self.client: HealthClient = robot.ensure_client(HealthClient.default_service_name)
         self.logger = logger
 
     def get_bit_status(
@@ -243,10 +236,7 @@ class HealthWrapper:
         Returns:
             Tuple of string and float indicating the component and its temperature in celsius
         """
-        return [
-            (composite.channel_name, composite.temperature / 1e3)
-            for composite in self.client.get_temperature()
-        ]
+        return [(composite.channel_name, composite.temperature / 1e3) for composite in self.client.get_temperature()]
 
     # def get_system_log(self):
     #     """
@@ -271,7 +261,7 @@ class AudioWrapper:
         Returns:
             List of names of available sounds
         """
-        return self.client.list_sounds()
+        return [sound.name for sound in self.client.list_sounds()]
 
     def set_volume(self, percentage):
         """
@@ -345,9 +335,7 @@ class StreamQualityWrapper:
     """
 
     def __init__(self, robot, logger):
-        self.client: StreamQualityClient = robot.ensure_client(
-            StreamQualityClient.default_service_name
-        )
+        self.client: StreamQualityClient = robot.ensure_client(StreamQualityClient.default_service_name)
         self.logger = logger
 
     def set_stream_params(self, target_bitrate, refresh_interval, idr_interval, awb):
@@ -415,9 +403,7 @@ class MediaLogWrapper:
     """
 
     def __init__(self, robot, logger) -> None:
-        self.client: MediaLogClient = robot.ensure_client(
-            MediaLogClient.default_service_name
-        )
+        self.client: MediaLogClient = robot.ensure_client(MediaLogClient.default_service_name)
         self.logger = logger
 
     def list_cameras(self) -> typing.List[Camera]:
@@ -435,9 +421,7 @@ class MediaLogWrapper:
         """
         return self.client.list_logpoints()
 
-    def retrieve_logpoint(
-        self, name: str, raw: bool = False
-    ) -> typing.Tuple[Logpoint, DataChunk]:
+    def retrieve_logpoint(self, name: str, raw: bool = False) -> typing.Tuple[Logpoint, DataChunk]:
         """
         Retrieve a logpoint from the camera
 
@@ -478,9 +462,7 @@ class MediaLogWrapper:
         """
         self.client.delete(logpoint=Logpoint(name=name))
 
-    def store(
-        self, camera: SpotCamCamera, tag: typing.Optional[str] = None
-    ) -> Logpoint:
+    def store(self, camera: SpotCamCamera, tag: typing.Optional[str] = None) -> Logpoint:
         """
         Take a snapshot of the data currently on the given camera and store it to a logpoint.
 
@@ -491,9 +473,7 @@ class MediaLogWrapper:
         Returns:
             Logpoint containing information about the stored data
         """
-        return self.client.store(
-            camera=Camera(name=camera.value), record_type=Logpoint.STILLIMAGE, tag=tag
-        )
+        return self.client.store(camera=Camera(name=camera.value), record_type=Logpoint.STILLIMAGE, tag=tag)
 
     def tag(self, name: str, tag: str) -> None:
         """
@@ -554,7 +534,8 @@ class MediaLogWrapper:
             path: Save the data to this directory
             base_filename: Use this filename as the base name for the image file
             raw: If true, retrieve raw data rather than processed data. Useful for IR images?
-            camera: If set, add the name of the camera to the output filename. The logpoint doesn't store this information
+            camera: If set, add the name of the camera to the output filename. The logpoint doesn't store this
+                    information
             use_rgb24: If set, save the ptz image in .rgb24 format without compression. By default it is saved to png
 
         Returns:
@@ -571,9 +552,7 @@ class MediaLogWrapper:
         # Special case for 16 bit raw thermal image
         if logpoint.image_params.format == image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U16:
             np_img = np.frombuffer(image, dtype=np.uint16).byteswap()
-            np_img = np_img.reshape(
-                (logpoint.image_params.height, logpoint.image_params.width, 1)
-            )
+            np_img = np_img.reshape((logpoint.image_params.height, logpoint.image_params.width, 1))
             full_path = os.path.join(
                 save_path,
                 self._build_filename(logpoint, base_filename, ".pgm", SpotCamCamera.IR),
@@ -585,10 +564,7 @@ class MediaLogWrapper:
         if (
             logpoint.image_params.height == 4800
             or logpoint.image_params.height == 2400
-            or (
-                logpoint.image_params.width == 640
-                and logpoint.image_params.height == 512
-            )
+            or (logpoint.image_params.width == 640 and logpoint.image_params.height == 512)
         ):
             full_path = os.path.join(
                 save_path,
@@ -716,9 +692,7 @@ class PTZWrapper:
             PtzDescription
         """
         if name not in self.ptzs:
-            self.logger.warn(
-                f"Tried to retrieve description for ptz {name} but it does not exist."
-            )
+            self.logger.warn(f"Tried to retrieve description for ptz {name} but it does not exist.")
             return None
 
         return self.ptzs[name]
@@ -743,9 +717,7 @@ class PTZWrapper:
 
         return max(min(value, limits.max.value), limits.min.value)
 
-    def _clamp_request_to_limits(
-        self, ptz_name, pan, tilt, zoom
-    ) -> typing.Tuple[float, float, float]:
+    def _clamp_request_to_limits(self, ptz_name, pan, tilt, zoom) -> typing.Tuple[float, float, float]:
         """
 
         Args:
@@ -783,27 +755,20 @@ class PTZWrapper:
             pan: Set the pan to this value in degrees
             tilt: Set the tilt to this value in degrees
             zoom: Set the zoom to this zoom level
-            blocking: If true, block for 3 seconds or until the ptz is within 1 degree of the requested pan and tilt values, and
-                      0.5 zoom levels of the requested zoom level
+            blocking: If true, block for 3 seconds or until the ptz is within 1 degree of the requested pan and tilt
+                      values, and 0.5 zoom levels of the requested zoom level
         """
         pan, tilt, zoom = self._clamp_request_to_limits(ptz_name, pan, tilt, zoom)
-        self.client.set_ptz_position(
-            self._get_ptz_description(ptz_name), pan, tilt, zoom
-        )
+        self.client.set_ptz_position(self._get_ptz_description(ptz_name), pan, tilt, zoom)
         if blocking:
             start_time = datetime.datetime.now()
-            current_position = self.client.get_ptz_position(
-                self._get_ptz_description(ptz_name)
-            )
-            while (
-                datetime.datetime.now() - start_time < datetime.timedelta(seconds=3)
-                or not math.isclose(current_position.pan, pan, abs_tol=1)
-                or not math.isclose(current_position.tilt, tilt, abs_tol=1)
-                or not math.isclose(current_position.zoom, zoom, abs_tol=0.5)
-            ):
-                current_position = self.client.get_ptz_position(
-                    self._get_ptz_description(ptz_name)
-                )
+            current_position = self.client.get_ptz_position(self._get_ptz_description(ptz_name))
+            while not (
+                math.isclose(current_position.pan.value, pan, abs_tol=1)
+                and math.isclose(current_position.tilt.value, tilt, abs_tol=1)
+                and math.isclose(current_position.zoom.value, zoom, abs_tol=0.5)
+            ) and datetime.datetime.now() - start_time < datetime.timedelta(seconds=3):
+                current_position = self.client.get_ptz_position(self._get_ptz_description(ptz_name))
                 time.sleep(0.2)
 
     def get_ptz_velocity(self, ptz_name) -> PtzVelocity:
@@ -829,9 +794,7 @@ class PTZWrapper:
             zoom: Set the zoom to this value in zoom level per second
         """
         # We do not clamp the velocity to the limits, as it is a rate
-        self.client.set_ptz_velocity(
-            self._get_ptz_description(ptz_name), pan, tilt, zoom
-        )
+        self.client.set_ptz_velocity(self._get_ptz_description(ptz_name), pan, tilt, zoom)
 
     def initialise_lens(self):
         """
@@ -926,32 +889,36 @@ class ImageStreamWrapper:
                 while not self.client.audio_frame_queue.empty():
                     await self.client.audio_frame_queue.get()
             except Exception as e:
-                self.logger.error(
-                    f"Image stream wrapper exception while discarding audio frames {e}"
-                )
+                self.logger.error(f"Image stream wrapper exception while discarding audio frames {e}")
 
         self.shutdown_flag.set()
 
 
 class SpotCamWrapper:
-    def __init__(self, hostname, username, password, logger):
+    def __init__(
+        self,
+        hostname: str,
+        username: str,
+        password: str,
+        logger: logging.Logger,
+        port: typing.Optional[int] = None,
+        cert_resource_glob: typing.Optional[str] = None,
+    ) -> None:
         self._hostname = hostname
         self._username = username
         self._password = password
         self._logger = logger
 
         # Create robot object and authenticate.
-        self.sdk = bosdyn.client.create_standard_sdk("Spot CAM Client")
+        self.sdk = bosdyn.client.create_standard_sdk("Spot CAM Client", cert_resource_glob=cert_resource_glob)
         spot_cam.register_all_service_clients(self.sdk)
 
         self.robot = self.sdk.create_robot(self._hostname)
-        SpotWrapper.authenticate(
-            self.robot, self._username, self._password, self._logger
-        )
+        if port:
+            self.robot.update_secure_channel_port(port)
+        SpotWrapper.authenticate(self.robot, self._username, self._password, self._logger)
 
-        self.payload_client: PayloadClient = self.robot.ensure_client(
-            PayloadClient.default_service_name
-        )
+        self.payload_client: PayloadClient = self.robot.ensure_client(PayloadClient.default_service_name)
         self.payload_details = None
         for payload in self.payload_client.list_payloads():
             if payload.is_enabled and "Spot CAM" in payload.name:
@@ -967,7 +934,9 @@ class SpotCamWrapper:
         self.lighting = LightingWrapper(self.robot, self._logger)
         self.power = PowerWrapper(self.robot, self._logger)
         self.compositor = CompositorWrapper(self.robot, self._logger)
-        self.image = ImageStreamWrapper(self._hostname, self.robot, self._logger)
+        # NOTE(mhidalgo-bdai): WebRTC image streaming from Spot is failing due to H264 codec issues.
+        # Unable to root cause. Disabling until BD support reports back.
+        # self.image = ImageStreamWrapper(self._hostname, self.robot, self._logger)
         self.health = HealthWrapper(self.robot, self._logger)
         self.audio = AudioWrapper(self.robot, self._logger)
         self.stream_quality = StreamQualityWrapper(self.robot, self._logger)

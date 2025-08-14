@@ -3,7 +3,12 @@ from __future__ import annotations
 import logging
 import typing
 
-from bosdyn.api.world_object_pb2 import ListWorldObjectResponse, WorldObjectType
+from bosdyn.api.world_object_pb2 import (
+    ListWorldObjectResponse,
+    MutateWorldObjectRequest,
+    MutateWorldObjectResponse,
+    WorldObjectType,
+)
 from bosdyn.client.async_tasks import AsyncPeriodicQuery
 from bosdyn.client.common import FutureWrapper
 from bosdyn.client.world_object import WorldObjectClient
@@ -29,9 +34,7 @@ class AsyncWorldObjects(AsyncPeriodicQuery):
             rate: Rate (Hz) to trigger the query
             callback: Callback function to call when the results of the query are available
         """
-        super().__init__(
-            "world-objects", client, logger, period_sec=1.0 / max(rate, 1.0)
-        )
+        super().__init__("world-objects", client, logger, period_sec=1.0 / max(rate, 1.0))
         self._callback = None
         if rate > 0.0:
             self._callback = callback
@@ -39,7 +42,7 @@ class AsyncWorldObjects(AsyncPeriodicQuery):
     def _start_query(self) -> typing.Optional[FutureWrapper]:
         if self._callback:
             callback_future = self._client.list_world_objects_async()
-            callback_future.add_done_callback(self._callback)
+            callback_future.add_done_callback(lambda future: self._callback(future.result()))
             return callback_future
 
 
@@ -93,6 +96,7 @@ class SpotWorldObjects:
             List world object response containing the filtered list of world objects
 
         """
-        return self._world_objects_client.list_world_objects(
-            object_types, time_start_point
-        )
+        return self._world_objects_client.list_world_objects(object_types, time_start_point)
+
+    def mutate_world_objects(self, request: MutateWorldObjectRequest) -> MutateWorldObjectResponse:
+        return self._world_objects_client.mutate_world_objects(request)
