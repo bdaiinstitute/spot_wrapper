@@ -259,8 +259,10 @@ def fill_response_header(request: typing.Any, response: typing.Any) -> bool:
     if not hasattr(response, "header"):
         return False
     if hasattr(request, "header"):
-        response.header.request_header.CopyFrom(request.header)
-        response.header.request_received_timestamp.CopyFrom(request.header.request_timestamp)
+        if not response.header.HasField("request_header"):
+            response.header.request_header.CopyFrom(request.header)
+        if not response.header.HasField("request_received_timestamp"):
+            response.header.request_received_timestamp.CopyFrom(request.header.request_timestamp)
     response.header.error.code = response.header.error.code or CommonError.CODE_OK
     return True
 
