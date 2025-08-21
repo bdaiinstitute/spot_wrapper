@@ -680,7 +680,7 @@ class ProxiedUnaryRpcHandler(ProxiedRpcHandler):
 
     def __call__(self, request: typing.Any, context: grpc.ServicerContext) -> typing.Any:
         future = self._server.submit(request)
-        return future.result(timeout=context.time_remaining())
+        return future.result(timeout=min(context.time_remaining(), threading.TIMEOUT_MAX))
 
 
 class ProxiedStreamRpcHandler(ProxiedRpcHandler):
@@ -688,4 +688,4 @@ class ProxiedStreamRpcHandler(ProxiedRpcHandler):
 
     def __call__(self, request: typing.Any, context: grpc.ServicerContext) -> typing.Iterator:
         future = self._server.submit(request)
-        yield from future.result(timeout=context.time_remaining())
+        yield from future.result(timeout=min(context.time_remaining(), threading.TIMEOUT_MAX))
