@@ -108,6 +108,98 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         ]
         # Create a GripperCameraParamsClient
         self.gripper_camera_client = self.robot.ensure_client(GripperCameraParamClient.default_service_name)
+        # Katie and Gary cooked up right here !!!**** GripperCameraCalibration
+        self.write_calibration_to_robot()
+        raise ValueError("Did not mean to go this far")
+
+    def write_calibration_to_robot(self, cal=None, cause_error: bool = False):
+        from bosdyn.api import gripper_camera_param_pb2
+        from bosdyn.api.image_pb2 import ImageSource
+        from bosdyn.client.math_helpers import SE3Pose
+
+        # print("Pre Setting Param--------------------------------------------")
+
+        if cause_error:  # this causes an error for some reason
+            get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
+            cal = self.gripper_camera_client.get_camera_calib(get_req)
+            print(f"Pre-Set Cal (get cam param req): \n {cal}")
+        # print("--------------------------------------------------------------")
+
+        def convert_pinhole_intrinsic_to_proto(intrinsic_matrix):
+            """Converts a 3x3 intrinsic matrix to a PinholeModel protobuf."""
+            pinhole_model = ImageSource.PinholeModel()
+            pinhole_model.CameraIntrinsics.focal_length = intrinsic_matrix[0, :1]
+            pinhole_model.CameraIntrinsics.principal_point = (intrinsic_matrix[0, 2], intrinsic_matrix[1, 2])
+            return pinhole_model
+
+        if cal is None:
+            # Ripped from calib file
+            cal = {}
+            cal["depth_intrinsic"] = np.array(
+                [215.78570285824208, 0.0, 113.50899498114939, 0.0, 215.81041358956026, 91.52930962720102, 0.0, 0.0, 1.0]
+            ).reshape((3, 3))
+            cal["rgb_intrinsic"] = np.array(
+                [[541.9417121434435, 0.0, 319.8759813692453, 0.0, 541.9183052872654, 235.87456783983524, 0.0, 0.0, 1.0]]
+            ).reshape((3, 3))
+            cal["depth_to_rgb"] = np.array(
+                [
+                    [0.0008540850814552694, -0.9999762875319601, 0.006833367579213797, 0.02068056344450553],
+                    [0.999950571032565, 0.0009217136573264173, 0.009899794724194794, 0.014867920369954562],
+                    [-0.009905858383852087, 0.006824574545926849, 0.9999276469584919, -0.011403325992053714],
+                    [0, 0, 0, 1],
+                ]
+            )
+            cal["depth_to_planning_frame"] = np.array(
+                [
+                    [0.13925927199025206, 0.03472611310021725, -0.9896468825968665, 0.012525123175595418],
+                    [-0.05828697579746701, 0.9979396646727721, 0.02681518460091079, 0.01978439523093831],
+                    [0.9885390652964254, 0.05394926080815518, 0.14099643130633896, 0.037143569257920686],
+                    [0, 0, 0, 1],
+                ]
+            )
+            cal["rgb_to_planning_frame"] = np.linalg.inv(cal["depth_to_rgb"]) @ cal["depth_to_planning_frame"]
+
+        # Converting calibration data to protobuf format
+        depth_intrinsics_proto = convert_pinhole_intrinsic_to_proto(cal["depth_intrinsic"])
+        rgb_intrinsics_proto = convert_pinhole_intrinsic_to_proto(cal["rgb_intrinsic"])
+        depth_to_planning_frame_proto = SE3Pose.from_matrix(cal["depth_to_planning_frame"]).to_proto()
+        rgb_to_planning_frame_proto = SE3Pose.from_matrix(cal["rgb_to_planning_frame"]).to_proto()
+
+        set_req = gripper_camera_param_pb2.SetGripperCameraCalibrationRequest(
+            gripper_cam_cal=gripper_camera_param_pb2.GripperCameraCalibrationProto(
+                depth=gripper_camera_param_pb2.GripperDepthCameraCalibrationParams(
+                    wr1_tform_sensor=depth_to_planning_frame_proto,
+                    intrinsics=gripper_camera_param_pb2.GripperDepthCameraCalibrationParams.DepthCameraIntrinsics(
+                        pinhole=depth_intrinsics_proto
+                    ),
+                ),
+                color=gripper_camera_param_pb2.GripperColorCameraCalibrationParams(
+                    wr1_tform_sensor=rgb_to_planning_frame_proto,
+                    intrinsics=[
+                        gripper_camera_param_pb2.GripperColorCameraCalibrationParams.ColorCameraIntrinsics(
+                            pinhole=rgb_intrinsics_proto
+                        )
+                    ],
+                ),
+            )
+        )
+
+        # Send the request to the robot
+        result = self.gripper_camera_client.set_camera_calib(set_req)
+        print(f" Set Parameters: \n{result}")
+        # print("Post Setting Param--------------------------------------------")
+        # get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
+        # cal = self.gripper_camera_client.get_camera_calib(get_req)
+        # print(f"Pre-Set Cal (get cam param req): \n {cal}")
+        # get_req = gripper_camera_param_pb2.GetGripperCameraCalibrationRequest()
+        # cal = self.gripper_camera_client.get_camera_calib(get_req)
+        # print(f"Pre-Set Cal (get calib param req): \n{cal}")
+        # print("--------------------------------------------------------------")
+        print("Post Setting Param--------------------------------------------")
+        get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
+        cal = self.gripper_camera_client.get_camera_calib(get_req)
+        print(f"Post-Set Cal (get cam param req): \n {cal}")
+        print("--------------------------------------------------------------")
 
     def capture_images(
         self,
