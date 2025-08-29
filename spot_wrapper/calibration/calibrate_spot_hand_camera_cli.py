@@ -225,56 +225,5 @@ def spot_cli(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
     return parser
 
 
-def spot_cli(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
-    if parser is None:
-        parser = calibrate_robot_cli()
-
-    parser.add_argument(
-        "--ip",
-        "-i",
-        "-ip",
-        dest="ip",
-        type=str,
-        help="The IP address of the Robot to calibrate",
-        required=True,
-    )
-    parser.add_argument(
-        "--user",
-        "-u",
-        "--username",
-        dest="username",
-        type=str,
-        help="Robot Username",
-        required=True,
-    )
-    parser.add_argument(
-        "--pass",
-        "-pw",
-        "--password",
-        dest="password",
-        type=str,
-        help="Robot Password",
-        required=True,
-    )
-
-    parser.add_argument(
-        "--spot_rgb_photo_width",
-        "-dpw",
-        type=int,
-        default=640,
-        dest="spot_rgb_photo_width",
-        help="What resolution use for Spot's RGB Hand Camera (width). Currently, only 640 and 1920 are supported",
-    )
-
-    parser.add_argument(
-        "--spot_rgb_photo_height",
-        "-dph",
-        type=int,
-        default=480,
-        help="What resolution use for Spot's RGB Hand Camera (width). Currently, only 480 and 1080 are supported",
-    )
-    return parser
-
-
 if __name__ == "__main__":
     spot_main()
