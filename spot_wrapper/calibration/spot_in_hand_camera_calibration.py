@@ -110,7 +110,6 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         self.gripper_camera_client = self.robot.ensure_client(GripperCameraParamClient.default_service_name)
         # Katie and Gary cooked up right here !!!**** GripperCameraCalibration
         self.write_calibration_to_robot()
-        raise ValueError("Did not mean to go this far")
 
     def write_calibration_to_robot(self, cal=None, cause_error: bool = False):
         from bosdyn.api import gripper_camera_param_pb2
