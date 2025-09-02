@@ -1,12 +1,15 @@
 # Copyreference (c) 2024 Boston Dynamics AI Institute LLC. All references reserved.
 
 import logging
+import os
 from time import sleep
 from typing import List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
+import yaml
 from bosdyn.api import estop_pb2, gripper_camera_param_pb2
+from bosdyn.api.image_pb2 import ImageSource
 from bosdyn.client import create_standard_sdk, math_helpers
 from bosdyn.client.estop import (
     EstopClient,
@@ -26,6 +29,7 @@ from bosdyn.client.lease import (
     LeaseKeepAlive,
     ResourceAlreadyClaimedError,
 )
+from bosdyn.client.math_helpers import SE3Pose
 from bosdyn.client.robot_command import (
     RobotCommandBuilder,
     RobotCommandClient,
@@ -111,11 +115,11 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         # Katie and Gary cooked up right here !!!**** GripperCameraCalibration
         self.write_calibration_to_robot()
 
-    def write_calibration_to_robot(self, cal=None, cause_error: bool = False):
-        from bosdyn.api import gripper_camera_param_pb2
-        from bosdyn.api.image_pb2 import ImageSource
-        from bosdyn.client.math_helpers import SE3Pose
+    def write_calibration_to_robot(self, cal: str = None, cause_error: bool = False) -> None:
+        """Sends calibration to the robot from a yaml file
 
+        args: cal: path to yaml file with calibration data
+        """
         # print("Pre Setting Param--------------------------------------------")
 
         if cause_error:  # this causes an error for some reason
@@ -131,38 +135,30 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             pinhole_model.CameraIntrinsics.principal_point = (intrinsic_matrix[0, 2], intrinsic_matrix[1, 2])
             return pinhole_model
 
-        if cal is None:
-            # Ripped from calib file
-            cal = {}
-            cal["depth_intrinsic"] = np.array(
-                [215.78570285824208, 0.0, 113.50899498114939, 0.0, 215.81041358956026, 91.52930962720102, 0.0, 0.0, 1.0]
-            ).reshape((3, 3))
-            cal["rgb_intrinsic"] = np.array(
-                [[541.9417121434435, 0.0, 319.8759813692453, 0.0, 541.9183052872654, 235.87456783983524, 0.0, 0.0, 1.0]]
-            ).reshape((3, 3))
-            cal["depth_to_rgb"] = np.array(
-                [
-                    [0.0008540850814552694, -0.9999762875319601, 0.006833367579213797, 0.02068056344450553],
-                    [0.999950571032565, 0.0009217136573264173, 0.009899794724194794, 0.014867920369954562],
-                    [-0.009905858383852087, 0.006824574545926849, 0.9999276469584919, -0.011403325992053714],
-                    [0, 0, 0, 1],
-                ]
-            )
-            cal["depth_to_planning_frame"] = np.array(
-                [
-                    [0.13925927199025206, 0.03472611310021725, -0.9896468825968665, 0.012525123175595418],
-                    [-0.05828697579746701, 0.9979396646727721, 0.02681518460091079, 0.01978439523093831],
-                    [0.9885390652964254, 0.05394926080815518, 0.14099643130633896, 0.037143569257920686],
-                    [0, 0, 0, 1],
-                ]
-            )
-            cal["rgb_to_planning_frame"] = np.linalg.inv(cal["depth_to_rgb"]) @ cal["depth_to_planning_frame"]
+        # Check if the file exists
+        if os.path.exists(cal):
+            # Open and read the YAML file
+            with open(cal, "r") as file:
+                try:
+                    # Load the YAML content
+                    data = yaml.safe_load(file)
+                    print("YAML file content:", data)
+                except yaml.YAMLError as e:
+                    print("Error parsing YAML file:", e)
+        else:
+            print(f"File '{cal}' does not exist.")
+
+        depth_intrinsics = data.get("depth_intrinsic")
+        rgb_intrinsics = data.get("rgb_intrinsic")
+        depth_to_rgb = data.get("depth_to_rgb")
+        depth_to_planning_frame = data.get("depth_to_planning_frame")
+        rgb_to_planning_frame = np.linalg.inv(depth_to_rgb) @ depth_to_planning_frame
 
         # Converting calibration data to protobuf format
-        depth_intrinsics_proto = convert_pinhole_intrinsic_to_proto(cal["depth_intrinsic"])
-        rgb_intrinsics_proto = convert_pinhole_intrinsic_to_proto(cal["rgb_intrinsic"])
-        depth_to_planning_frame_proto = SE3Pose.from_matrix(cal["depth_to_planning_frame"]).to_proto()
-        rgb_to_planning_frame_proto = SE3Pose.from_matrix(cal["rgb_to_planning_frame"]).to_proto()
+        depth_intrinsics_proto = convert_pinhole_intrinsic_to_proto(depth_intrinsics)
+        rgb_intrinsics_proto = convert_pinhole_intrinsic_to_proto(rgb_intrinsics)
+        depth_to_planning_frame_proto = SE3Pose.from_matrix(depth_to_planning_frame).to_proto()
+        rgb_to_planning_frame_proto = SE3Pose.from_matrix(rgb_to_planning_frame).to_proto()
 
         set_req = gripper_camera_param_pb2.SetGripperCameraCalibrationRequest(
             gripper_cam_cal=gripper_camera_param_pb2.GripperCameraCalibrationProto(
