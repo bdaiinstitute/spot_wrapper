@@ -115,7 +115,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         # Katie and Gary cooked up right here !!!**** GripperCameraCalibration
         self.write_calibration_to_robot()
 
-    def write_calibration_to_robot(self, cal: str = None, cause_error: bool = False) -> None:
+    def write_calibration_to_robot(self, cal: str = "", cause_error: bool = False) -> None:
         """Sends calibration to the robot from a yaml file
 
         args: cal: path to yaml file with calibration data
