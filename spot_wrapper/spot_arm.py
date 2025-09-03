@@ -539,7 +539,7 @@ class SpotArm:
                 self._logger.info(msg)
                 return False, msg
             else:
-                end_time = time.time() + cmd_duration
+                end_time = arm_velocity_command.end_time.seconds + arm_velocity_command.end_time.nanos/1e9 + cmd_duration
                 end_time_proto = self._robot.time_sync.robot_timestamp_from_local_secs(end_time)
                 arm_velocity_command.end_time.CopyFrom(end_time_proto)
 

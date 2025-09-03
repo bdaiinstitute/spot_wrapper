@@ -1289,6 +1289,7 @@ class SpotWrapper:
         v_x: float,
         v_y: float,
         v_rot: float,
+        timestamp: float,
         cmd_duration: float = 0.125,
         body_height: float = 0.0,
         use_obstacle_params: bool = False,
@@ -1309,7 +1310,7 @@ class SpotWrapper:
         Returns:
             Tuple of bool success and a string message
         """
-        end_time = time.time() + cmd_duration
+        end_time = timestamp + cmd_duration
         if body_height:
             current_mobility_params = self.get_mobility_params()
             height_adjusted_params = RobotCommandBuilder.mobility_params(
