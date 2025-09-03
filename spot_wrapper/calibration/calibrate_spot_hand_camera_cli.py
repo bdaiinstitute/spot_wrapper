@@ -82,7 +82,7 @@ def spot_main() -> None:
     else:
         logger.info(f"Loading images from {args.data_path}")
         images, poses = load_dataset_from_path(args.data_path)
-
+    in_hand_bot.shutdown()
     calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses)
 
 

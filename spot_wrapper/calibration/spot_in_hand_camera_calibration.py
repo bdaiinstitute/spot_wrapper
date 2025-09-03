@@ -1,4 +1,4 @@
-# Copyreference (c) 2024 Boston Dynamics AI Institute LLC. All references reserved.
+# Copy reference (c) 2024 Boston Dynamics AI Institute LLC. All references reserved.
 
 import logging
 import os

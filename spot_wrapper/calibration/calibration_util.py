@@ -195,7 +195,7 @@ def get_multiple_perspective_camera_calibration_dataset(
                 )
             np.save(os.path.join(data_path, "poses", f"{idx}.npy"), new_pose)
     calibration_images = np.array(calibration_images, dtype=object)
-    auto_cam_cal_robot.shutdown()
+    # auto_cam_cal_robot.shutdown()
     return (np.array(calibration_images, dtype=object), poses)
 
 
