@@ -146,7 +146,8 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
                 except yaml.YAMLError as e:
                     print("Error parsing YAML file:", e)
         else:
-            print(f"File '{cal}' does not exist.")
+            print(f"File '{cal}' does not exist. Not sending calibration to robot.")
+            return
 
         depth_intrinsics = data.get("depth_intrinsic")
         rgb_intrinsics = data.get("rgb_intrinsic")
