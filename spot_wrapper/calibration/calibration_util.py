@@ -170,7 +170,7 @@ def get_multiple_perspective_camera_calibration_dataset(
     idx = 0
     poses = []
     while idx < max_num_images and idx < len(viewpoints):
-        logger.info(f"Visiting viewpoint {idx} of {min(len(viewpoints), max_num_images)}")
+        logger.info(f"Visiting viewpoint {idx+1} of {min(len(viewpoints), max_num_images)}")
         viewpoint = viewpoints[idx]
         initial_pose, new_pose = auto_cam_cal_robot.offset_cameras_from_current_view(
             transform_offset=viewpoint,
@@ -764,6 +764,11 @@ def stereo_calibration_charuco(
                 # Use the filtered poses for the target-to-camera transformation
                 R_gripper2base = np.array([pose[:3, :3] for pose in filtered_poses])
                 t_gripper2base = np.array([pose[:3, 3] for pose in filtered_poses])
+
+                print("R_gripper2base size:", len(R_gripper2base))
+                print("t_gripper2base size:", len(t_gripper2base))
+                print("R_target2cam size:", len(rmats_origin))
+                print("t_target2cam size:", len(tvecs_origin))
 
                 R_handeye, T_handeye = cv2.calibrateHandEye(
                     R_gripper2base=R_gripper2base,

@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 
 
 class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
-    def __init__(self, ip: str, username: str, password: str):
+    def __init__(self, ip: str, username: str, password: str, cal_path: str) -> None:
         """
         Calibrated intrinsic used to localize the board once in
         localize_target_to_start_pose_vision . If the board is placed at a known location
@@ -113,7 +113,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         # Create a GripperCameraParamsClient
         self.gripper_camera_client = self.robot.ensure_client(GripperCameraParamClient.default_service_name)
         # Katie and Gary cooked up right here !!!**** GripperCameraCalibration
-        self.write_calibration_to_robot()
+        self.write_calibration_to_robot(cal_path)
 
     def write_calibration_to_robot(self, cal: str = "", cause_error: bool = False) -> None:
         """Sends calibration to the robot from a yaml file
@@ -145,6 +145,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
                     print("YAML file content:", data)
                 except yaml.YAMLError as e:
                     print("Error parsing YAML file:", e)
+                    return
         else:
             print(f"File '{cal}' does not exist. Not sending calibration to robot.")
             return
