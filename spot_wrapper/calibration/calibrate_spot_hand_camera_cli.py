@@ -34,7 +34,7 @@ def create_robot(
     # Replace with your AutomaticCameraCalibrationRobot
     if args.save_path is None:
         save_path = input("Please provide a path to save the calibration results (or type 'No' to skip): ")
-        args.dave_path = save_path 
+        args.dave_path = save_path
     in_hand_bot = SpotInHandCalibration(args.ip, args.username, args.password, args.save_path)
     in_hand_bot._set_localization_param(
         charuco_board=charuco,
@@ -86,7 +86,9 @@ def spot_main() -> None:
         logger.info(f"Loading images from {args.data_path}")
         images, poses = load_dataset_from_path(args.data_path)
     in_hand_bot.shutdown()
-    calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.save_path)
+    calibration_helper(
+        images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.save_path
+    )
 
 
 def calibrate_robot_cli(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:

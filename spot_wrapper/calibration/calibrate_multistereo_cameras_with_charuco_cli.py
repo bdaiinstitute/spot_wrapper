@@ -94,12 +94,12 @@ def calibration_helper(
     # If result path is not provided, prompt the user for one
     if result_path.lower() == "no":
         logger.warning("Ran the calibration, but user opted not to save parameters.")
-        return 
+        return
     elif result_path is None:
         result_path = input("Please provide a path to save the calibration results (or type 'No' to skip): ")
         if result_path.lower() == "no":
             logger.warning("Ran the calibration, but user opted not to save parameters.")
-            return 
+            return
     else:
         args.result_path = result_path
 
@@ -121,7 +121,9 @@ def main():
 
     if args.data_path is not None:
         images, poses = load_dataset_from_path(args.data_path)
-        calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path)
+        calibration_helper(
+            images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path
+        )
     else:
         logger.warning("Could not load any images to calibrate from, supply --data_path")
 
