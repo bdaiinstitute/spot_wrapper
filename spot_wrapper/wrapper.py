@@ -1289,7 +1289,7 @@ class SpotWrapper:
         v_x: float,
         v_y: float,
         v_rot: float,
-        timestamp: float,
+        timestamp: float = time.time(),
         cmd_duration: float = 0.125,
         body_height: float = 0.0,
         use_obstacle_params: bool = False,
@@ -1302,6 +1302,7 @@ class SpotWrapper:
             v_x: Velocity in the X direction in meters
             v_y: Velocity in the Y direction in meters
             v_rot: Angular velocity around the Z axis in radians
+            timestamp: (optional) Time at which the command is sent, in seconds since the epoch.  Default is now.
             cmd_duration: (optional) Time-to-live for the command in seconds.  Default is 125ms (assuming 10Hz command
                           rate).
             body_height: Offset of the body relative to nominal stand height, in metres
