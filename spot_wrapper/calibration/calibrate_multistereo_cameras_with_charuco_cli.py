@@ -89,7 +89,7 @@ def calibration_helper(
         poses=poses,
     )
     logger.info(f"Finished script, obtained {calibration}")
-    logger.info("Saving calibration param")
+    logger.info("Saving calibration param...")
 
     # If result path is not provided, prompt the user for one
     if result_path.lower() == "no":
@@ -273,7 +273,7 @@ def calibrator_cli() -> argparse.ArgumentParser:
         default="",
         type=str,
         required=False,
-        help="Where to store calibration result as file",
+        help="Where to store calibration result as yaml file",
     )
 
     parser.add_argument(

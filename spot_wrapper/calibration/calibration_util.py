@@ -187,15 +187,14 @@ def get_multiple_perspective_camera_calibration_dataset(
         if save_data:
             if idx == 1:
                 create_calibration_save_folders(data_path, len(images))
-            logger.info(f"Saving image batch {idx}")
+            logger.info(f"Saving image batch {idx+1}")
             for jdx, image in enumerate(images):
                 cv2.imwrite(
-                    os.path.join(data_path, str(jdx), f"{idx}.png"),
+                    os.path.join(data_path, str(jdx), f"{idx+1}.png"),
                     image,
                 )
-            np.save(os.path.join(data_path, "poses", f"{idx}.npy"), new_pose)
+            np.save(os.path.join(data_path, "poses", f"{idx+1}.npy"), new_pose)
     calibration_images = np.array(calibration_images, dtype=object)
-    # auto_cam_cal_robot.shutdown()
     return (np.array(calibration_images, dtype=object), poses)
 
 

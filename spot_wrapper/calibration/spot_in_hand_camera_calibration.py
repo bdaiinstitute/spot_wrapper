@@ -112,10 +112,11 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         ]
         # Create a GripperCameraParamsClient
         self.gripper_camera_client = self.robot.ensure_client(GripperCameraParamClient.default_service_name)
+        self.cal_path = cal_path
         # Katie and Gary cooked up right here !!!**** GripperCameraCalibration
-        self.write_calibration_to_robot(cal_path)
+        # self.write_calibration_to_robot(cal_path)
 
-    def write_calibration_to_robot(self, cal: str = "", cause_error: bool = False) -> None:
+    def write_calibration_to_robot(self, cause_error: bool = False) -> None:
         """Sends calibration to the robot from a yaml file
 
         args: cal: path to yaml file with calibration data
@@ -124,7 +125,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
 
         if cause_error:  # this causes an error for some reason
             get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
-            cal = self.gripper_camera_client.get_camera_calib(get_req)
+            self.cal_path = self.gripper_camera_client.get_camera_calib(get_req)
             print(f"Pre-Set Cal (get cam param req): \n {cal}")
         # print("--------------------------------------------------------------")
 
@@ -136,18 +137,18 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             return pinhole_model
 
         # Check if the file exists
-        if os.path.exists(cal):
+        if os.path.exists(self.cal_path):
             # Open and read the YAML file
-            with open(cal, "r") as file:
+            with open(self.cal_path, "r") as file:
                 try:
                     # Load the YAML content
                     data = yaml.safe_load(file)
-                    print("YAML file content:", data)
+                    logger.info("YAML file content:", data)
                 except yaml.YAMLError as e:
-                    print("Error parsing YAML file:", e)
+                    logger.error("Error parsing YAML file:", e)
                     return
         else:
-            print(f"File '{cal}' does not exist. Not sending calibration to robot.")
+            logger.warning(f"File '{self.cal_path}' does not exist. Not sending calibration to robot.")
             return
 
         depth_intrinsics = data.get("depth_intrinsic")
@@ -183,7 +184,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
 
         # Send the request to the robot
         result = self.gripper_camera_client.set_camera_calib(set_req)
-        print(f" Set Parameters: \n{result}")
+        logger.info(f" Set Parameters: \n{result}")
         # print("Post Setting Param--------------------------------------------")
         # get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
         # cal = self.gripper_camera_client.get_camera_calib(get_req)
@@ -192,11 +193,11 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         # cal = self.gripper_camera_client.get_camera_calib(get_req)
         # print(f"Pre-Set Cal (get calib param req): \n{cal}")
         # print("--------------------------------------------------------------")
-        print("Post Setting Param--------------------------------------------")
+        logger.info("Post Setting Param--------------------------------------------")
         get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
         cal = self.gripper_camera_client.get_camera_calib(get_req)
-        print(f"Post-Set Cal (get cam param req): \n {cal}")
-        print("--------------------------------------------------------------")
+        logger.info(f"Post-Set Cal (get cam param req): \n {cal}")
+        logger.info("--------------------------------------------------------------")
 
     def capture_images(
         self,
