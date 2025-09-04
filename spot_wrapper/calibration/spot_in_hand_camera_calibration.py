@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 
 
 class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
-    def __init__(self, ip: str, username: str, password: str, cal_path: str) -> None:
+    def __init__(self, ip: str, username: str, password: str) -> None:
         """
         Calibrated intrinsic used to localize the board once in
         localize_target_to_start_pose_vision . If the board is placed at a known location
@@ -112,11 +112,10 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         ]
         # Create a GripperCameraParamsClient
         self.gripper_camera_client = self.robot.ensure_client(GripperCameraParamClient.default_service_name)
-        self.cal_path = cal_path
         # Katie and Gary cooked up right here !!!**** GripperCameraCalibration
-        # self.write_calibration_to_robot(cal_path)
+        # self.write_calibration_to_robot()
 
-    def write_calibration_to_robot(self, cause_error: bool = False) -> None:
+    def write_calibration_to_robot(self, cal: dict, cause_error: bool = False) -> None:
         """Sends calibration to the robot from a yaml file
 
         args: cal: path to yaml file with calibration data
@@ -135,26 +134,26 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             pinhole_model.CameraIntrinsics.focal_length = intrinsic_matrix[0, :1]
             pinhole_model.CameraIntrinsics.principal_point = (intrinsic_matrix[0, 2], intrinsic_matrix[1, 2])
             return pinhole_model
-
+        logger.info(f"Writing calibration to robot: \n {cal}")
         # Check if the file exists
-        if os.path.exists(self.cal_path):
-            # Open and read the YAML file
-            with open(self.cal_path, "r") as file:
-                try:
-                    # Load the YAML content
-                    data = yaml.safe_load(file)
-                    logger.info("YAML file content:", data)
-                except yaml.YAMLError as e:
-                    logger.error("Error parsing YAML file:", e)
-                    return
-        else:
-            logger.warning(f"File '{self.cal_path}' does not exist. Not sending calibration to robot.")
-            return
+        # if os.path.exists(self.cal_path):
+        #     # Open and read the YAML file
+        #     with open(self.cal_path, "r") as file:
+        #         try:
+        #             # Load the YAML content
+        #             data = yaml.safe_load(file)
+        #             logger.info("YAML file content:", data)
+        #         except yaml.YAMLError as e:
+        #             logger.error("Error parsing YAML file:", e)
+        #             return
+        # else:
+        #     logger.warning(f"File '{self.cal_path}' does not exist. Not sending calibration to robot.")
+        #     return
 
-        depth_intrinsics = data.get("depth_intrinsic")
-        rgb_intrinsics = data.get("rgb_intrinsic")
-        depth_to_rgb = data.get("depth_to_rgb")
-        depth_to_planning_frame = data.get("depth_to_planning_frame")
+        depth_intrinsics = cal["depth_intrinsic"] #data.get("depth_intrinsic")
+        rgb_intrinsics = cal["rgb_intrinsic"] #data.get("rgb_intrinsic")
+        depth_to_rgb = cal["depth_to_rgb"] #data.get("depth_to_rgb")
+        depth_to_planning_frame = cal["depth_to_planning_frame"] #data.get("depth_to_planning_frame")
         rgb_to_planning_frame = np.linalg.inv(depth_to_rgb) @ depth_to_planning_frame
 
         # Converting calibration data to protobuf format

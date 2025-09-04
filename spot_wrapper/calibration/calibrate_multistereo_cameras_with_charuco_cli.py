@@ -66,7 +66,7 @@ def calibration_helper(
     aruco_dict: cv2.aruco_Dictionary,
     poses: np.ndarray,
     result_path: str = None,
-) -> None:
+) -> Dict:
     logger.warning(
         f"Calibrating from {len(images)} images.. for every "
         f"{args.photo_utilization_ratio} recorded photos 1 is used to calibrate"
@@ -112,6 +112,7 @@ def calibration_helper(
         parser_args=args,
         unsafe=args.unsafe_tag_save,
     )
+    return calibration
 
 
 def main():

@@ -32,10 +32,7 @@ def create_robot(
     args: argparse.ArgumentParser, charuco: cv2.aruco_CharucoBoard, aruco_dict: cv2.aruco_Dictionary
 ) -> Tuple[AutomaticCameraCalibrationRobot, argparse.Namespace]:
     # Replace with your AutomaticCameraCalibrationRobot
-    if args.result_path is None:
-        save_path = input("Please provide a path to save the calibration results (or type 'No' to skip): ")
-        args.result_path = save_path
-    in_hand_bot = SpotInHandCalibration(args.ip, args.username, args.password, args.result_path)
+    in_hand_bot = SpotInHandCalibration(args.ip, args.username, args.password)
     in_hand_bot._set_localization_param(
         charuco_board=charuco,
         aruco_dict=aruco_dict,
@@ -82,15 +79,15 @@ def spot_main() -> None:
             data_path=args.data_path,
             save_data=args.save_data,
         )
-        in_hand_bot.write_calibration_to_robot()
     else:
         logger.info(f"Loading images from {args.data_path}")
         images, poses = load_dataset_from_path(args.data_path)
-        in_hand_bot.write_calibration_to_robot() # TODO
-    in_hand_bot.shutdown()
-    calibration_helper(
+    
+    calibration = calibration_helper(
         images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.save_path
     )
+    in_hand_bot.write_calibration_to_robot(calibration)
+    in_hand_bot.shutdown()
 
 
 def calibrate_robot_cli(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
