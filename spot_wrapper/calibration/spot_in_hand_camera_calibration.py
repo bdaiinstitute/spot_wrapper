@@ -43,6 +43,7 @@ from spot_wrapper.calibration.calibration_util import (
     convert_camera_t_viewpoint_to_origin_t_planning_frame,
     est_camera_t_charuco_board_center,
 )
+from spot_wrapper.calibration.realsense_capture import RSSingleImageCapture
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,6 +66,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             raise AttributeError("Must specify IP, username, and password for calibration.")
         self.robot = sdk.create_robot(ip)
         self.robot.authenticate(username, password)
+        self.rscapture = RSSingleImageCapture()
         try:
             self.robot.time_sync.wait_for_sync()
         except TimedOutError as e:
@@ -128,6 +130,12 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
                 images.append(image_data)
         else:
             raise ValueError(f"Could not obtain desired images {self.image_requests}")
+        
+        rs_image = self.rscapture.get_image()
+        if rs_image is not None:
+            images.append(rs_image)
+        else:
+            raise ValueError("Could not obtain image from realsense camera")
 
         return np.array(images, dtype=object)
 
