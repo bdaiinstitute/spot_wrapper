@@ -1,9 +1,9 @@
 aiortc==1.5.0
-bosdyn-api==5.0.0
-bosdyn-choreography-client==5.0.0
-bosdyn-client==5.0.0
-bosdyn-core==5.0.0
-bosdyn-mission==5.0.0
+bosdyn-api==5.0.1
+bosdyn-choreography-client==5.0.1
+bosdyn-client==5.0.1
+bosdyn-core==5.0.1
+bosdyn-mission==5.0.1
 grpcio==1.59.3
 image==1.5.33
 inflection==0.5.1
