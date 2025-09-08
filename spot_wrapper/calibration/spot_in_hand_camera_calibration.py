@@ -118,9 +118,9 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
     def extract_calibration_parameters(self, calibration_dict: dict, tag: str) -> dict:
         try:
             calibration = {}
-            calibration["depth_intrinsic"] = calibration_dict[tag]["intrinsic"][1]["camera_matrix"]
+            calibration["depth_intrinsic"] = np.asarray(calibration_dict[tag]["intrinsic"][1]["camera_matrix"]).reshape((3, 3))
             # calibration["dist_coeffs_depth"] = calibration_dict[tag]["intrinsic"][1]["dist_coeffs"]
-            calibration["rgb_intrinsic"] = calibration_dict[tag]["intrinsic"][0]["camera_matrix"]
+            calibration["rgb_intrinsic"] = np.asarray(calibration_dict[tag]["intrinsic"][0]["camera_matrix"]).reshape((3, 3))
             # calibration["dist_coeffs_rgb"] = calibration_dict[tag]["intrinsic"][1]["dist_coeffs"]
             depth_to_rgb_T = np.array(calibration_dict[tag]["extrinsic"][1][0]["T"]).reshape((3, 1))
             depth_to_rgb_R = np.array(calibration_dict[tag]["extrinsic"][1][0]["R"]).reshape((3, 3))
@@ -129,8 +129,8 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             # calibration["depth_t_rgb_T"] = calibration_dict[tag]["extrinsic"][1][0]["T"]
             # calibration["depth_image_dim"] = calibration_dict[tag]["intrinsic"][1]["image_dim"]
             # calibration["rgb_image_dim"] = calibration_dict[tag]["intrinsic"][0]["image_dim"]
-            depth_to_planning_T = np.array(calibration_dict[tag][1]["planning_frame"]["T"]).reshape((3, 1))
-            depth_to_planning_R = np.array(calibration_dict[tag][1]["planning_frame"]["R"]).reshape((3, 3))
+            depth_to_planning_T = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["T"]).reshape((3, 1))
+            depth_to_planning_R = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["R"]).reshape((3, 3))
             calibration["depth_to_planning_frame"] = np.vstack((np.hstack((depth_to_planning_R, depth_to_planning_T)), np.array([0, 0, 0, 1])))
         except KeyError as e:
             raise ValueError(f"Error: Missing key in the calibration data: {e}")
@@ -164,8 +164,8 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             pinhole_model.CameraIntrinsics.principal_point = (intrinsic_matrix[0, 2], intrinsic_matrix[1, 2])
             return pinhole_model
 
-        depth_intrinsics = cal["depth_intrinsic"].reshape((3, 3)) #data.get("depth_intrinsic")
-        rgb_intrinsics = cal["rgb_intrinsic"].reshape((3, 3)) #data.get("rgb_intrinsic")
+        depth_intrinsics = cal["depth_intrinsic"] #data.get("depth_intrinsic")
+        rgb_intrinsics = cal["rgb_intrinsic"] #data.get("rgb_intrinsic")
         depth_to_rgb = cal["depth_to_rgb"] #data.get("depth_to_rgb")
         depth_to_planning_frame = cal["depth_to_planning_frame"] #data.get("depth_to_planning_frame")
         rgb_to_planning_frame = np.linalg.inv(depth_to_rgb) @ depth_to_planning_frame
@@ -205,7 +205,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         # get_req = gripper_camera_param_pb2.GetGripperCameraCalibrationRequest()
         # cal = self.gripper_camera_client.get_camera_calib(get_req)
         # print(f"Pre-Set Cal (get calib param req): \n{cal}")
-        # print("--------------------------------------------------------------")
+        print("--------------------------------------------------------------")
         logger.info("Post Setting Param--------------------------------------------")
         get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
         cal = self.gripper_camera_client.get_camera_calib(get_req)
