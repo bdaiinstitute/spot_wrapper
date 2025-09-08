@@ -84,8 +84,8 @@ def spot_main() -> None:
         images, poses = load_dataset_from_path(args.data_path)
     
     calibration = calibration_helper(
-        images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.save_path
-    )
+        images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path)
+    logger.info(f"Calibration result: {calibration}")
     in_hand_bot.write_calibration_to_robot(calibration)
     in_hand_bot.shutdown()
 

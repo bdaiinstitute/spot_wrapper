@@ -114,13 +114,42 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         self.gripper_camera_client = self.robot.ensure_client(GripperCameraParamClient.default_service_name)
         # Katie and Gary cooked up right here !!!**** GripperCameraCalibration
         # self.write_calibration_to_robot()
+    
+    def extract_calibration_parameters(self, calibration_dict: dict, tag: str) -> dict:
+        try:
+            calibration = {}
+            calibration["depth_intrinsic"] = calibration_dict[tag]["intrinsic"][1]["camera_matrix"]
+            # calibration["dist_coeffs_depth"] = calibration_dict[tag]["intrinsic"][1]["dist_coeffs"]
+            calibration["rgb_intrinsic"] = calibration_dict[tag]["intrinsic"][0]["camera_matrix"]
+            # calibration["dist_coeffs_rgb"] = calibration_dict[tag]["intrinsic"][1]["dist_coeffs"]
+            depth_to_rgb_T = np.array(calibration_dict[tag]["extrinsic"][1][0]["T"]).reshape((3, 1))
+            depth_to_rgb_R = np.array(calibration_dict[tag]["extrinsic"][1][0]["R"]).reshape((3, 3))
+            calibration["depth_to_rgb"] = np.vstack((np.hstack((depth_to_rgb_R, depth_to_rgb_T)), np.array([0, 0, 0, 1])))
+            # calibration["depth_t_rgb_R"] = calibration_dict[tag]["extrinsic"][1][0]["R"]
+            # calibration["depth_t_rgb_T"] = calibration_dict[tag]["extrinsic"][1][0]["T"]
+            # calibration["depth_image_dim"] = calibration_dict[tag]["intrinsic"][1]["image_dim"]
+            # calibration["rgb_image_dim"] = calibration_dict[tag]["intrinsic"][0]["image_dim"]
+            depth_to_planning_T = np.array(calibration_dict[tag][1]["planning_frame"]["T"]).reshape((3, 1))
+            depth_to_planning_R = np.array(calibration_dict[tag][1]["planning_frame"]["R"]).reshape((3, 3))
+            calibration["depth_to_planning_frame"] = np.vstack((np.hstack((depth_to_planning_R, depth_to_planning_T)), np.array([0, 0, 0, 1])))
+        except KeyError as e:
+            raise ValueError(f"Error: Missing key in the calibration data: {e}")
+        except TypeError as e:
+            raise ValueError(f"Error: Incorrect data type or structure in the calibration data: {e}")
+        except ValueError as e:
+            raise ValueError(f"Error: Invalid value in calibration data: {e}")
 
-    def write_calibration_to_robot(self, cal: dict, cause_error: bool = False) -> None:
+        return calibration
+
+    def write_calibration_to_robot(self, cal_dict: dict, tag: str = "default", cause_error: bool = False) -> None:
         """Sends calibration to the robot from a yaml file
 
         args: cal: path to yaml file with calibration data
         """
-        # print("Pre Setting Param--------------------------------------------")
+        cal = self.extract_calibration_parameters(cal_dict, tag)
+
+        print("Pre Setting Param--------------------------------------------")
+        print(f"Calibration Data being sent to robot: \n {cal}")
 
         if cause_error:  # this causes an error for some reason
             get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
@@ -134,24 +163,9 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             pinhole_model.CameraIntrinsics.focal_length = intrinsic_matrix[0, :1]
             pinhole_model.CameraIntrinsics.principal_point = (intrinsic_matrix[0, 2], intrinsic_matrix[1, 2])
             return pinhole_model
-        logger.info(f"Writing calibration to robot: \n {cal}")
-        # Check if the file exists
-        # if os.path.exists(self.cal_path):
-        #     # Open and read the YAML file
-        #     with open(self.cal_path, "r") as file:
-        #         try:
-        #             # Load the YAML content
-        #             data = yaml.safe_load(file)
-        #             logger.info("YAML file content:", data)
-        #         except yaml.YAMLError as e:
-        #             logger.error("Error parsing YAML file:", e)
-        #             return
-        # else:
-        #     logger.warning(f"File '{self.cal_path}' does not exist. Not sending calibration to robot.")
-        #     return
 
-        depth_intrinsics = cal["depth_intrinsic"] #data.get("depth_intrinsic")
-        rgb_intrinsics = cal["rgb_intrinsic"] #data.get("rgb_intrinsic")
+        depth_intrinsics = cal["depth_intrinsic"].reshape((3, 3)) #data.get("depth_intrinsic")
+        rgb_intrinsics = cal["rgb_intrinsic"].reshape((3, 3)) #data.get("rgb_intrinsic")
         depth_to_rgb = cal["depth_to_rgb"] #data.get("depth_to_rgb")
         depth_to_planning_frame = cal["depth_to_planning_frame"] #data.get("depth_to_planning_frame")
         rgb_to_planning_frame = np.linalg.inv(depth_to_rgb) @ depth_to_planning_frame

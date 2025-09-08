@@ -1008,7 +1008,7 @@ def create_calibration_save_folders(path: str, num_folders: int) -> None:
 
             logger.info(f"Creating image folder at {cam_path}")
             os.makedirs(cam_path, exist_ok=True)
-        os.makedirs(os.path.join(path, "poses"))
+        os.makedirs(os.path.join(path, "poses"), exist_ok=True)
         logger.info(f"Done creating {num_folders} folders.")
 
 
@@ -1072,10 +1072,10 @@ def save_calibration_parameters(
     tag: str,
     parser_args: Optional[argparse.Namespace] = None,
     unsafe: bool = False,
-) -> None:
+) -> Dict:
     """
     Dump the results of a calibration, and the metadata associated with the command that
-    created it, to a file
+    created it, to a file. 0 is RGB and 1 is depth.
 
     Args:
         data (Dict): The results of the calibration
@@ -1215,6 +1215,7 @@ def save_calibration_parameters(
             sort_keys=False,
         )
     logger.info(f"Saved calibration to file {output_path} under tag '{tag}'")
+    return existing_data
 
 
 def charuco_pose_sanity_check(
