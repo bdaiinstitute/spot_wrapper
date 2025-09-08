@@ -764,11 +764,6 @@ def stereo_calibration_charuco(
                 R_gripper2base = np.array([pose[:3, :3] for pose in filtered_poses])
                 t_gripper2base = np.array([pose[:3, 3] for pose in filtered_poses])
 
-                print("R_gripper2base size:", len(R_gripper2base))
-                print("t_gripper2base size:", len(t_gripper2base))
-                print("R_target2cam size:", len(rmats_origin))
-                print("t_target2cam size:", len(tvecs_origin))
-
                 R_handeye, T_handeye = cv2.calibrateHandEye(
                     R_gripper2base=R_gripper2base,
                     t_gripper2base=t_gripper2base,
