@@ -79,11 +79,25 @@ def spot_main() -> None:
             data_path=args.data_path,
             save_data=args.save_data,
         )
+        calibration = calibration_helper(
+            images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path
+        )
+        if args.save_to_robot:
+            logger.info("Saving calibration to robot...")
+            in_hand_bot.write_calibration_to_robot(calibration)
+        in_hand_bot.shutdown()
     else:
         logger.info(f"Loading images from {args.data_path}")
         images, poses = load_dataset_from_path(args.data_path)
+        calibration = calibration_helper(
+            images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path
+        )
+        if args.save_to_robot:
+            in_hand_bot, args = create_robot(args, charuco=charuco, aruco_dict=aruco_dict)
+            logger.info("Saving calibration to robot...")
+            in_hand_bot.write_calibration_to_robot(calibration)
 
-    calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses)
+    logger.info("Calibration complete!")
 
 
 def calibrate_robot_cli(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
@@ -169,6 +183,14 @@ def calibrate_robot_cli(parser: argparse.ArgumentParser = None) -> argparse.Argu
         dest="from_data",
         action="store_true",
         help="Whether to only calibrate from recorded dataset on file.",
+    )
+
+    parser.add_argument(
+        "--save_to_robot",
+        "-send",
+        dest="save_to_robot",
+        action="store_true",
+        help="Whether to save the calibration to the robot.",
     )
 
     return parser

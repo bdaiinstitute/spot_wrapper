@@ -1,4 +1,4 @@
-# Copyreference (c) 2024 Boston Dynamics AI Institute LLC. All references reserved.
+# Copy reference (c) 2024 Boston Dynamics AI Institute LLC. All references reserved.
 
 import logging
 from time import sleep
@@ -7,6 +7,7 @@ from typing import List, Optional, Tuple, Union
 import cv2
 import numpy as np
 from bosdyn.api import estop_pb2, gripper_camera_param_pb2
+from bosdyn.api.image_pb2 import ImageSource
 from bosdyn.client import create_standard_sdk, math_helpers
 from bosdyn.client.estop import (
     EstopClient,
@@ -26,6 +27,7 @@ from bosdyn.client.lease import (
     LeaseKeepAlive,
     ResourceAlreadyClaimedError,
 )
+from bosdyn.client.math_helpers import SE3Pose
 from bosdyn.client.robot_command import (
     RobotCommandBuilder,
     RobotCommandClient,
@@ -52,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 
 class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
-    def __init__(self, ip: str, username: str, password: str):
+    def __init__(self, ip: str, username: str, password: str) -> None:
         """
         Calibrated intrinsic used to localize the board once in
         localize_target_to_start_pose_vision . If the board is placed at a known location
@@ -108,6 +110,98 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         ]
         # Create a GripperCameraParamsClient
         self.gripper_camera_client = self.robot.ensure_client(GripperCameraParamClient.default_service_name)
+
+    def extract_calibration_parameters(self, calibration_dict: dict, tag: str) -> dict:
+        """Extract calibration parameters to send to robot"""
+        try:
+            calibration = {}
+            calibration["depth_intrinsic"] = np.asarray(calibration_dict[tag]["intrinsic"][1]["camera_matrix"]).reshape(
+                (3, 3)
+            )
+            calibration["rgb_intrinsic"] = np.asarray(calibration_dict[tag]["intrinsic"][0]["camera_matrix"]).reshape(
+                (3, 3)
+            )
+            depth_to_rgb_T = np.array(calibration_dict[tag]["extrinsic"][1][0]["T"]).reshape((3, 1))
+            depth_to_rgb_R = np.array(calibration_dict[tag]["extrinsic"][1][0]["R"]).reshape((3, 3))
+            calibration["depth_to_rgb"] = np.vstack(
+                (np.hstack((depth_to_rgb_R, depth_to_rgb_T)), np.array([0, 0, 0, 1]))
+            )
+            depth_to_planning_T = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["T"]).reshape((3, 1))
+            depth_to_planning_R = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["R"]).reshape((3, 3))
+            calibration["depth_to_planning_frame"] = np.vstack(
+                (np.hstack((depth_to_planning_R, depth_to_planning_T)), np.array([0, 0, 0, 1]))
+            )
+        except KeyError as e:
+            raise ValueError(f"Error: Missing key in the calibration data: {e}")
+        except TypeError as e:
+            raise ValueError(f"Error: Incorrect data type or structure in the calibration data: {e}")
+        except ValueError as e:
+            raise ValueError(f"Error: Invalid value in calibration data: {e}")
+
+        return calibration
+
+    def write_calibration_to_robot(self, cal_dict: dict, tag: str = "default") -> None:
+        """Sends calibration to the robot
+
+        args:
+                cal_dict: dictionary of calibration parameters
+                tag: tag to use for calibration parameters
+        """
+        cal = self.extract_calibration_parameters(cal_dict, tag)
+
+        print("Pre Setting Param--------------------------------------------")
+        print(f"Calibration Data being sent to robot: \n {cal}")
+
+        def convert_pinhole_intrinsic_to_proto(intrinsic_matrix):
+            """Converts a 3x3 intrinsic matrix to a PinholeModel protobuf."""
+            pinhole_model = ImageSource.PinholeModel()
+            pinhole_model.CameraIntrinsics.focal_length = intrinsic_matrix[0, :1]
+            pinhole_model.CameraIntrinsics.principal_point = (intrinsic_matrix[0, 2], intrinsic_matrix[1, 2])
+            return pinhole_model
+
+        depth_intrinsics = cal["depth_intrinsic"]
+        rgb_intrinsics = cal["rgb_intrinsic"]
+        depth_to_rgb = cal["depth_to_rgb"]
+        depth_to_planning_frame = cal["depth_to_planning_frame"]
+        rgb_to_planning_frame = np.linalg.inv(depth_to_rgb) @ depth_to_planning_frame
+
+        # Converting calibration data to protobuf format
+        depth_intrinsics_proto = convert_pinhole_intrinsic_to_proto(depth_intrinsics)
+        rgb_intrinsics_proto = convert_pinhole_intrinsic_to_proto(rgb_intrinsics)
+        depth_to_planning_frame_proto = SE3Pose.from_matrix(depth_to_planning_frame).to_proto()
+        rgb_to_planning_frame_proto = SE3Pose.from_matrix(rgb_to_planning_frame).to_proto()
+
+        set_req = gripper_camera_param_pb2.SetGripperCameraCalibrationRequest(
+            gripper_cam_cal=gripper_camera_param_pb2.GripperCameraCalibrationProto(
+                depth=gripper_camera_param_pb2.GripperDepthCameraCalibrationParams(
+                    wr1_tform_sensor=depth_to_planning_frame_proto,
+                    intrinsics=gripper_camera_param_pb2.GripperDepthCameraCalibrationParams.DepthCameraIntrinsics(
+                        pinhole=depth_intrinsics_proto
+                    ),
+                ),
+                color=gripper_camera_param_pb2.GripperColorCameraCalibrationParams(
+                    wr1_tform_sensor=rgb_to_planning_frame_proto,
+                    intrinsics=[
+                        gripper_camera_param_pb2.GripperColorCameraCalibrationParams.ColorCameraIntrinsics(
+                            pinhole=rgb_intrinsics_proto
+                        )
+                    ],
+                ),
+            )
+        )
+
+        # Send the request to the robot
+        try:
+            result = self.gripper_camera_client.set_camera_calib(set_req)
+            logger.info(f" Set Parameters: \n{result}")
+        except Exception as e:
+            raise ValueError(f"Failed to set calibration parameters on the robot: {e}")
+
+        # Optionally, verify by retrieving the parameters back with the following lines
+        # get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
+        # cal = self.gripper_camera_client.get_camera_calib(get_req)
+        # logger.info(f"Post-Set Cal (get cam param req): \n {cal}")
+        logger.info("Calibration parameters successfully sent to the robot.")
 
     def capture_images(
         self,

@@ -65,7 +65,8 @@ def calibration_helper(
     charuco: cv2.aruco_CharucoBoard,
     aruco_dict: cv2.aruco_Dictionary,
     poses: np.ndarray,
-):
+    result_path: str = None,
+) -> dict:
     logger.warning(
         f"Calibrating from {len(images)} images.. for every "
         f"{args.photo_utilization_ratio} recorded photos 1 is used to calibrate"
@@ -88,20 +89,15 @@ def calibration_helper(
         poses=poses,
     )
     logger.info(f"Finished script, obtained {calibration}")
-    logger.info("Saving calibration param")
+    logger.info("Saving calibration param...")
 
-    # If result path is not provided, prompt the user for one
-    if args.result_path is None:
+    if result_path is None:
         result_path = input("Please provide a path to save the calibration results (or type 'No' to skip): ")
 
-        if result_path.lower() == "no":
-            logger.warning("Ran the calibration, but user opted not to save parameters.")
-            return
-        else:
-            args.result_path = result_path
+    args.result_path = result_path
 
     # Save the calibration parameters if a valid result path is provided
-    save_calibration_parameters(
+    calibration_dict = save_calibration_parameters(
         data=calibration,
         output_path=args.result_path,
         num_images=len(images[:: args.photo_utilization_ratio]),
@@ -109,6 +105,7 @@ def calibration_helper(
         parser_args=args,
         unsafe=args.unsafe_tag_save,
     )
+    return calibration_dict
 
 
 def main():
@@ -118,7 +115,9 @@ def main():
 
     if args.data_path is not None:
         images, poses = load_dataset_from_path(args.data_path)
-        calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses)
+        calibration_helper(
+            images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path
+        )
     else:
         logger.warning("Could not load any images to calibrate from, supply --data_path")
 
@@ -265,9 +264,10 @@ def calibrator_cli() -> argparse.ArgumentParser:
         "--result_path",
         "-rp",
         dest="result_path",
+        default="",
         type=str,
         required=False,
-        help="Where to store calibration result as file",
+        help="Where to store calibration result as yaml file",
     )
 
     parser.add_argument(
