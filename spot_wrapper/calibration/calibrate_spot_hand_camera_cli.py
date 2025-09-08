@@ -80,7 +80,8 @@ def spot_main() -> None:
             save_data=args.save_data,
         )
         calibration = calibration_helper(
-            images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path)
+            images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path
+        )
         if args.save_to_robot:
             logger.info("Saving calibration to robot...")
             in_hand_bot.write_calibration_to_robot(calibration)
@@ -89,13 +90,14 @@ def spot_main() -> None:
         logger.info(f"Loading images from {args.data_path}")
         images, poses = load_dataset_from_path(args.data_path)
         calibration = calibration_helper(
-            images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path)
+            images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path
+        )
         if args.save_to_robot:
             in_hand_bot, args = create_robot(args, charuco=charuco, aruco_dict=aruco_dict)
             logger.info("Saving calibration to robot...")
             in_hand_bot.write_calibration_to_robot(calibration)
-    
-    logger.info(f"DONE\nCalibration result:\n {calibration}")
+
+    logger.info("Calibration complete!")
 
 
 def calibrate_robot_cli(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:

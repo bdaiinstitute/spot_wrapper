@@ -1,13 +1,11 @@
 # Copy reference (c) 2024 Boston Dynamics AI Institute LLC. All references reserved.
 
 import logging
-import os
 from time import sleep
 from typing import List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
-import yaml
 from bosdyn.api import estop_pb2, gripper_camera_param_pb2
 from bosdyn.api.image_pb2 import ImageSource
 from bosdyn.client import create_standard_sdk, math_helpers
@@ -112,26 +110,27 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         ]
         # Create a GripperCameraParamsClient
         self.gripper_camera_client = self.robot.ensure_client(GripperCameraParamClient.default_service_name)
-        # Katie and Gary cooked up right here !!!**** GripperCameraCalibration
-        # self.write_calibration_to_robot()
-    
+
     def extract_calibration_parameters(self, calibration_dict: dict, tag: str) -> dict:
+        """Extract calibration parameters to send to robot"""
         try:
             calibration = {}
-            calibration["depth_intrinsic"] = np.asarray(calibration_dict[tag]["intrinsic"][1]["camera_matrix"]).reshape((3, 3))
-            # calibration["dist_coeffs_depth"] = calibration_dict[tag]["intrinsic"][1]["dist_coeffs"]
-            calibration["rgb_intrinsic"] = np.asarray(calibration_dict[tag]["intrinsic"][0]["camera_matrix"]).reshape((3, 3))
-            # calibration["dist_coeffs_rgb"] = calibration_dict[tag]["intrinsic"][1]["dist_coeffs"]
+            calibration["depth_intrinsic"] = np.asarray(calibration_dict[tag]["intrinsic"][1]["camera_matrix"]).reshape(
+                (3, 3)
+            )
+            calibration["rgb_intrinsic"] = np.asarray(calibration_dict[tag]["intrinsic"][0]["camera_matrix"]).reshape(
+                (3, 3)
+            )
             depth_to_rgb_T = np.array(calibration_dict[tag]["extrinsic"][1][0]["T"]).reshape((3, 1))
             depth_to_rgb_R = np.array(calibration_dict[tag]["extrinsic"][1][0]["R"]).reshape((3, 3))
-            calibration["depth_to_rgb"] = np.vstack((np.hstack((depth_to_rgb_R, depth_to_rgb_T)), np.array([0, 0, 0, 1])))
-            # calibration["depth_t_rgb_R"] = calibration_dict[tag]["extrinsic"][1][0]["R"]
-            # calibration["depth_t_rgb_T"] = calibration_dict[tag]["extrinsic"][1][0]["T"]
-            # calibration["depth_image_dim"] = calibration_dict[tag]["intrinsic"][1]["image_dim"]
-            # calibration["rgb_image_dim"] = calibration_dict[tag]["intrinsic"][0]["image_dim"]
+            calibration["depth_to_rgb"] = np.vstack(
+                (np.hstack((depth_to_rgb_R, depth_to_rgb_T)), np.array([0, 0, 0, 1]))
+            )
             depth_to_planning_T = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["T"]).reshape((3, 1))
             depth_to_planning_R = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["R"]).reshape((3, 3))
-            calibration["depth_to_planning_frame"] = np.vstack((np.hstack((depth_to_planning_R, depth_to_planning_T)), np.array([0, 0, 0, 1])))
+            calibration["depth_to_planning_frame"] = np.vstack(
+                (np.hstack((depth_to_planning_R, depth_to_planning_T)), np.array([0, 0, 0, 1]))
+            )
         except KeyError as e:
             raise ValueError(f"Error: Missing key in the calibration data: {e}")
         except TypeError as e:
@@ -141,21 +140,17 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
 
         return calibration
 
-    def write_calibration_to_robot(self, cal_dict: dict, tag: str = "default", cause_error: bool = False) -> None:
-        """Sends calibration to the robot from a yaml file
+    def write_calibration_to_robot(self, cal_dict: dict, tag: str = "default") -> None:
+        """Sends calibration to the robot
 
-        args: cal: path to yaml file with calibration data
+        args:
+                cal_dict: dictionary of calibration parameters
+                tag: tag to use for calibration parameters
         """
         cal = self.extract_calibration_parameters(cal_dict, tag)
 
         print("Pre Setting Param--------------------------------------------")
         print(f"Calibration Data being sent to robot: \n {cal}")
-
-        if cause_error:  # this causes an error for some reason
-            get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
-            self.cal_path = self.gripper_camera_client.get_camera_calib(get_req)
-            print(f"Pre-Set Cal (get cam param req): \n {cal}")
-        # print("--------------------------------------------------------------")
 
         def convert_pinhole_intrinsic_to_proto(intrinsic_matrix):
             """Converts a 3x3 intrinsic matrix to a PinholeModel protobuf."""
@@ -164,10 +159,10 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             pinhole_model.CameraIntrinsics.principal_point = (intrinsic_matrix[0, 2], intrinsic_matrix[1, 2])
             return pinhole_model
 
-        depth_intrinsics = cal["depth_intrinsic"] #data.get("depth_intrinsic")
-        rgb_intrinsics = cal["rgb_intrinsic"] #data.get("rgb_intrinsic")
-        depth_to_rgb = cal["depth_to_rgb"] #data.get("depth_to_rgb")
-        depth_to_planning_frame = cal["depth_to_planning_frame"] #data.get("depth_to_planning_frame")
+        depth_intrinsics = cal["depth_intrinsic"]
+        rgb_intrinsics = cal["rgb_intrinsic"]
+        depth_to_rgb = cal["depth_to_rgb"]
+        depth_to_planning_frame = cal["depth_to_planning_frame"]
         rgb_to_planning_frame = np.linalg.inv(depth_to_rgb) @ depth_to_planning_frame
 
         # Converting calibration data to protobuf format
@@ -196,21 +191,17 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         )
 
         # Send the request to the robot
-        result = self.gripper_camera_client.set_camera_calib(set_req)
-        logger.info(f" Set Parameters: \n{result}")
-        # print("Post Setting Param--------------------------------------------")
+        try:
+            result = self.gripper_camera_client.set_camera_calib(set_req)
+            logger.info(f" Set Parameters: \n{result}")
+        except Exception as e:
+            raise ValueError(f"Failed to set calibration parameters on the robot: {e}")
+
+        # Optionally, verify by retrieving the parameters back with the following lines
         # get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
         # cal = self.gripper_camera_client.get_camera_calib(get_req)
-        # print(f"Pre-Set Cal (get cam param req): \n {cal}")
-        # get_req = gripper_camera_param_pb2.GetGripperCameraCalibrationRequest()
-        # cal = self.gripper_camera_client.get_camera_calib(get_req)
-        # print(f"Pre-Set Cal (get calib param req): \n{cal}")
-        print("--------------------------------------------------------------")
-        logger.info("Post Setting Param--------------------------------------------")
-        get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
-        cal = self.gripper_camera_client.get_camera_calib(get_req)
-        logger.info(f"Post-Set Cal (get cam param req): \n {cal}")
-        logger.info("--------------------------------------------------------------")
+        # logger.info(f"Post-Set Cal (get cam param req): \n {cal}")
+        logger.info("Calibration parameters successfully sent to the robot.")
 
     def capture_images(
         self,
