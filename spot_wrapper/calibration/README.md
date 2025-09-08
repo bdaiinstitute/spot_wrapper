@@ -182,6 +182,8 @@ python3 calibrate_spot_hand_camera_cli.py --ip <IP> -u user -pw <SECRET> --data_
 --dist_from_board_viewpoint_range .6 .9 .1
 ```
 
+If you would like to save the new calibration parameters to the robot itself, add the `-send` flag and they will be sent to the robot.
+
 ## Improving Calibration Quality
 
 If you find that the calibration quality isn't high enough, try a longer calibration
