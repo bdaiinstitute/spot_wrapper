@@ -576,7 +576,6 @@ def calibrate_single_camera_charuco(
         if charuco_corners is not None and len(charuco_corners) >= 8:
             all_corners.append(charuco_corners)
             all_ids.append(charuco_ids)
-            # used_image_ids.append(idx)
         else:
             logger.warning(f"Not enough corners detected in image index {idx} {debug_str}; ignoring")
 
@@ -770,7 +769,6 @@ def stereo_calibration_charuco(
                     R_target2cam=rmats_origin,
                     t_target2cam=tvecs_origin,
                     method=cv2.CALIB_HAND_EYE_DANIILIDIS,
-                    # method=cv2.CALIB_HAND_EYE_HORAUD,
                 )
                 robot_to_cam = np.eye(4)  # Initialize 4x4 identity matrix
                 robot_to_cam[:3, :3] = R_handeye  # Populate rotation
