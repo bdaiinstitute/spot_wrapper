@@ -30,6 +30,7 @@ from bosdyn.client.spot_cam.media_log import MediaLogClient
 from bosdyn.client.spot_cam.power import PowerClient
 from bosdyn.client.spot_cam.ptz import PtzClient
 from bosdyn.client.spot_cam.streamquality import StreamQualityClient
+from bosdyn.util import now_sec
 from PIL import Image
 
 from spot_wrapper.cam_webrtc_client import WebRTCClient
@@ -762,13 +763,16 @@ class PTZWrapper:
         pan, tilt, zoom = self._clamp_request_to_limits(ptz_name, pan, tilt, zoom)
         self.client.set_ptz_position(self._get_ptz_description(ptz_name), pan, tilt, zoom)
         if blocking:
-            start_time = datetime.datetime.now()
+            start_time = now_sec()
             current_position = self.client.get_ptz_position(self._get_ptz_description(ptz_name))
-            while not (
-                math.isclose(current_position.pan.value, pan, abs_tol=1)
-                and math.isclose(current_position.tilt.value, tilt, abs_tol=1)
-                and math.isclose(current_position.zoom.value, zoom, abs_tol=0.5)
-            ) and datetime.datetime.now() - start_time < datetime.timedelta(seconds=3):
+            while (
+                not (
+                    math.isclose(current_position.pan.value, pan, abs_tol=1)
+                    and math.isclose(current_position.tilt.value, tilt, abs_tol=1)
+                    and math.isclose(current_position.zoom.value, zoom, abs_tol=0.5)
+                )
+                and now_sec() - start_time < 3.0
+            ):
                 current_position = self.client.get_ptz_position(self._get_ptz_description(ptz_name))
                 time.sleep(0.2)
 
@@ -881,7 +885,7 @@ class ImageStreamWrapper:
                 # OpenCV needs BGR
                 cv_image = cv2.cvtColor(cv_image, cv2.COLOR_RGB2BGR)
                 with self.image_lock:
-                    self.last_image_time = datetime.datetime.now()
+                    self.last_image_time = datetime.datetime.fromtimestamp(now_sec())
                     self.last_image = cv_image
             except Exception as e:
                 self.logger.error(f"Image stream wrapper exception {e}")

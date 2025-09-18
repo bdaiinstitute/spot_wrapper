@@ -25,6 +25,7 @@ from bosdyn.client import ResponseError
 from bosdyn.client.common import FutureWrapper
 from bosdyn.client.exceptions import UnauthenticatedError
 from bosdyn.client.robot import Robot
+from bosdyn.util import now_sec
 from google.protobuf import text_format
 
 
@@ -190,7 +191,7 @@ class SpotDance:
         Execute choreography that has already been uploaded to the robot.
         Returns a future wrapper when use_async is true, success, msg tuple otherwise
         """
-        client_start_time = time.time()
+        client_start_time = now_sec()
 
         try:
             if use_async:
@@ -259,6 +260,7 @@ class SpotDance:
             # Setup common response in case of exception
             result_msg = f"Choreography uploaded with message: {message} \n"
             self._robot.power_on()
+
             (result, message) = self.execute_choreography_by_name(
                 choreography.name, start_slice=start_slice, use_async=False
             )
