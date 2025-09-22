@@ -60,6 +60,7 @@ from bosdyn.client.time_sync import TimeSyncEndpoint
 from bosdyn.client.world_object import WorldObjectClient
 from bosdyn.geometry import EulerZXY
 from bosdyn.mission.client import MissionClient
+from bosdyn.util import now_sec
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from .spot_arm import SpotArm
@@ -235,7 +236,7 @@ class AsyncIdle(AsyncPeriodicQuery):
         is_moving = False
 
         if self._spot_wrapper.last_velocity_command_time is not None:
-            if time.time() < self._spot_wrapper.last_velocity_command_time:
+            if now_sec() < self._spot_wrapper.last_velocity_command_time:
                 is_moving = True
             else:
                 self._spot_wrapper.last_velocity_command_time = None
@@ -1309,7 +1310,7 @@ class SpotWrapper:
         Returns:
             Tuple of bool success and a string message
         """
-        end_time = time.time() + cmd_duration
+        end_time = now_sec() + cmd_duration
         if body_height:
             current_mobility_params = self.get_mobility_params()
             height_adjusted_params = RobotCommandBuilder.mobility_params(
@@ -1395,7 +1396,7 @@ class SpotWrapper:
         self.is_stopping = False
         self.last_trajectory_command_precise = precise_position
         self._logger.info("got command duration of {}".format(cmd_duration))
-        end_time = time.time() + cmd_duration
+        end_time = now_sec() + cmd_duration
         if frame_name == "vision":
             vision_tform_body = frame_helpers.get_vision_tform_body(
                 self._robot_state_client.get_robot_state().kinematic_state.transforms_snapshot
@@ -1441,7 +1442,7 @@ class SpotWrapper:
     def robot_command(
         self, robot_command: robot_command_pb2.RobotCommand, duration: float = MAX_COMMAND_DURATION
     ) -> typing.Tuple[bool, str, typing.Optional[int]]:
-        end_time = time.time() + duration
+        end_time = now_sec() + duration
         return self._robot_command(
             robot_command,
             end_time_secs=end_time,
@@ -1449,7 +1450,7 @@ class SpotWrapper:
         )
 
     def manipulation_command(self, request):
-        end_time = time.time() + MAX_COMMAND_DURATION
+        end_time = now_sec() + MAX_COMMAND_DURATION
         return self._manipulation_request(
             request,
             end_time_secs=end_time,
