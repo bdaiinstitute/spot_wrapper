@@ -26,7 +26,9 @@ logger = logging.getLogger(__name__)
 #
 
 
-def setup_calibration_param(parser):
+def setup_calibration_param(
+    parser: argparse.ArgumentParser,
+) -> Tuple[argparse.Namespace, cv2.aruco_Dictionary, cv2.aruco_CharucoBoard]:
     args = parser.parse_args()
     if hasattr(cv2.aruco, args.dict_size):
         aruco_dict = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, args.dict_size))
