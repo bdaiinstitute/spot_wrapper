@@ -152,7 +152,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         print("Pre Setting Param--------------------------------------------")
         print(f"Calibration Data being sent to robot: \n {cal}")
 
-        def convert_pinhole_intrinsic_to_proto(intrinsic_matrix):
+        def convert_pinhole_intrinsic_to_proto(intrinsic_matrix: np.ndarray) -> ImageSource.PinholeModel:
             """Converts a 3x3 intrinsic matrix to a PinholeModel protobuf."""
             pinhole_model = ImageSource.PinholeModel()
             pinhole_model.CameraIntrinsics.focal_length = intrinsic_matrix[0, :1]
