@@ -1,5 +1,4 @@
 import logging
-import time
 import typing
 
 from bosdyn.api import header_pb2
@@ -7,6 +6,7 @@ from bosdyn.client import robot_command
 from bosdyn.client.lease import Lease
 from bosdyn.client.robot import Robot
 from bosdyn.client.spot_check import SpotCheckClient, run_spot_check, spot_check_pb2
+from bosdyn.util import now_nsec, now_sec
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from spot_wrapper.wrapper_helpers import RobotState
@@ -81,7 +81,7 @@ class SpotCheck:
         Returns:
             Feedback from the spot check command
         """
-        start_time_seconds, start_time_ns = int(time.time()), int(time.time_ns() % 1e9)
+        start_time_seconds, start_time_ns = int(now_sec()), int(now_nsec() % 1e9)
         req = spot_check_pb2.SpotCheckFeedbackRequest(
             header=header_pb2.RequestHeader(
                 request_timestamp=Timestamp(seconds=start_time_seconds, nanos=start_time_ns),
@@ -97,7 +97,7 @@ class SpotCheck:
 
     def _spot_check_cmd(self, command: spot_check_pb2.SpotCheckCommandRequest):
         """Send a Spot Check command"""
-        start_time_seconds, start_time_ns = int(time.time()), int(time.time_ns() % 1e9)
+        start_time_seconds, start_time_ns = int(now_sec()), int(now_nsec() % 1e9)
         req = spot_check_pb2.SpotCheckCommandRequest(
             header=header_pb2.RequestHeader(
                 request_timestamp=Timestamp(seconds=start_time_seconds, nanos=start_time_ns),
