@@ -106,7 +106,6 @@ def spot_main() -> None:
             images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path
         )
         if args.save_to_robot:
-            # in_hand_bot, args = create_robot(args, charuco=charuco, aruco_dict=aruco_dict)
             logger.info("Saving calibration to robot...")
             in_hand_bot.write_calibration_to_robot(calibration)
 
