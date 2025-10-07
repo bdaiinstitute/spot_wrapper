@@ -546,7 +546,7 @@ class SpotArm:
                 robot_command = robot_command_pb2.RobotCommand()
                 robot_command.synchronized_command.arm_command.arm_velocity_command.CopyFrom(arm_velocity_command)
                 self._robot_command_client.robot_command(
-                    command=robot_command, 
+                    command=robot_command,
                     end_time_secs=end_time,
                     timesync_endpoint=self._robot.time_sync.endpoint,
                 )
