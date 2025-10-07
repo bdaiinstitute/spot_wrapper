@@ -6,6 +6,7 @@ from typing import Tuple
 
 import cv2
 import numpy as np
+import yaml
 
 from spot_wrapper.calibration.automatic_camera_calibration_robot import AutomaticCameraCalibrationRobot
 from spot_wrapper.calibration.calibrate_multistereo_cameras_with_charuco_cli import (
@@ -57,15 +58,15 @@ def create_robot_parser() -> argparse.ArgumentParser:
 def spot_main() -> None:
     parser = create_robot_parser()
     args, aruco_dict, charuco = setup_calibration_param(parser)
+    in_hand_bot, args = create_robot(args, charuco=charuco, aruco_dict=aruco_dict)
 
+    # Collect new data and calibrate
     if not args.from_data:
         logger.warning("This script moves the robot around. !!! USE AT YOUR OWN RISK !!!")
         logger.warning("HOLD Ctrl + C NOW TO CANCEL")
         logger.warning("The calibration board should be about a meter away with nothing within a meter of the robot.")
         logger.warning("The robot should NOT be docked, and nobody should have robot control")
         # sleep(5)
-
-        in_hand_bot, args = create_robot(args, charuco=charuco, aruco_dict=aruco_dict)
 
         images, poses = get_multiple_perspective_camera_calibration_dataset(
             auto_cam_cal_robot=in_hand_bot,
@@ -79,11 +80,36 @@ def spot_main() -> None:
             data_path=args.data_path,
             save_data=args.save_data,
         )
+        calibration = calibration_helper(
+            images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path
+        )
+        if args.save_to_robot:
+            logger.info("Saving calibration to robot...")
+            in_hand_bot.write_calibration_to_robot(calibration)
+        in_hand_bot.shutdown()
+    # Send previously computed and saved calibration data to the robot
+    elif args.from_yaml:
+        try:
+            with open(args.data_path, "r") as file:
+                calibration = yaml.safe_load(file)
+                logger.info(f"Loaded calibration data:\n{calibration}")
+                if args.save_to_robot:
+                    logger.info("Saving calibration to robot...")
+                    in_hand_bot.write_calibration_to_robot(calibration)
+        except Exception as e:
+            raise ValueError(f"Failed to load calibration from {args.data_path}: {e}\nIs it a calibration yaml file?")
+    # Load previously collected data and compute calibration
     else:
         logger.info(f"Loading images from {args.data_path}")
         images, poses = load_dataset_from_path(args.data_path)
+        calibration = calibration_helper(
+            images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path
+        )
+        if args.save_to_robot:
+            logger.info("Saving calibration to robot...")
+            in_hand_bot.write_calibration_to_robot(calibration)
 
-    calibration_helper(images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses)
+    logger.info("Calibration complete!")
 
 
 def calibrate_robot_cli(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
@@ -169,6 +195,25 @@ def calibrate_robot_cli(parser: argparse.ArgumentParser = None) -> argparse.Argu
         dest="from_data",
         action="store_true",
         help="Whether to only calibrate from recorded dataset on file.",
+    )
+
+    parser.add_argument(
+        "--save_to_robot",
+        "-send",
+        dest="save_to_robot",
+        action="store_true",
+        help="Whether to save the calibration to the robot.",
+    )
+
+    parser.add_argument(
+        "--from_yaml",
+        "-yaml",
+        dest="from_yaml",
+        action="store_true",
+        help=(
+            "Whether the data is from a yaml file. Use this and the '--from_data' and '--send' args to send a"
+            " previously saved calibration yaml to the robot"
+        ),
     )
 
     return parser

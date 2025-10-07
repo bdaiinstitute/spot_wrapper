@@ -170,7 +170,7 @@ def get_multiple_perspective_camera_calibration_dataset(
     idx = 0
     poses = []
     while idx < max_num_images and idx < len(viewpoints):
-        logger.info(f"Visiting viewpoint {idx} of {min(len(viewpoints), max_num_images)}")
+        logger.info(f"Visiting viewpoint {idx+1} of {min(len(viewpoints), max_num_images)}")
         viewpoint = viewpoints[idx]
         initial_pose, new_pose = auto_cam_cal_robot.offset_cameras_from_current_view(
             transform_offset=viewpoint,
@@ -187,16 +187,15 @@ def get_multiple_perspective_camera_calibration_dataset(
         if save_data:
             if idx == 1:
                 create_calibration_save_folders(data_path, len(images))
-            logger.info(f"Saving image batch {idx}")
+            logger.info(f"Saving image batch {idx+1}")
             for jdx, image in enumerate(images):
                 cv2.imwrite(
-                    os.path.join(data_path, str(jdx), f"{idx}.png"),
+                    os.path.join(data_path, str(jdx), f"{idx+1}.png"),
                     image,
                 )
-            np.save(os.path.join(data_path, "poses", f"{idx}.npy"), new_pose)
+            np.save(os.path.join(data_path, "poses", f"{idx+1}.npy"), new_pose)
     calibration_images = np.array(calibration_images, dtype=object)
-    auto_cam_cal_robot.shutdown()
-    return (calibration_images, poses)
+    return (np.array(calibration_images, dtype=object), poses)
 
 
 def multistereo_calibration_charuco(
@@ -206,7 +205,7 @@ def multistereo_calibration_charuco(
     aruco_dict: cv2.aruco_Dictionary = SPOT_DEFAULT_ARUCO_DICT,
     camera_matrices: Optional[Dict] = {},
     dist_coeffs: Optional[Dict] = {},
-    poses: Optional[np.ndarray] = None,
+    poses: Union[np.ndarray, None] = None,
 ) -> Dict:
     """
     Calibrates the intrinsic and extrinsic parameters for multiple stereo camera pairs
@@ -253,7 +252,7 @@ def multistereo_calibration_charuco(
             to their distortion coefficients.
             If coefficients are not provided for a camera, they will be computed during calibration.
             Defaults to an empty dictionary.
-        poses (Optional[np.ndarray]): Either a list of 4x4 homogenous transforms from which
+        poses (Union[np.ndarray, None]): Either a list of 4x4 homogenous transforms from which
             pictures where taken, or None if unknown. Needs to be supplied for robot to camera cal.
             (planning frame to base frame), or None
 
@@ -613,7 +612,7 @@ def stereo_calibration_charuco(
     dist_coeffs_origin: Optional[np.ndarray] = None,
     camera_matrix_reference: Optional[np.ndarray] = None,
     dist_coeffs_reference: Optional[np.ndarray] = None,
-    poses: Optional[np.ndarray] = None,
+    poses: Union[np.ndarray, None] = None,
 ) -> Dict:
     """
     Perform a stereo calibration from a set of synchronized stereo images of a charuco calibration
@@ -634,7 +633,7 @@ def stereo_calibration_charuco(
             matrix to assign to camera 1. If none, is computed. . Defaults to None.
         dist_coeffs_reference (Optional[np.ndarray], optional): What distortion coefficients
             to assign to camera 1. If None, is computed. Defaults to None.
-        poses (Optional[np.ndarray]): Either a list of 4x4 homogenous transforms from which
+        poses (Union[np.ndarray, None]): Either a list of 4x4 homogenous transforms from which
             pictures where taken, or None if unknown. Needs to be supplied for robot to camera cal.
             (planning frame to base frame), or None
     Raises:
@@ -674,6 +673,12 @@ def stereo_calibration_charuco(
     img_size = None
 
     no_poses = poses is None
+    if no_poses:
+        poses = [x for x in range(len(origin_images))]
+    else:
+        filtered_poses = []
+
+    no_poses = poses is None
     if no_poses:  # fill up poses with dummy values so that you can iterate over poses
         # with images zip(origin_images, reference_images, poses) together regardless of if poses
         # are actually supplied (for the sake of brevity)
@@ -690,8 +695,8 @@ def stereo_calibration_charuco(
             reference_img, charuco_board, aruco_dict
         )
 
-        if not no_poses and origin_charuco_corners is not None:  # Only want to use poses that have a matching tvec/rmat
-            filtered_poses.append(pose)  # no matching tvec/rmat if the corners are not found in the image.
+        if not no_poses:
+            filtered_poses.append(pose)
         if origin_charuco_corners is not None and reference_charuco_corners is not None:
             all_corners_origin.append(origin_charuco_corners)
             all_corners_reference.append(reference_charuco_corners)
@@ -780,7 +785,6 @@ def stereo_calibration_charuco(
                 # Add the hand-eye calibration results to the final result dictionary
                 result_dict["R_handeye"] = camera_to_robot_R
                 result_dict["T_handeye"] = camera_to_robot_T
-
             return result_dict
         else:
             raise ValueError("Not enough valid points for stereo calibration.")
@@ -997,7 +1001,7 @@ def create_calibration_save_folders(path: str, num_folders: int) -> None:
 
             logger.info(f"Creating image folder at {cam_path}")
             os.makedirs(cam_path, exist_ok=True)
-        os.makedirs(os.path.join(path, "poses"))
+        os.makedirs(os.path.join(path, "poses"), exist_ok=True)
         logger.info(f"Done creating {num_folders} folders.")
 
 
@@ -1061,10 +1065,10 @@ def save_calibration_parameters(
     tag: str,
     parser_args: Optional[argparse.Namespace] = None,
     unsafe: bool = False,
-) -> None:
+) -> Dict:
     """
     Dump the results of a calibration, and the metadata associated with the command that
-    created it, to a file
+    created it, to a file. 0 is RGB and 1 is depth.
 
     Args:
         data (Dict): The results of the calibration
@@ -1204,6 +1208,7 @@ def save_calibration_parameters(
             sort_keys=False,
         )
     logger.info(f"Saved calibration to file {output_path} under tag '{tag}'")
+    return existing_data
 
 
 def charuco_pose_sanity_check(

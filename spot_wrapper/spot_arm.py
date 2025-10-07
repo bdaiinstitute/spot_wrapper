@@ -22,7 +22,7 @@ from bosdyn.client.robot_command import (
 )
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.time_sync import TimeSyncEndpoint
-from bosdyn.util import seconds_to_duration
+from bosdyn.util import now_sec, seconds_to_duration
 
 from spot_wrapper.spot_leash import SpotLeashContextProtocol
 from spot_wrapper.wrapper_helpers import RobotState
@@ -99,7 +99,7 @@ class SpotArm:
             return False, str(e), None
 
     def manipulation_command(self, request: manipulation_api_pb2):
-        end_time = time.time() + self._max_command_duration
+        end_time = now_sec() + self._max_command_duration
         return self._manipulation_request(
             request,
             end_time_secs=end_time,
@@ -539,13 +539,12 @@ class SpotArm:
                 self._logger.info(msg)
                 return False, msg
             else:
-                end_time = arm_velocity_command.end_time.seconds + arm_velocity_command.end_time.nanos/1e9 + cmd_duration
+                end_time = now_sec() + cmd_duration
                 end_time_proto = self._robot.time_sync.robot_timestamp_from_local_secs(end_time)
                 arm_velocity_command.end_time.CopyFrom(end_time_proto)
 
                 robot_command = robot_command_pb2.RobotCommand()
                 robot_command.synchronized_command.arm_command.arm_velocity_command.CopyFrom(arm_velocity_command)
-
                 self._robot_command_client.robot_command(
                     command=robot_command, 
                     end_time_secs=end_time,
@@ -577,9 +576,9 @@ class SpotArm:
             True if successfully completed the gripper command, False if it failed
         """
         if timeout_sec is not None:
-            start_time = time.time()
+            start_time = now_sec()
             end_time = start_time + timeout_sec
-            now = time.time()
+            now = now_sec()
 
         while timeout_sec is None or now < end_time:
             feedback_resp = robot_command_client.robot_command_feedback(cmd_id)
@@ -597,7 +596,7 @@ class SpotArm:
                 return False
 
             time.sleep(0.1)
-            now = time.time()
+            now = now_sec()
         return False
 
     @staticmethod
@@ -619,9 +618,9 @@ class SpotArm:
             True if successfully completed the manipulation, False if the manipulation failed
         """
         if timeout_sec is not None:
-            start_time = time.time()
+            start_time = now_sec()
             end_time = start_time + timeout_sec
-            now = time.time()
+            now = now_sec()
 
         while timeout_sec is None or now < end_time:
             feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(manipulation_cmd_id=cmd_id)
@@ -638,7 +637,7 @@ class SpotArm:
                 return False
 
             time.sleep(0.1)
-            now = time.time()
+            now = now_sec()
         return False
 
     def grasp_3d(self, frame: str, object_rt_frame: typing.List[float]) -> typing.Tuple[bool, str]:
