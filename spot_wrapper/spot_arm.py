@@ -539,13 +539,17 @@ class SpotArm:
                 self._logger.info(msg)
                 return False, msg
             else:
-                end_time = self._robot.time_sync.robot_timestamp_from_local_secs(now_sec() + cmd_duration)
-                arm_velocity_command.end_time.CopyFrom(end_time)
+                end_time = now_sec() + cmd_duration
+                end_time_proto = self._robot.time_sync.robot_timestamp_from_local_secs(end_time)
+                arm_velocity_command.end_time.CopyFrom(end_time_proto)
 
                 robot_command = robot_command_pb2.RobotCommand()
                 robot_command.synchronized_command.arm_command.arm_velocity_command.CopyFrom(arm_velocity_command)
-
-                self._robot_command_client.robot_command(command=robot_command, end_time_secs=now_sec() + cmd_duration)
+                self._robot_command_client.robot_command(
+                    command=robot_command,
+                    end_time_secs=end_time,
+                    timesync_endpoint=self._robot.time_sync.endpoint,
+                )
 
         except Exception as e:
             return (
