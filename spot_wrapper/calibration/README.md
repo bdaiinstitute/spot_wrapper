@@ -55,11 +55,11 @@ python3 calibrate_spot_hand_camera_cli.py --ip <ROBOT_IP> -u <USER> -pw <SECRET>
 --data_path <PATH/TO/DATA/FOLDER> --save_data --result_path <PATH/TO/RESULTS/FILE.YAML>
 ```
 
-To overwrite the robot's internal calibration with your newly calculated one, also add the ```--send``` flag
+To overwrite the robot's internal calibration with your newly calculated one, also add the ```--save_to_robot``` flag
 
 ```bash
 python3 calibrate_spot_hand_camera_cli.py --ip <ROBOT_IP> -u <USER> -pw <SECRET>\ 
---data_path <PATH/TO/DATA/FOLDER> --save_data --result_path <PATH/TO/RESULTS/FILE.YAML> --send
+--data_path <PATH/TO/DATA/FOLDER> --save_data --result_path <PATH/TO/RESULTS/FILE.YAML> --save_to_robot
 ```
 
 > ***NOTE:*** If you are using a legacy charuco board, add ```--legacy_charuco_pattern True```. If you're not sure, go to [Check if you have a Legacy Charuco Board](#check-if-you-have-a-legacy-charuco-board).
@@ -73,15 +73,15 @@ python3 calibrate_spot_hand_camera_cli.py --ip <ROBOT_IP> -u <USER> -pw <SECRET>
 --data_path <PATH/TO/DATA/FOLDER> --from_data 
 ```
 
-You can still optionally add the ```--result_path <PATH/TO/RESULTS/FILE.YAML>``` and ```--send``` flags to save the calculated calibration to a yaml file and/or overwrite the robot's internally saved calibrations, respectively.
+You can still optionally add the ```--result_path <PATH/TO/RESULTS/FILE.YAML>``` and/or ```--save_to_robot``` flags to save the calculated calibration to a yaml file and/or overwrite the robot's internally saved calibrations, respectively.
 
 ## Overwrite Robot Calibration with Existing Yaml
 
-If you have previously run the calibration script and saved the results, you can send those directly to the robot to be saved on its internal hardware without needing to run the entire calibration script by including the ```--from_data``` and ```--result_path``` flags and ensuring the ```<PATH/TO/RESULTS/FILE.YAML>``` goes to the correct calibration yaml file.
+If you have previously run the calibration script and saved the results, you can send those directly to the robot to be saved on its internal hardware without needing to run the entire calibration script by including the ```--from_yaml``` and ```--data_path``` flags and ensuring the ```<PATH/TO/RESULTS/FILE.YAML>``` goes to the correct calibration yaml file.
 
 ```bash
 python3 calibrate_spot_hand_camera_cli.py --ip <ROBOT_IP> -u <USER> -pw <SECRET>\ 
---from_data --result_path <PATH/TO/RESULTS/FILE.YAML> --send
+--from_yaml --data_path <PATH/TO/RESULTS/FILE.YAML> --save_to_robot
 ```
 
 ## All Flags
