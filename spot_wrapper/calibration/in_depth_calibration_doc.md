@@ -1,9 +1,5 @@
 # Automatic Robotic Stereo Camera Calibration Utility with Charuco Target (a.k.a Multi-Stereo Madness)
 
-## Find where your cameras are relative to each other, and relative to your robot
-
-## Find how your cameras project 3D points into pixels
-
 ### Recommended Setup
 
 ![spot eye in hand cal](spot_eye_in_hand_setup.jpg)

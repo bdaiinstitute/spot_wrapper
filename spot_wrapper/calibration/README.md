@@ -23,7 +23,7 @@ For more info, see ```calibration_util.py```, where the functions
 ```get_multiple_perspective_camera_calibration_dataset``` and ```multistereo_calibration_charuco```
 do most of the heavy lifting.
 
-> ***NOTE:*** For a more in-depth explanation of this calibration tool, see ![this document](oldREADME.md).
+> ***NOTE:*** For a more in-depth explanation of this calibration tool, see ![this document](in_depth_calibration_doc.md).
 
 # Quick Start
 
