@@ -1,12 +1,4 @@
-# Automatic Robotic Stereo Camera Calibration Utility with Charuco Target (a.k.a Multi-Stereo Madness)
-
-## Find where your cameras are relative to each other, and relative to your robot
-
-## Find how your cameras project 3D points into pixels
-
-### Reference Image
-
-![side by side comparison](registration_qualitative_example.jpg)
+# Automatic Robotic Stereo Camera Calibration with Charuco Target
 
 # Table of Contents
 
@@ -16,6 +8,8 @@
 4. [***All Flags***](#all-flags)
 
 # Overview
+
+![side by side comparison](registration_qualitative_example.jpg)
 
 This utility streamlines automatic
 camera calibration to **solve for the intrinsic and extrinsic parameters for two or more
@@ -29,7 +23,7 @@ For more info, see ```calibration_util.py```, where the functions
 ```get_multiple_perspective_camera_calibration_dataset``` and ```multistereo_calibration_charuco```
 do most of the heavy lifting.
 
-> ***NOTE:*** For a more in-depth explanation of this calibration tool, see ![here](oldREADME.md).
+> ***NOTE:*** For a more in-depth explanation of this calibration tool, see ![this document](oldREADME.md).
 
 # Quick Start
 
@@ -70,7 +64,7 @@ python3 calibrate_spot_hand_camera_cli.py --ip <ROBOT_IP> -u <USER> -pw <SECRET>
 
 > ***NOTE:*** If you are using a legacy charuco board, add ```--legacy_charuco_pattern True```. If you're not sure, go to [Check if you have a Legacy Charuco Board](#check-if-you-have-a-legacy-charuco-board).
 
-## Calibration with Dataset
+## Calibration with Existing Dataset
 
 If you already have a folder of images to calibrate on, then add the ```--from_data``` flag and remove the ```--save_data``` flag. This will *not* move the robot.
 
