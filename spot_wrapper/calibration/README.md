@@ -5,7 +5,7 @@
 1. [***Overview***](#overview)
 2. [***Quick Start***](#quick-start)
 3. [***Check if you have a Legacy Charuco Board***](#check-if-you-have-a-legacy-charuco-board)
-4. [***All Flags***](#all-flags)
+4. [***All Options***](#all-options)
 
 # Overview
 
@@ -23,7 +23,8 @@ For more info, see ```calibration_util.py```, where the functions
 ```get_multiple_perspective_camera_calibration_dataset``` and ```multistereo_calibration_charuco```
 do most of the heavy lifting.
 
-> ***NOTE:*** For a more in-depth explanation of this calibration tool, see ![this document](in_depth_calibration_doc.md).
+> [!NOTE]
+> For a more in-depth explanation of this calibration tool, see ![this document](in_depth_calibration_doc.md).
 
 # Quick Start
 
@@ -35,38 +36,42 @@ To run through the full calibration script to calibrate your Spot's hand camera 
 
 You can then run the following command:
 
-> ***WARNING:*** The robot will move. Be sure the robot is sitting (not docked) in front of the charuco board and that no one else is holding the lease before beginning.
+> [!WARNING]
+> The robot will move. Be sure the robot is sitting (not docked) in front of the charuco board and that no one else is holding the lease before beginning.
 
 ```bash
 python3 calibrate_spot_hand_camera_cli.py --ip <ROBOT_IP> -u <USER> -pw <SECRET> 
 ```
 
-To save the collected images, add the ```--save_data``` and ```--data_path``` flags
+To save the collected images, add the ```--save_data``` and ```--data_path``` flags:
 
 ```bash
 python3 calibrate_spot_hand_camera_cli.py --ip <ROBOT_IP> -u <USER> -pw <SECRET>\ 
 --data_path <PATH/TO/DATA/FOLDER> --save_data
 ```
 
-To also save the calculated calibrations, add the ```--result_path``` flag
+To also save the calculated calibrations, add the ```--result_path``` flag:
 
 ```bash
 python3 calibrate_spot_hand_camera_cli.py --ip <ROBOT_IP> -u <USER> -pw <SECRET>\ 
 --data_path <PATH/TO/DATA/FOLDER> --save_data --result_path <PATH/TO/RESULTS/FILE.YAML>
 ```
 
-To overwrite the robot's internal calibration with your newly calculated one, also add the ```--save_to_robot``` flag
+To overwrite the robot's internal calibration with your newly calculated one, also add the ```--save_to_robot``` flag:
 
 ```bash
 python3 calibrate_spot_hand_camera_cli.py --ip <ROBOT_IP> -u <USER> -pw <SECRET>\ 
 --data_path <PATH/TO/DATA/FOLDER> --save_data --result_path <PATH/TO/RESULTS/FILE.YAML> --save_to_robot
 ```
 
-> ***NOTE:*** If you are using a legacy charuco board, add ```--legacy_charuco_pattern True```. If you're not sure, go to [Check if you have a Legacy Charuco Board](#check-if-you-have-a-legacy-charuco-board).
+> [!NOTE]
+> If you are using a legacy charuco board, add ```--legacy_charuco_pattern True```. If you're not sure, go to [Check if you have a Legacy Charuco Board](#check-if-you-have-a-legacy-charuco-board).
+
+Other options are listed in [All Options](#all-options) below.
 
 ## Calibration with Existing Dataset
 
-If you already have a folder of images to calibrate on, then add the ```--from_data``` flag and remove the ```--save_data``` flag. This will *not* move the robot.
+If you already have a folder of images to calibrate on, then add the ```--from_data``` flag and remove the ```--save_data``` flag. This will *not* move the robot:
 
 ```bash
 python3 calibrate_spot_hand_camera_cli.py --ip <ROBOT_IP> -u <USER> -pw <SECRET>\ 
@@ -77,16 +82,16 @@ You can still optionally add the ```--result_path <PATH/TO/RESULTS/FILE.YAML>```
 
 ## Overwrite Robot Calibration with Existing Yaml
 
-If you have previously run the calibration script and saved the results, you can send those directly to the robot to be saved on its internal hardware without needing to run the entire calibration script by including the ```--from_yaml``` and ```--data_path``` flags and ensuring the ```<PATH/TO/RESULTS/FILE.YAML>``` goes to the correct calibration yaml file.
+If you have previously run the calibration script and saved the results, you can send those directly to the robot to be saved on its internal hardware without needing to run the entire calibration script by including the ```--from_yaml``` and ```--data_path``` flags and ensuring the ```<PATH/TO/RESULTS/FILE.YAML>``` goes to the correct calibration yaml file:
 
 ```bash
 python3 calibrate_spot_hand_camera_cli.py --ip <ROBOT_IP> -u <USER> -pw <SECRET>\ 
 --from_yaml --data_path <PATH/TO/RESULTS/FILE.YAML> --save_to_robot
 ```
 
-## All Flags
+## All Options
 
-Below are all the various flags available to you to further fine-tune your calibration. You can also see them all in your terminal by running
+Below are all the various flags available to you to further fine-tune your calibration. You can also see them all in your terminal by running:
 
 ```bash
 python3 calibrate_spot_hand_camera_cli.py -h
