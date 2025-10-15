@@ -37,7 +37,7 @@ To run through the full calibration script to calibrate your Spot's hand camera 
 You can then run the following command:
 
 > [!WARNING]
-> The robot will move. Be sure the robot is sitting (not docked) in front of the charuco board and that no one else is holding the lease before beginning.
+> The robot will move. Be sure the robot is sitting (not docked) in front of the charuco board and that no one else is holding the lease before beginning (you will have to release control from the tablet).
 
 ```bash
 python3 calibrate_spot_hand_camera_cli.py --ip <ROBOT_IP> -u <USER> -pw <SECRET> 
