@@ -62,10 +62,7 @@ class SpotGraphNav:
         self._current_anchors = {}  # maps anchor id to anchor
 
     def list_graph(self) -> typing.List[str]:
-        """List waypoint ids of graph_nav
-        Args:
-          upload_path : Path to the root directory of the map.
-        """
+        # List waypoint ids of graph_nav
         ids, eds = self._list_graph_waypoint_and_edge_ids()
 
         return [v for _, v in sorted(ids.items(), key=lambda item: item[0])]
