@@ -126,10 +126,10 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             calibration["depth_to_rgb"] = np.vstack(
                 (np.hstack((depth_to_rgb_R, depth_to_rgb_T)), np.array([0, 0, 0, 1]))
             )
-            depth_to_planning_T = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["T"]).reshape((3, 1))
-            depth_to_planning_R = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["R"]).reshape((3, 3))
-            calibration["depth_to_planning_frame"] = np.vstack(
-                (np.hstack((depth_to_planning_R, depth_to_planning_T)), np.array([0, 0, 0, 1]))
+            rgb_to_planning_T = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["T"]).reshape((3, 1))
+            rgb_to_planning_R = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["R"]).reshape((3, 3))
+            calibration["rgb_to_planning_frame"] = np.vstack(
+                (np.hstack((rgb_to_planning_R, rgb_to_planning_T)), np.array([0, 0, 0, 1]))
             )
         except KeyError as e:
             raise ValueError(f"Error: Missing key in the calibration data: {e}")
@@ -162,25 +162,28 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         depth_intrinsics = cal["depth_intrinsic"]
         rgb_intrinsics = cal["rgb_intrinsic"]
         depth_to_rgb = cal["depth_to_rgb"]
-        depth_to_planning_frame = cal["depth_to_planning_frame"]
-        rgb_to_planning_frame = np.linalg.inv(depth_to_rgb) @ depth_to_planning_frame
+        rgb_to_planning_frame = cal["rgb_to_planning_frame"]
+        depth_to_planning_frame = depth_to_rgb @ rgb_to_planning_frame
+
+        planning_t_depth = np.linalg.inv(depth_to_planning_frame)
+        planning_t_rgb = np.linalg.inv(rgb_to_planning_frame)
 
         # Converting calibration data to protobuf format
         depth_intrinsics_proto = convert_pinhole_intrinsic_to_proto(depth_intrinsics)
         rgb_intrinsics_proto = convert_pinhole_intrinsic_to_proto(rgb_intrinsics)
-        depth_to_planning_frame_proto = SE3Pose.from_matrix(depth_to_planning_frame).to_proto()
-        rgb_to_planning_frame_proto = SE3Pose.from_matrix(rgb_to_planning_frame).to_proto()
+        planning_t_depth_frame_proto = SE3Pose.from_matrix(planning_t_depth).to_proto()
+        planning_t_rgb_frame_proto = SE3Pose.from_matrix(planning_t_rgb).to_proto()
 
         set_req = gripper_camera_param_pb2.SetGripperCameraCalibrationRequest(
             gripper_cam_cal=gripper_camera_param_pb2.GripperCameraCalibrationProto(
                 depth=gripper_camera_param_pb2.GripperDepthCameraCalibrationParams(
-                    wr1_tform_sensor=depth_to_planning_frame_proto,
+                    wr1_tform_sensor=planning_t_depth_frame_proto,
                     intrinsics=gripper_camera_param_pb2.GripperDepthCameraCalibrationParams.DepthCameraIntrinsics(
                         pinhole=depth_intrinsics_proto
                     ),
                 ),
                 color=gripper_camera_param_pb2.GripperColorCameraCalibrationParams(
-                    wr1_tform_sensor=rgb_to_planning_frame_proto,
+                    wr1_tform_sensor=planning_t_rgb_frame_proto,
                     intrinsics=[
                         gripper_camera_param_pb2.GripperColorCameraCalibrationParams.ColorCameraIntrinsics(
                             pinhole=rgb_intrinsics_proto
