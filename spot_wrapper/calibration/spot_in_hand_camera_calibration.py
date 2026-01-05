@@ -18,6 +18,7 @@ from bosdyn.client.estop import (
 from bosdyn.client.frame_helpers import (
     BODY_FRAME_NAME,
     HAND_FRAME_NAME,
+    WR1_FRAME_NAME,
     get_a_tform_b,
 )
 from bosdyn.client.gripper_camera_param import GripperCameraParamClient
@@ -113,6 +114,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
 
     def extract_calibration_parameters(self, calibration_dict: dict, tag: str) -> dict:
         """Extract calibration parameters to send to robot"""
+        print(f"{calibration_dict=}")
         try:
             calibration = {}
             calibration["depth_intrinsic"] = np.asarray(calibration_dict[tag]["intrinsic"][1]["camera_matrix"]).reshape(
@@ -121,15 +123,15 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             calibration["rgb_intrinsic"] = np.asarray(calibration_dict[tag]["intrinsic"][0]["camera_matrix"]).reshape(
                 (3, 3)
             )
-            depth_to_rgb_T = np.array(calibration_dict[tag]["extrinsic"][1][0]["T"]).reshape((3, 1))
-            depth_to_rgb_R = np.array(calibration_dict[tag]["extrinsic"][1][0]["R"]).reshape((3, 3))
-            calibration["depth_to_rgb"] = np.vstack(
-                (np.hstack((depth_to_rgb_R, depth_to_rgb_T)), np.array([0, 0, 0, 1]))
+            rgb_to_depth_T = np.array(calibration_dict[tag]["extrinsic"][1][0]["T"]).reshape((3, 1))
+            rgb_to_depth_R = np.array(calibration_dict[tag]["extrinsic"][1][0]["R"]).reshape((3, 3))
+            calibration["rgb_to_depth"] = np.vstack(
+                (np.hstack((rgb_to_depth_R, rgb_to_depth_T)), np.array([0, 0, 0, 1]))
             )
-            rgb_to_planning_T = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["T"]).reshape((3, 1))
-            rgb_to_planning_R = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["R"]).reshape((3, 3))
-            calibration["rgb_to_planning_frame"] = np.vstack(
-                (np.hstack((rgb_to_planning_R, rgb_to_planning_T)), np.array([0, 0, 0, 1]))
+            depth_to_planning_T = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["T"]).reshape((3, 1))
+            depth_to_planning_R = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["R"]).reshape((3, 3))
+            calibration["depth_to_planning_frame"] = np.vstack(
+                (np.hstack((depth_to_planning_R, depth_to_planning_T)), np.array([0, 0, 0, 1]))
             )
         except KeyError as e:
             raise ValueError(f"Error: Missing key in the calibration data: {e}")
@@ -158,12 +160,22 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             pinhole_model.CameraIntrinsics.focal_length = intrinsic_matrix[0, :1]
             pinhole_model.CameraIntrinsics.principal_point = (intrinsic_matrix[0, 2], intrinsic_matrix[1, 2])
             return pinhole_model
+        
+        # wr1_t_hand = get_a_tform_b(
+        #     self.robot_state_client.get_robot_state().kinematic_state.transforms_snapshot,
+        #     "arm0_link_wr1",
+        #     HAND_FRAME_NAME,
+        # )
+        # logger.info(f"{wr1_t_hand=}")
 
         depth_intrinsics = cal["depth_intrinsic"]
         rgb_intrinsics = cal["rgb_intrinsic"]
-        depth_to_rgb = cal["depth_to_rgb"]
-        rgb_to_planning_frame = cal["rgb_to_planning_frame"]
-        depth_to_planning_frame = depth_to_rgb @ rgb_to_planning_frame
+        rgb_t_depth = cal["rgb_to_depth"]
+
+        logger.info(f"{rgb_t_depth=}")
+
+        depth_to_planning_frame = cal["depth_to_planning_frame"] #@ wr1_t_hand.to_matrix()
+        rgb_to_planning_frame = rgb_t_depth @ depth_to_planning_frame #@ wr1_t_hand.to_matrix()
 
         planning_t_depth = np.linalg.inv(depth_to_planning_frame)
         planning_t_rgb = np.linalg.inv(rgb_to_planning_frame)
@@ -173,6 +185,8 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         rgb_intrinsics_proto = convert_pinhole_intrinsic_to_proto(rgb_intrinsics)
         planning_t_depth_frame_proto = SE3Pose.from_matrix(planning_t_depth).to_proto()
         planning_t_rgb_frame_proto = SE3Pose.from_matrix(planning_t_rgb).to_proto()
+
+        logger.info(f"{planning_t_depth=}")
 
         set_req = gripper_camera_param_pb2.SetGripperCameraCalibrationRequest(
             gripper_cam_cal=gripper_camera_param_pb2.GripperCameraCalibrationProto(
@@ -192,13 +206,13 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
                 ),
             )
         )
-
+        logger.info(f" Set Parameters Request to be sent: \n{set_req}")
         # Send the request to the robot
-        try:
-            result = self.gripper_camera_client.set_camera_calib(set_req)
-            logger.info(f" Set Parameters: \n{result}")
-        except Exception as e:
-            raise ValueError(f"Failed to set calibration parameters on the robot: {e}")
+        # try:
+        #     result = self.gripper_camera_client.set_camera_calib(set_req)
+        #     logger.info(f" Set Parameters: \n{result}")
+        # except Exception as e:
+        #     raise ValueError(f"Failed to set calibration parameters on the robot: {e}")
 
         # Optionally, verify by retrieving the parameters back with the following lines
         # get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
@@ -275,7 +289,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             origin_t_planning_frame = get_a_tform_b(
                 robot_state.kinematic_state.transforms_snapshot,
                 BODY_FRAME_NAME,
-                HAND_FRAME_NAME,
+                WR1_FRAME_NAME, #HAND_FRAME_NAME,
             )
             pose_transform = np.eye(4)
             pose_transform[:-1, -1] = np.array(
