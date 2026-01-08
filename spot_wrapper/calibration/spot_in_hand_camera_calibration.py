@@ -114,7 +114,6 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
 
     def extract_calibration_parameters(self, calibration_dict: dict, tag: str) -> dict:
         """Extract calibration parameters to send to robot"""
-        print(f"{calibration_dict=}")
         try:
             calibration = {}
             calibration["depth_intrinsic"] = np.asarray(calibration_dict[tag]["intrinsic"][1]["camera_matrix"]).reshape(
@@ -128,10 +127,10 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             calibration["rgb_to_depth"] = np.vstack(
                 (np.hstack((rgb_to_depth_R, rgb_to_depth_T)), np.array([0, 0, 0, 1]))
             )
-            depth_to_planning_T = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["T"]).reshape((3, 1))
-            depth_to_planning_R = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["R"]).reshape((3, 3))
-            calibration["depth_to_planning_frame"] = np.vstack(
-                (np.hstack((depth_to_planning_R, depth_to_planning_T)), np.array([0, 0, 0, 1]))
+            depth_to_hand_T = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["T"]).reshape((3, 1))
+            depth_to_hand_R = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["R"]).reshape((3, 3))
+            calibration["depth_to_hand"] = np.vstack(
+                (np.hstack((depth_to_hand_R, depth_to_hand_T)), np.array([0, 0, 0, 1]))
             )
         except KeyError as e:
             raise ValueError(f"Error: Missing key in the calibration data: {e}")
@@ -152,7 +151,6 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         cal = self.extract_calibration_parameters(cal_dict, tag)
 
         print("Pre Setting Param--------------------------------------------")
-        print(f"Calibration Data being sent to robot: \n {cal}")
 
         def convert_pinhole_intrinsic_to_proto(intrinsic_matrix: np.ndarray) -> ImageSource.PinholeModel:
             """Converts a 3x3 intrinsic matrix to a PinholeModel protobuf."""
@@ -161,32 +159,37 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             pinhole_model.CameraIntrinsics.principal_point = (intrinsic_matrix[0, 2], intrinsic_matrix[1, 2])
             return pinhole_model
         
-        # wr1_t_hand = get_a_tform_b(
-        #     self.robot_state_client.get_robot_state().kinematic_state.transforms_snapshot,
-        #     "arm0_link_wr1",
-        #     HAND_FRAME_NAME,
-        # )
-        # logger.info(f"{wr1_t_hand=}")
+        hand_t_wr1_pose = get_a_tform_b(
+            self.robot_state_client.get_robot_state().kinematic_state.transforms_snapshot,
+            HAND_FRAME_NAME,
+            WR1_FRAME_NAME,
+        )
+        hand_t_planning = np.eye(4)
+        hand_t_planning[:-1, -1] = np.array(
+            [
+                hand_t_wr1_pose.x,
+                hand_t_wr1_pose.y,
+                hand_t_wr1_pose.z,
+            ]
+        ).reshape((3,))
+        hand_t_planning[:-1, :-1] = hand_t_wr1_pose.rot.to_matrix()
+        logger.info(f"\n{hand_t_planning=}\n")
 
         depth_intrinsics = cal["depth_intrinsic"]
         rgb_intrinsics = cal["rgb_intrinsic"]
         rgb_t_depth = cal["rgb_to_depth"]
 
-        logger.info(f"{rgb_t_depth=}")
+        depth_to_planning = cal["depth_to_hand"] @ hand_t_planning
+        rgb_to_planning = rgb_t_depth @ depth_to_planning
 
-        depth_to_planning_frame = cal["depth_to_planning_frame"] #@ wr1_t_hand.to_matrix()
-        rgb_to_planning_frame = rgb_t_depth @ depth_to_planning_frame #@ wr1_t_hand.to_matrix()
-
-        planning_t_depth = np.linalg.inv(depth_to_planning_frame)
-        planning_t_rgb = np.linalg.inv(rgb_to_planning_frame)
+        planning_t_depth = np.linalg.inv(depth_to_planning)
+        planning_t_rgb = np.linalg.inv(rgb_to_planning)
 
         # Converting calibration data to protobuf format
         depth_intrinsics_proto = convert_pinhole_intrinsic_to_proto(depth_intrinsics)
         rgb_intrinsics_proto = convert_pinhole_intrinsic_to_proto(rgb_intrinsics)
         planning_t_depth_frame_proto = SE3Pose.from_matrix(planning_t_depth).to_proto()
         planning_t_rgb_frame_proto = SE3Pose.from_matrix(planning_t_rgb).to_proto()
-
-        logger.info(f"{planning_t_depth=}")
 
         set_req = gripper_camera_param_pb2.SetGripperCameraCalibrationRequest(
             gripper_cam_cal=gripper_camera_param_pb2.GripperCameraCalibrationProto(
@@ -206,13 +209,12 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
                 ),
             )
         )
-        logger.info(f" Set Parameters Request to be sent: \n{set_req}")
         # Send the request to the robot
-        # try:
-        #     result = self.gripper_camera_client.set_camera_calib(set_req)
-        #     logger.info(f" Set Parameters: \n{result}")
-        # except Exception as e:
-        #     raise ValueError(f"Failed to set calibration parameters on the robot: {e}")
+        try:
+            result = self.gripper_camera_client.set_camera_calib(set_req)
+            logger.info(f" Set Parameters: \n{result}")
+        except Exception as e:
+            raise ValueError(f"Failed to set calibration parameters on the robot: {e}")
 
         # Optionally, verify by retrieving the parameters back with the following lines
         # get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
@@ -276,6 +278,24 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         transform_offset[:-1, -1] = np.array([0.0, 0.3, -0.2]).reshape((3,))
         old_pose, ready_pose = self.offset_cameras_from_current_view(transform_offset=transform_offset)
         return ready_pose
+    
+    def grab_state_as_transform(self) -> np.ndarray:
+        robot_state = self.robot_state_client.get_robot_state()
+        origin_t_planning_frame = get_a_tform_b(
+            robot_state.kinematic_state.transforms_snapshot,
+            BODY_FRAME_NAME,
+            HAND_FRAME_NAME,
+        )
+        pose_transform = np.eye(4)
+        pose_transform[:-1, -1] = np.array(
+            [
+                origin_t_planning_frame.x,
+                origin_t_planning_frame.y,
+                origin_t_planning_frame.z,
+            ]
+        ).reshape((3,))
+        pose_transform[:-1, :-1] = origin_t_planning_frame.rot.to_matrix()
+        return pose_transform
 
     def offset_cameras_from_current_view(
         self,
@@ -284,26 +304,9 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         use_body: bool = False,
         duration_sec: float = 1.0,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        def grab_state_as_transform() -> np.ndarray:
-            robot_state = self.robot_state_client.get_robot_state()
-            origin_t_planning_frame = get_a_tform_b(
-                robot_state.kinematic_state.transforms_snapshot,
-                BODY_FRAME_NAME,
-                WR1_FRAME_NAME, #HAND_FRAME_NAME,
-            )
-            pose_transform = np.eye(4)
-            pose_transform[:-1, -1] = np.array(
-                [
-                    origin_t_planning_frame.x,
-                    origin_t_planning_frame.y,
-                    origin_t_planning_frame.z,
-                ]
-            ).reshape((3,))
-            pose_transform[:-1, :-1] = origin_t_planning_frame.rot.to_matrix()
-            return pose_transform
 
         if origin_t_planning_frame is None:
-            initial_pose = grab_state_as_transform()
+            initial_pose = self.grab_state_as_transform()
         else:
             initial_pose = origin_t_planning_frame
 
@@ -343,7 +346,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             timeout_sec=duration_sec * 2,
         )
         sleep(duration_sec * 0.5)  # settle before grabbing new state for better quality
-        return (initial_pose, grab_state_as_transform())  # second value is new value
+        return (initial_pose, self.grab_state_as_transform())  # second value is new value
 
     def shutdown(self) -> None:
         stow_arm_command = RobotCommandBuilder.arm_stow_command()
