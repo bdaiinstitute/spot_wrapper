@@ -210,7 +210,6 @@ class AsyncIdle(AsyncPeriodicQuery):
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper.last_stand_command = None
-                
 
         if self._spot_wrapper.last_sit_command is not None:
             try:
@@ -236,7 +235,6 @@ class AsyncIdle(AsyncPeriodicQuery):
             except (ResponseError, RpcError) as e:
                 self._logger.error("Error when getting robot command feedback: %s", e)
                 self._spot_wrapper.last_sit_command = None
-                
 
         is_moving = False
 
