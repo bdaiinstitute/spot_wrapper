@@ -158,7 +158,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             pinhole_model.CameraIntrinsics.focal_length = intrinsic_matrix[0, :1]
             pinhole_model.CameraIntrinsics.principal_point = (intrinsic_matrix[0, 2], intrinsic_matrix[1, 2])
             return pinhole_model
-        
+
         hand_t_wr1_pose = get_a_tform_b(
             self.robot_state_client.get_robot_state().kinematic_state.transforms_snapshot,
             HAND_FRAME_NAME,
@@ -278,7 +278,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         transform_offset[:-1, -1] = np.array([0.0, 0.3, -0.2]).reshape((3,))
         old_pose, ready_pose = self.offset_cameras_from_current_view(transform_offset=transform_offset)
         return ready_pose
-    
+
     def grab_state_as_transform(self) -> np.ndarray:
         robot_state = self.robot_state_client.get_robot_state()
         origin_t_planning_frame = get_a_tform_b(
@@ -304,7 +304,6 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         use_body: bool = False,
         duration_sec: float = 1.0,
     ) -> Tuple[np.ndarray, np.ndarray]:
-
         if origin_t_planning_frame is None:
             initial_pose = self.grab_state_as_transform()
         else:
