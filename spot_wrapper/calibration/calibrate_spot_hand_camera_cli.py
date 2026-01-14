@@ -71,7 +71,8 @@ def spot_main() -> None:
         images, poses = get_multiple_perspective_camera_calibration_dataset(
             auto_cam_cal_robot=in_hand_bot,
             max_num_images=args.max_num_images,
-            distances=np.arange(*args.dist_from_board_viewpoint_range),
+            distances_z=np.arange(*args.dist_from_board_viewpoint_range),
+            distances_x=np.arange(*args.dist_along_board_width),
             x_axis_rots=np.arange(*args.x_axis_rot_viewpoint_range),
             y_axis_rots=np.arange(*args.y_axis_rot_viewpoint_range),
             z_axis_rots=np.arange(*args.z_axis_rot_viewpoint_range),
@@ -125,6 +126,19 @@ def calibrate_robot_cli(parser: argparse.ArgumentParser = None) -> argparse.Argu
         default=[0.5, 0.6, 0.1],
         help=(
             "What distances to conduct calibrations at relative to the board. (along the normal vector) "
+            "Three value array arg defines the [Start, Stop), step. for the viewpoint sweep. "
+            "These are used to sample viewpoints for automatic collection. "
+        ),
+    )
+    parser.add_argument(
+        "--dist_along_board_width",
+        "-dabw",
+        nargs="+",
+        type=float,
+        dest="dist_along_board_width",
+        default=[-0.3, 0.4, 0.2],
+        help=(
+            "What distances to conduct calibrations at relative to the board. (along the board width) "
             "Three value array arg defines the [Start, Stop), step. for the viewpoint sweep. "
             "These are used to sample viewpoints for automatic collection. "
         ),
