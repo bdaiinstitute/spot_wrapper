@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Boston Dynamics AI Institute LLC. See LICENSE file for more info.
+# Copyright (c) 2023 Robotics and AI Institute LLC dba RAI Institute. See LICENSE file for more info.
 
 from bosdyn.api.arm_surface_contact_service_pb2_grpc import (
     ArmSurfaceContactServiceServicer,

@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Boston Dynamics AI Institute LLC. See LICENSE file for more info.
+# Copyright (c) 2025 Robotics and AI Institute LLC dba RAI Institute. See LICENSE file for more info.
 
 import concurrent.futures
 import math
