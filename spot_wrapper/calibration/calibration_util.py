@@ -1,3 +1,5 @@
+# Copyright (c) 2025 Robotics and AI Institute LLC dba RAI Institute. All rights reserved.
+
 # Copyreference (c) 2024 Boston Dynamics AI Institute LLC. All references reserved.
 
 import argparse
@@ -102,7 +104,8 @@ SPOT_DEFAULT_CHARUCO = create_charuco_board(
 def get_multiple_perspective_camera_calibration_dataset(
     auto_cam_cal_robot: AutomaticCameraCalibrationRobot,
     max_num_images: int = 10000,
-    distances: Optional[np.ndarray] = None,
+    distances_x: Optional[np.ndarray] = None,
+    distances_z: Optional[np.ndarray] = None,
     x_axis_rots: Optional[np.ndarray] = None,
     y_axis_rots: Optional[np.ndarray] = None,
     z_axis_rots: Optional[np.ndarray] = None,
@@ -159,7 +162,8 @@ def get_multiple_perspective_camera_calibration_dataset(
     viewpoints = get_relative_viewpoints_from_board_pose_and_param(
         R_vision_to_target,
         tvec_vision_to_target,
-        distances=distances,
+        distances_x=distances_x,
+        distances_z=distances_z,
         x_axis_rots=x_axis_rots,
         y_axis_rots=y_axis_rots,
         z_axis_rots=z_axis_rots,
@@ -881,7 +885,8 @@ def convert_camera_t_viewpoint_to_origin_t_planning_frame(
 def get_relative_viewpoints_from_board_pose_and_param(
     R_board: np.ndarray,
     tvec: np.ndarray,
-    distances: Optional[np.ndarray] = None,
+    distances_x: Optional[np.ndarray] = None,
+    distances_z: Optional[np.ndarray] = None,
     x_axis_rots: Optional[np.ndarray] = None,
     y_axis_rots: Optional[np.ndarray] = None,
     z_axis_rots: Optional[np.ndarray] = None,
@@ -934,8 +939,10 @@ def get_relative_viewpoints_from_board_pose_and_param(
         List[np.ndarray]: a list of 4x4 homogenous transforms to visit in the "principal" cameras
             frame
     """
-    if distances is None:
-        distances = np.arange(0.5, 0.7, 0.1)
+    if distances_x is None:
+        distances_x = np.arange(0.3, 0.7, 0.1)
+    if distances_z is None:
+        distances_z = np.arange(-0.2, 0.3, 0.1)
     if x_axis_rots is None:
         x_axis_rots = np.arange(-20, 21, 5)
     if y_axis_rots is None:
@@ -949,7 +956,8 @@ def get_relative_viewpoints_from_board_pose_and_param(
         x_axis_rots = [radians(deg) for deg in x_axis_rots]
         y_axis_rots = [radians(deg) for deg in y_axis_rots]
         z_axis_rots = [radians(deg) for deg in z_axis_rots]
-    translations = [tvec + R_board[:, 2] * dist for dist in distances]
+
+    translations = [(tvec + R_board[:, 2] * dist + R_board[:, 0] * d2) for dist in distances_z for d2 in distances_x]
     R_base = R_board @ R_align_board_frame_with_camera
 
     def euler_to_rotation_matrix(roll: float, pitch: float, yaw: float) -> np.ndarray:
