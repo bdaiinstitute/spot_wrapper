@@ -69,7 +69,7 @@ jobs:
         uses: coverallsapp/github-action@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          fail-on-error: true
+          fail-on-error: false
           flag-name: unittests
           debug: true
           files: $(find ../../ -name "coverage.xml" -type f)
