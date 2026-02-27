@@ -8,13 +8,11 @@ from typing import Tuple
 
 import cv2
 import numpy as np
-import synchros2.process as ros_process
 import yaml
 
 from spot_wrapper.calibration.automatic_camera_calibration_robot import AutomaticCameraCalibrationRobot
 from spot_wrapper.calibration.calibration_clis import (
     calibrate_robot_cli,
-    ext_cli,
     setup_calibration_param,
     spot_cli,
 )
@@ -71,6 +69,7 @@ def spot_main() -> None:
         logger.warning("HOLD Ctrl + C NOW TO CANCEL")
         logger.warning("The calibration board should be about a meter away with nothing within a meter of the robot.")
         logger.warning("The robot should NOT be docked, and nobody should have robot control")
+        logger.warning(f"the ip is: {args.ip}")
         input("Press Enter to continue...")
         # sleep(5)
 
@@ -119,6 +118,5 @@ def spot_main() -> None:
     logger.info("Calibration complete!")
 
 
-@ros_process.main(ext_cli())
 def main(args: argparse.Namespace) -> None:
     spot_main()

@@ -10,19 +10,27 @@ from datetime import datetime
 from glob import glob
 from pathlib import Path
 from time import sleep
-from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import cv2
 import numpy as np
 import yaml
 from cv_bridge import CvBridge
+from message_filters import ApproximateTimeSynchronizer, Subscriber
+from rclpy.callback_groups import CallbackGroup
+from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image as RosImage
 
 from spot_wrapper.calibration.automatic_camera_calibration_robot import (
     AutomaticCameraCalibrationRobot,
 )
-from spot_wrapper.calibration.calibration_helpers import CameraIntrinsics, Image
+from spot_wrapper.calibration.calibration_helpers import (
+    CalibrationResults,
+    CameraIntrinsics,
+    Image,
+    TopicMsgPair,
+)
 from spot_wrapper.calibration.charuco_board_detection import (
     create_ideal_charuco_image,
     detect_charuco_corners,
@@ -33,20 +41,6 @@ from spot_wrapper.calibration.charuco_board_detection import (
 logger = logging.getLogger(__name__)
 
 directories = ["parent", "child", "poses", "depth"]
-
-
-class CalibrationResults(TypedDict):
-    dist_coeffs_origin: np.ndarray
-    camera_matrix_origin: np.ndarray
-    image_dim_origin: np.ndarray
-    dist_coeffs_reference: np.ndarray
-    camera_matrix_reference: np.ndarray
-    image_dim_reference: np.ndarray
-    R: np.ndarray
-    T: np.ndarray
-    R_handeye: Optional[np.ndarray]
-    T_handeye: Optional[np.ndarray]
-    average_reprojection_error: float
 
 
 def camera_info_to_dict(camera_info: CameraInfo, camera_name: str) -> dict[str, Any]:
@@ -278,9 +272,6 @@ def save_dataset_to_dir(
             save_CameraInfo_2_file(camera_info_dict[cam_idx], str(cam_idx), cam_dir / Path("camera_info.yaml"))
 
 
-# moved from calibration_utils.py in spot_wrapper
-# i wanted to change a few names of fields in accord with this:
-# https://www.notion.so/theaiinstitute/SE3-Math-d81fc740b66c4a09bece9f47b62506f1
 def save_calibration_parameters(
     data: Dict,
     output_path: str,
@@ -616,3 +607,26 @@ def calibration_helper(
         unsafe=args.unsafe_tag_save,
     )
     return calibration_dict
+
+
+def create_time_synchronizer(
+    node: Node,
+    topic_msg_type_pairs: Sequence[TopicMsgPair],
+    callback: Callable[..., None],
+    callback_group: Optional[CallbackGroup] = None,
+    queue_size: int = 30,
+    slop_sec: float = 0.3,
+) -> ApproximateTimeSynchronizer:
+    """Creates an `ApproximateTimeSynchronizer` for a list of topic names and msg types
+
+    See `$BDAI/projects/watch_understand_do/ws/src/wud_ros/wud_ros/look_at_that/lang_to_pcd_server.py` for an example
+    Also see: https://github.com/ros2/message_filters/blob/humble/src/message_filters/__init__.py#L242
+    """
+    subscribers = [
+        Subscriber(node, msg_type, topic_name, qos_profile=qos_profile, callback_group=callback_group)
+        for topic_name, msg_type, qos_profile in topic_msg_type_pairs
+    ]
+    time_synchronizer = ApproximateTimeSynchronizer(subscribers, queue_size, slop_sec)
+    time_synchronizer.registerCallback(callback)
+
+    return time_synchronizer
