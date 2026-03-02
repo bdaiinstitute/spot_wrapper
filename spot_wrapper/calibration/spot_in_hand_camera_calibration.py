@@ -197,7 +197,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         planning_t_depth_frame_proto = SE3Pose.from_matrix(planning_t_depth).to_proto()
         planning_t_rgb_frame_proto = SE3Pose.from_matrix(planning_t_rgb).to_proto()
 
-        set_req = gripper_camera_param_pb2.SetGripperCameraCalibrationRequest(
+        gripper_camera_param_pb2.SetGripperCameraCalibrationRequest(
             gripper_cam_cal=gripper_camera_param_pb2.GripperCameraCalibrationProto(
                 depth=gripper_camera_param_pb2.GripperDepthCameraCalibrationParams(
                     wr1_tform_sensor=planning_t_depth_frame_proto,
@@ -217,7 +217,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         )
         # Send the request to the robot
         try:
-            result = self.gripper_camera_client.set_camera_calib(set_req)
+            # result = self.gripper_camera_client.set_camera_calib(set_req)
             logger.info(f" Set Parameters: \n{result}")
         except Exception as e:
             raise ValueError(f"Failed to set calibration parameters on the robot: {e}")

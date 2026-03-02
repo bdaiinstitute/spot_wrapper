@@ -9,13 +9,12 @@ from typing import Tuple
 import cv2
 import numpy as np
 import yaml
-import synchros2.process as ros_process
+
 from spot_wrapper.calibration.automatic_camera_calibration_robot import AutomaticCameraCalibrationRobot
 from spot_wrapper.calibration.calibration_clis import (
     calibrate_robot_cli,
     setup_calibration_param,
     spot_cli,
-    ext_cli,
 )
 from spot_wrapper.calibration.calibration_util import (
     calibration_helper,
@@ -118,6 +117,10 @@ def spot_main() -> None:
 
     logger.info("Calibration complete!")
 
-@ros_process.main(ext_cli())
+
 def main(args: argparse.Namespace) -> None:
+    spot_main()
+
+
+if __name__ == "__main__":
     spot_main()

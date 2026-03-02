@@ -10,12 +10,13 @@ from datetime import datetime
 from glob import glob
 from pathlib import Path
 from time import sleep
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
 import yaml
 from cv_bridge import CvBridge
+
 # from message_filters import ApproximateTimeSynchronizer, Subscriber
 # from rclpy.callback_groups import CallbackGroup
 # from rclpy.node import Node
@@ -26,11 +27,12 @@ from spot_wrapper.calibration.automatic_camera_calibration_robot import (
     AutomaticCameraCalibrationRobot,
 )
 from spot_wrapper.calibration.calibration_helpers import (
-    CalibrationResults,
+    # CalibrationResults,
     CameraIntrinsics,
     Image,
-    TopicMsgPair,
 )
+
+# TopicMsgPair,
 from spot_wrapper.calibration.charuco_board_detection import (
     create_ideal_charuco_image,
     detect_charuco_corners,
@@ -157,6 +159,7 @@ def load_images_from_path(path: Path) -> Dict[str, Dict[str, np.ndarray]]:
 
     return images
 
+
 # TODO
 # def load_calibration_parameters(input_path: Path) -> CalibrationResults:
 #     """
@@ -241,6 +244,7 @@ def create_calibration_save_folders(path: Path) -> None:
             os.makedirs(cam_path, exist_ok=True)
         os.makedirs(os.path.join(path, "poses"), exist_ok=True)
         logger.info("Done creating folders.")
+
 
 # TODO
 # def save_dataset_to_dir(
