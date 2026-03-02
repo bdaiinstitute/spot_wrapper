@@ -16,9 +16,9 @@ import cv2
 import numpy as np
 import yaml
 from cv_bridge import CvBridge
-from message_filters import ApproximateTimeSynchronizer, Subscriber
-from rclpy.callback_groups import CallbackGroup
-from rclpy.node import Node
+# from message_filters import ApproximateTimeSynchronizer, Subscriber
+# from rclpy.callback_groups import CallbackGroup
+# from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image as RosImage
 
@@ -157,50 +157,49 @@ def load_images_from_path(path: Path) -> Dict[str, Dict[str, np.ndarray]]:
 
     return images
 
+# TODO
+# def load_calibration_parameters(input_path: Path) -> CalibrationResults:
+#     """
+#     Load calibration parameters from a YAML file.
 
-def load_calibration_parameters(input_path: Path) -> CalibrationResults:
-    """
-    Load calibration parameters from a YAML file.
+#     Args:
+#         input_path (Path): The path to the YAML file containing calibration parameters.
+#     Returns:
+#         CalibrationResults: The loaded calibration parameters.
+#     Throws:
+#         FileNotFoundError: If the specified file does not exist.
+#         KeyError: If required keys are missing in the YAML file.
+#     """
+#     with open(input_path, "r") as file:
+#         calib_data = yaml.safe_load(file)
 
-    Args:
-        input_path (Path): The path to the YAML file containing calibration parameters.
-    Returns:
-        CalibrationResults: The loaded calibration parameters.
-    Throws:
-        FileNotFoundError: If the specified file does not exist.
-        KeyError: If required keys are missing in the YAML file.
-    """
-    with open(input_path, "r") as file:
-        calib_data = yaml.safe_load(file)
+#     parent_camera = np.array(calib_data["default"]["intrinsic"][0]["camera_matrix"]).reshape((3, 3))
+#     parent_dist_coeffs = np.array(calib_data["default"]["intrinsic"][0]["dist_coeffs"]).reshape((-1, 1))
+#     parent_image_dim = np.array(calib_data["default"]["intrinsic"][0]["image_dim"])
+#     child_camera = np.array(calib_data["default"]["intrinsic"][1]["camera_matrix"]).reshape((3, 3))
+#     child_dist_coeffs = np.array(calib_data["default"]["intrinsic"][1]["dist_coeffs"]).reshape((-1, 1))
+#     child_image_dim = np.array(calib_data["default"]["intrinsic"][1]["image_dim"])
+#     R = np.array(calib_data["default"]["extrinsic"][0][1]["R"]).reshape((3, 3))
+#     T = np.array(calib_data["default"]["extrinsic"][0][1]["T"]).reshape((-1, 3))
 
-    parent_camera = np.array(calib_data["default"]["intrinsic"][0]["camera_matrix"]).reshape((3, 3))
-    parent_dist_coeffs = np.array(calib_data["default"]["intrinsic"][0]["dist_coeffs"]).reshape((-1, 1))
-    parent_image_dim = np.array(calib_data["default"]["intrinsic"][0]["image_dim"])
-    child_camera = np.array(calib_data["default"]["intrinsic"][1]["camera_matrix"]).reshape((3, 3))
-    child_dist_coeffs = np.array(calib_data["default"]["intrinsic"][1]["dist_coeffs"]).reshape((-1, 1))
-    child_image_dim = np.array(calib_data["default"]["intrinsic"][1]["image_dim"])
-    R = np.array(calib_data["default"]["extrinsic"][0][1]["R"]).reshape((3, 3))
-    T = np.array(calib_data["default"]["extrinsic"][0][1]["T"]).reshape((-1, 3))
+#     # saving out reproj err not supported, currently.
+#     # does not save out reproj err.
+#     # So we set it to 0 here.
+#     calib_results: CalibrationResults = {
+#         "camera_matrix_origin": parent_camera,
+#         "dist_coeffs_origin": parent_dist_coeffs,
+#         "image_dim_origin": parent_image_dim,
+#         "camera_matrix_reference": child_camera,
+#         "dist_coeffs_reference": child_dist_coeffs,
+#         "image_dim_reference": child_image_dim,
+#         "R": R,
+#         "T": T,
+#         "R_handeye": np.eye(3),
+#         "T_handeye": np.zeros((3, 1)),
+#         "average_reprojection_error": 0,
+#     }
 
-    # saving out reproj err not supported, currently.
-    # save_calibration_parameters in calibration_utils.py in spot_wrapper
-    # does not save out reproj err.
-    # So we set it to 0 here.
-    calib_results: CalibrationResults = {
-        "camera_matrix_origin": parent_camera,
-        "dist_coeffs_origin": parent_dist_coeffs,
-        "image_dim_origin": parent_image_dim,
-        "camera_matrix_reference": child_camera,
-        "dist_coeffs_reference": child_dist_coeffs,
-        "image_dim_reference": child_image_dim,
-        "R": R,
-        "T": T,
-        "R_handeye": np.eye(3),
-        "T_handeye": np.zeros((3, 1)),
-        "average_reprojection_error": 0,
-    }
-
-    return calib_results
+#     return calib_results
 
 
 def load_dataset_from_path(pathdir: Path) -> Tuple[Dict[str, Dict[str, np.ndarray]], CameraInfo, CameraInfo]:
@@ -243,33 +242,33 @@ def create_calibration_save_folders(path: Path) -> None:
         os.makedirs(os.path.join(path, "poses"), exist_ok=True)
         logger.info("Done creating folders.")
 
+# TODO
+# def save_dataset_to_dir(
+#     path: Path, images_dict: dict[str, list[np.ndarray]], camera_info_dict: dict[str, CameraInfo]
+# ) -> None:
+#     """
+#     Save image dataset to path in a way that's compatible with multistereo_calibration_charuco.
 
-def save_dataset_to_dir(
-    path: Path, images_dict: dict[str, list[np.ndarray]], camera_info_dict: dict[str, CameraInfo]
-) -> None:
-    """
-    Save image dataset to path in a way that's compatible with multistereo_calibration_charuco.
+#     Also, save the camera infos.
 
-    Also, save the camera infos.
+#     See Using the CLI Tool To Calibrate On an Existing Dataset section in the README
+#     to see the expected folder/data structure for this method to work
 
-    See Using the CLI Tool To Calibrate On an Existing Dataset section in the README
-    to see the expected folder/data structure for this method to work
+#     Args:
+#         path (str): The parent path
+#         images_dict (dict[int, list[np.ndarray]]): The image dataset by camera index
+#         camera_info_dict (dict[int, CameraInfo]): The camera info by camera index
+#     """
 
-    Args:
-        path (str): The parent path
-        images_dict (dict[int, list[np.ndarray]]): The image dataset by camera index
-        camera_info_dict (dict[int, CameraInfo]): The camera info by camera index
-    """
+#     create_calibration_save_folders(path)
 
-    create_calibration_save_folders(path)
-
-    for cam_idx, images in images_dict.items():
-        cam_dir = path / Path(str(cam_idx))
-        for img_idx, img in enumerate(images):
-            img_path = cam_dir / Path(f"{img_idx}.png")
-            cv2.imwrite(str(img_path), img)
-            # np.save(cam_dir / Path("camera_info.npy"), camera_info_dict[cam_idx])
-            save_CameraInfo_2_file(camera_info_dict[cam_idx], str(cam_idx), cam_dir / Path("camera_info.yaml"))
+#     for cam_idx, images in images_dict.items():
+#         cam_dir = path / Path(str(cam_idx))
+#         for img_idx, img in enumerate(images):
+#             img_path = cam_dir / Path(f"{img_idx}.png")
+#             cv2.imwrite(str(img_path), img)
+#             # np.save(cam_dir / Path("camera_info.npy"), camera_info_dict[cam_idx])
+#             save_CameraInfo_2_file(camera_info_dict[cam_idx], str(cam_idx), cam_dir / Path("camera_info.yaml"))
 
 
 def save_calibration_parameters(
@@ -609,24 +608,24 @@ def calibration_helper(
     return calibration_dict
 
 
-def create_time_synchronizer(
-    node: Node,
-    topic_msg_type_pairs: Sequence[TopicMsgPair],
-    callback: Callable[..., None],
-    callback_group: Optional[CallbackGroup] = None,
-    queue_size: int = 30,
-    slop_sec: float = 0.3,
-) -> ApproximateTimeSynchronizer:
-    """Creates an `ApproximateTimeSynchronizer` for a list of topic names and msg types
+# def create_time_synchronizer(
+#     node: Node,
+#     topic_msg_type_pairs: Sequence[TopicMsgPair],
+#     callback: Callable[..., None],
+#     callback_group: Optional[CallbackGroup] = None,
+#     queue_size: int = 30,
+#     slop_sec: float = 0.3,
+# ) -> ApproximateTimeSynchronizer:
+#     """Creates an `ApproximateTimeSynchronizer` for a list of topic names and msg types
 
-    See `$BDAI/projects/watch_understand_do/ws/src/wud_ros/wud_ros/look_at_that/lang_to_pcd_server.py` for an example
-    Also see: https://github.com/ros2/message_filters/blob/humble/src/message_filters/__init__.py#L242
-    """
-    subscribers = [
-        Subscriber(node, msg_type, topic_name, qos_profile=qos_profile, callback_group=callback_group)
-        for topic_name, msg_type, qos_profile in topic_msg_type_pairs
-    ]
-    time_synchronizer = ApproximateTimeSynchronizer(subscribers, queue_size, slop_sec)
-    time_synchronizer.registerCallback(callback)
+#     See `$BDAI/projects/watch_understand_do/ws/src/wud_ros/wud_ros/look_at_that/lang_to_pcd_server.py` for an example
+#     Also see: https://github.com/ros2/message_filters/blob/humble/src/message_filters/__init__.py#L242
+#     """
+#     subscribers = [
+#         Subscriber(node, msg_type, topic_name, qos_profile=qos_profile, callback_group=callback_group)
+#         for topic_name, msg_type, qos_profile in topic_msg_type_pairs
+#     ]
+#     time_synchronizer = ApproximateTimeSynchronizer(subscribers, queue_size, slop_sec)
+#     time_synchronizer.registerCallback(callback)
 
-    return time_synchronizer
+#     return time_synchronizer
