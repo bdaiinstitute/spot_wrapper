@@ -14,10 +14,6 @@ import cv2
 import numpy as np
 import yaml
 from cv_bridge import CvBridge
-
-# from message_filters import ApproximateTimeSynchronizer, Subscriber
-# from rclpy.callback_groups import CallbackGroup
-# from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image as RosImage
 
@@ -26,11 +22,8 @@ from spot_wrapper.calibration.automatic_camera_calibration_robot import (
 )
 from spot_wrapper.calibration.calibration_helpers import (
     CalibrationResults,
-    CameraIntrinsics,
     Image,
 )
-
-# TopicMsgPair,
 from spot_wrapper.calibration.charuco_board_detection import (
     charuco_pose_sanity_check,
     create_charuco_board,
@@ -65,15 +58,6 @@ def camera_info_to_dict(camera_info: CameraInfo, camera_name: str) -> dict[str, 
             "do_rectify": camera_info.roi.do_rectify,
         },
     }
-
-
-# TODO
-def save_CameraInfo_2_file(msg: CameraInfo, camera_name: str, file_path: Path) -> None:
-    """Saves a CameraInfo message to a YAML file."""
-    cam_info_msg_dict = camera_info_to_dict(camera_info=msg, camera_name=camera_name)
-
-    with open(file_path, "w") as f:
-        yaml.dump(cam_info_msg_dict, f, default_flow_style=False)
 
 
 # TODO
@@ -210,23 +194,76 @@ def load_calibration_parameters(input_path: Path) -> CalibrationResults:
 
 
 # TODO
-def load_dataset_from_path(pathdir: Path) -> Tuple[Dict[str, Dict[str, np.ndarray]], CameraInfo]:
+# def load_dataset_from_path(pathdir: Path) -> Tuple[Dict[str, Dict[str, np.ndarray]], CameraInfo]:
+#     """
+#     load the data for images, hand_cam_info, ext_cam_info
+
+#     Args:
+#         pathdir (Path): The absolute pathname to directory containing the dataset.
+
+#     Returns:
+#         Tuple[np.ndarray, CameraInfo, CameraInfo]: The loaded images, hand camera info, and external camera info.
+#     """
+#     images = load_images_from_path(pathdir)
+#     hciyaml = os.path.join(pathdir, Path("parent"), Path("camera_info.yaml"))
+#     eciyaml = os.path.join(pathdir, Path("child"), Path("camera_info.yaml"))
+#     hand_cam_info = load_CameraInfo_from_file(Path(hciyaml))
+#     ext_cam_info = load_CameraInfo_from_file(Path(eciyaml))
+
+#     return images, hand_cam_info, ext_cam_info
+
+
+def load_dataset_from_path(path: str) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     """
-    load the data for images, hand_cam_info, ext_cam_info
+    Load image dataset from path in a way that's compatible with multistereo_calibration_charuco.
+
+    Also, load the poses if they are available.
+
+    See Using the CLI Tool To Calibrate On an Existing Dataset section in the README
+    to see the expected folder/data structure for this method to work
 
     Args:
-        pathdir (Path): The absolute pathname to directory containing the dataset.
+        path (str): The parent path
+
+    Raises:
+        ValueError: Not possible to load the images
 
     Returns:
-        Tuple[np.ndarray, CameraInfo, CameraInfo]: The loaded images, hand camera info, and external camera info.
+        np.ndarray: The image dataset
     """
-    images = load_images_from_path(pathdir)
-    hciyaml = os.path.join(pathdir, Path("parent"), Path("camera_info.yaml"))
-    eciyaml = os.path.join(pathdir, Path("child"), Path("camera_info.yaml"))
-    hand_cam_info = load_CameraInfo_from_file(Path(hciyaml))
-    ext_cam_info = load_CameraInfo_from_file(Path(eciyaml))
 
-    return images, hand_cam_info, ext_cam_info
+    def alpha_numeric(x):
+        return re.search("(\\d+)(?=\\D*$)", x).group() if re.search("(\\d+)(?=\\D*$)", x) else x
+
+    # List all directories within the given path and sort them
+    dirs = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
+    if len(dirs) == 0:
+        raise ValueError("No sub-dirs found in datapath from which to load images.")
+    dirs = sorted(dirs, key=alpha_numeric)  # Assuming dir names are integers like "0", "1", etc.
+
+    # Initialize an empty list to store images
+    images = []
+    poses = None
+
+    for dir_name in dirs:
+        path_match = os.path.join(path, dir_name, "*")
+        files = sorted(
+            glob(path_match),
+            key=alpha_numeric,
+        )
+        if dir_name != "poses":
+            # Read images and store them
+            images.append([cv2.imread(fn) for fn in files])
+        else:
+            poses = np.array([np.load(fn) for fn in files])
+
+    # Convert the list of lists into a NumPy array
+    # The array shape will be (number_of_images, number_of_directories)
+    images = np.array(images, dtype=object)
+    # Transpose the array so that you can access it as images[:, axis]
+    images = np.transpose(images, (1, 0))
+
+    return images, poses
 
 
 def create_calibration_save_folders(path: Path) -> None:
@@ -249,34 +286,6 @@ def create_calibration_save_folders(path: Path) -> None:
             os.makedirs(cam_path, exist_ok=True)
         os.makedirs(os.path.join(path, "poses"), exist_ok=True)
         logger.info("Done creating folders.")
-
-
-# TODO
-def save_dataset_to_dir(
-    path: Path, images_dict: dict[str, list[np.ndarray]], camera_info_dict: dict[str, CameraInfo]
-) -> None:
-    """
-    Save image dataset to path in a way that's compatible with multistereo_calibration_charuco.
-
-    Also, save the camera infos.
-
-    See Using the CLI Tool To Calibrate On an Existing Dataset section in the README
-    to see the expected folder/data structure for this method to work
-
-    Args:
-        path (str): The parent path
-        images_dict (dict[int, list[np.ndarray]]): The image dataset by camera index
-        camera_info_dict (dict[int, CameraInfo]): The camera info by camera index
-    """
-
-    create_calibration_save_folders(path)
-
-    for cam_idx, images in images_dict.items():
-        cam_dir = path / Path(str(cam_idx))
-        for img_idx, img in enumerate(images):
-            img_path = cam_dir / Path(f"{img_idx}.png")
-            cv2.imwrite(str(img_path), img)
-            save_CameraInfo_2_file(camera_info_dict[cam_idx], str(cam_idx), cam_dir / Path("camera_info.yaml"))
 
 
 def save_calibration_parameters(
@@ -536,27 +545,6 @@ def get_multiple_perspective_camera_calibration_dataset(
     return (np.array(calibration_images, dtype=object), poses)
 
 
-# TODO
-def camera_info_to_intrinsics(msg: CameraInfo) -> CameraIntrinsics:
-    """Construct a `CameraIntrinsics` instance from a `CameraInfo` message.
-
-    Args:
-        msg: The message to convert. The fields that are copied are the intrinsics (`k`), the distortion (`d`), width,
-             and height. All other fields are ignored.
-
-    Returns:
-        The converted camera intrinsics object.
-
-    Raises:
-        ValueError if `k` contains non-zero skew values.
-    """
-    camera_matrix = np.array(msg.k).reshape((3, 3))
-    distortion_coeffs = np.array(msg.d)
-    return CameraIntrinsics(
-        height=msg.height, width=msg.width, camera_matrix=camera_matrix, distortion_coeffs=distortion_coeffs
-    )
-
-
 def ros_image_to_image(ros_image: RosImage, cv_bridge: CvBridge | None = None, ros_encoding: str = "rgb8") -> Image:
     """
     Converts from ros image to our generic image datatype
@@ -666,95 +654,3 @@ def setup_calibration_param(
             aruco_dict=aruco_dict,
         )
     return args, aruco_dict, charuco
-
-
-# def run_calibration_process(args: argparse.Namespace, in_hand_bot) -> tuple[CalibrationResults, int, str, str]:
-#     """
-#     This runs the calibration process for either of the two calibration modes.
-#     Just returns the calibration result.
-
-#     :param args: Description
-#     :type args: argparse.Namespace
-#     :return: Description
-#     :rtype: tuple[CalibrationResults, int, Namespace]
-
-#     Raises:
-#         FileNotFoundError: Could not find body_t_spot_camera.npy
-#         ValueError: No data path supplied to load images from
-#     """
-#     args, aruco_dict, charuco = setup_calibration_param(args)
-#     logger.info(f"Loading images from {args.data_path}")
-
-#     if args.from_data and args.data_path is None:
-#         logger.warning("Could not load any images to calibrate from, supply --data_path")
-#         raise ValueError("No data path supplied to load images from")
-
-#     if args.from_data:
-#         images, hand_cam_info, ext_cam_info = load_dataset_from_path(args.data_path)
-#     else:
-#         images, poses = get_multiple_perspective_camera_calibration_dataset(
-#             auto_cam_cal_robot=in_hand_bot,
-#             max_num_images=args.max_num_images,
-#             distances_z=np.arange(*args.dist_from_board_viewpoint_range),
-#             distances_x=np.arange(*args.dist_along_board_width),
-#             x_axis_rots=np.arange(*args.x_axis_rot_viewpoint_range),
-#             y_axis_rots=np.arange(*args.y_axis_rot_viewpoint_range),
-#             z_axis_rots=np.arange(*args.z_axis_rot_viewpoint_range),
-#             use_degrees=args.use_degrees,
-#             settle_time=args.settle_time,
-#             data_path=args.data_path,
-#             save_data=args.save_data,
-#         )
-#     hand_camera_matrix = np.array(hand_cam_info.k).reshape((3, 3))
-#     hand_camera_distortion_coefficients = np.array(hand_cam_info.d)
-#     ext_camera_matrix = np.array(ext_cam_info.k).reshape((3, 3))
-#     ext_camera_distortion_coefficients = np.array(ext_cam_info.d)
-
-#     camera_matrix_dict = {"parent": hand_camera_matrix, "child": ext_camera_matrix}
-#     camera_distortion_dict = {
-#         "parent": hand_camera_distortion_coefficients,
-#         "child": ext_camera_distortion_coefficients,
-#     }
-
-#     try:
-#         calibration_result = calibrate_2_cameras(
-#             images=images,
-#             args=args,
-#             charuco=charuco,
-#             aruco_dict=aruco_dict,
-#             camera_matrix_dict=camera_matrix_dict,
-#             camera_distortion_dict=camera_distortion_dict,
-#         )
-#     except Exception as ex:
-#         logger.error(f"Could not calibrate the two cameras: {ex}")
-#         raise ex
-
-#     return (
-#         calibration_result,
-#         len(images["parent"]) + len(images["child"]),
-#         hand_cam_info.header.frame_id,
-#         ext_cam_info.header.frame_id,
-#     )
-
-
-# def create_time_synchronizer(
-#     node: Node,
-#     topic_msg_type_pairs: Sequence[TopicMsgPair],
-#     callback: Callable[..., None],
-#     callback_group: Optional[CallbackGroup] = None,
-#     queue_size: int = 30,
-#     slop_sec: float = 0.3,
-# ) -> ApproximateTimeSynchronizer:
-#     """Creates an `ApproximateTimeSynchronizer` for a list of topic names and msg types
-
-#     See `$BDAI/projects/watch_understand_do/ws/src/wud_ros/wud_ros/look_at_that/lang_to_pcd_server.py` for an example
-#     Also see: https://github.com/ros2/message_filters/blob/humble/src/message_filters/__init__.py#L242
-#     """
-#     subscribers = [
-#         Subscriber(node, msg_type, topic_name, qos_profile=qos_profile, callback_group=callback_group)
-#         for topic_name, msg_type, qos_profile in topic_msg_type_pairs
-#     ]
-#     time_synchronizer = ApproximateTimeSynchronizer(subscribers, queue_size, slop_sec)
-#     time_synchronizer.registerCallback(callback)
-
-#     return time_synchronizer

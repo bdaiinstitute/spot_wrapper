@@ -371,8 +371,9 @@ def spot_cli(parser: argparse.ArgumentParser | None = None) -> argparse.Argument
         "-ip",
         dest="ip",
         type=str,
-        help="The IP address of the Robot to calibrate",
-        required=True,
+        help="The IP address of the Robot to calibrate (required when connecting to the robot)",
+        default=None,
+        required=False,
     )
     parser.add_argument(
         "--user",
@@ -380,8 +381,9 @@ def spot_cli(parser: argparse.ArgumentParser | None = None) -> argparse.Argument
         "--username",
         dest="username",
         type=str,
-        help="Robot Username",
-        required=True,
+        help="Robot Username (required when connecting to the robot)",
+        default=None,
+        required=False,
     )
     parser.add_argument(
         "--pass",
@@ -389,8 +391,9 @@ def spot_cli(parser: argparse.ArgumentParser | None = None) -> argparse.Argument
         "--password",
         dest="password",
         type=str,
-        help="Robot Password",
-        required=True,
+        help="Robot Password (required when connecting to the robot)",
+        default=None,
+        required=False,
     )
 
     parser.add_argument(

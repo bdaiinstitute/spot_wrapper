@@ -30,9 +30,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _require_robot_credentials(args: argparse.Namespace) -> None:
+    """Raise a clear error when robot credentials are needed but were not supplied."""
+    missing = [
+        flag for flag, val in (("--ip", args.ip), ("--user", args.username), ("--pass", args.password)) if not val
+    ]
+    if missing:
+        raise ValueError(f"Connecting to the robot requires {', '.join(missing)} to be specified.")
+
+
 def create_robot(
     args: argparse.ArgumentParser, charuco: cv2.aruco_CharucoBoard, aruco_dict: cv2.aruco_Dictionary
 ) -> Tuple[AutomaticCameraCalibrationRobot, argparse.Namespace]:
+    _require_robot_credentials(args)
     # Replace with your AutomaticCameraCalibrationRobot
     in_hand_bot = SpotInHandCalibration(args.ip, args.username, args.password)
     in_hand_bot._set_localization_param(
@@ -59,10 +69,11 @@ def create_robot_parser() -> argparse.ArgumentParser:
 def spot_main() -> None:
     parser = create_robot_parser()
     args, aruco_dict, charuco = setup_calibration_param(parser)
-    in_hand_bot, args = create_robot(args, charuco=charuco, aruco_dict=aruco_dict)
 
     # Collect new data and calibrate
     if not args.from_data:
+        in_hand_bot, args = create_robot(args, charuco=charuco, aruco_dict=aruco_dict)
+
         logger.warning("This script moves the robot around. !!! USE AT YOUR OWN RISK !!!")
         logger.warning("HOLD Ctrl + C NOW TO CANCEL")
         logger.warning("The calibration board should be about a meter away with nothing within a meter of the robot.")
@@ -85,15 +96,6 @@ def spot_main() -> None:
             save_data=args.save_data,
         )
 
-        # calibration = calibrate_2_cameras(
-        #     images=images,
-        #     args=args,
-        #     charuco=charuco,
-        #     aruco_dict=aruco_dict,
-        #     camera_matrix_dict=in_hand_bot.camera_matrix_dict,
-        #     camera_distortion_dict=in_hand_bot.camera_distortion_dict,
-        # )
-        # calibration, num_images, parent_frame, child_frame = run_calibration_process(args)
         calibration = calibration_helper(
             images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path
         )
@@ -101,9 +103,11 @@ def spot_main() -> None:
             logger.info("Saving calibration to robot...")
             in_hand_bot.write_calibration_to_robot(calibration)
         in_hand_bot.shutdown()
+
     # Send previously computed and saved calibration data to the robot
     elif args.from_yaml:
         try:
+            in_hand_bot, args = create_robot(args, charuco=charuco, aruco_dict=aruco_dict)
             with open(args.data_path, "r") as file:
                 calibration = yaml.safe_load(file)
                 logger.info(f"Loaded calibration data:\n{calibration}")
@@ -112,17 +116,20 @@ def spot_main() -> None:
                     in_hand_bot.write_calibration_to_robot(calibration)
         except Exception as e:
             raise ValueError(f"Failed to load calibration from {args.data_path}: {e}\nIs it a calibration yaml file?")
+        in_hand_bot.shutdown()
     # Load previously collected data and compute calibration
     else:
         logger.info(f"Loading images from {args.data_path}")
         images, poses = load_dataset_from_path(args.data_path)
-        # calibration, num_images, parent_frame, child_frame = run_calibration_process(args)
         calibration = calibration_helper(
             images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path
         )
         if args.save_to_robot:
+            logger.info("Connecting to robot...")
+            in_hand_bot, args = create_robot(args, charuco=charuco, aruco_dict=aruco_dict)
             logger.info("Saving calibration to robot...")
             in_hand_bot.write_calibration_to_robot(calibration)
+            in_hand_bot.shutdown()
 
     logger.info("Calibration complete!")
 
