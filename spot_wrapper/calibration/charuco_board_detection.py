@@ -850,12 +850,24 @@ def stereo_calibration_charuco(
         all_ids_child,
         strict=True,
     ):
-        common_ids = np.intersect1d(origin_ids, reference_ids)
+        common_ids = np.intersect1d(origin_ids, reference_ids)  # sorted flat array
         if len(common_ids) >= 6:  # Ensure there are at least 6 points
             obj_points = get_charuco_board_object_points(charuco_board, common_ids)
+            # Build id->corner-index maps so we can look up corners in the same
+            # sorted order as common_ids / obj_points. Using np.isin preserves
+            # the original detection order, which may differ from intersect1d's
+            # sorted order, causing a 2D-3D correspondence mismatch → NaN R/T.
+            origin_id_to_idx = {int(np.ravel(id_)[0]): i for i, id_ in enumerate(origin_ids)}
+            reference_id_to_idx = {int(np.ravel(id_)[0]): i for i, id_ in enumerate(reference_ids)}
+            selected_origin = np.array(
+                [origin_corners[origin_id_to_idx[int(cid)]] for cid in common_ids], dtype=np.float32
+            )
+            selected_reference = np.array(
+                [reference_corners[reference_id_to_idx[int(cid)]] for cid in common_ids], dtype=np.float32
+            )
             obj_points_all.append(obj_points)
-            img_points_origin.append(origin_corners[np.isin(origin_ids, common_ids)])
-            img_points_reference.append(reference_corners[np.isin(reference_ids, common_ids)])
+            img_points_origin.append(selected_origin)
+            img_points_reference.append(selected_reference)
 
     # sanity check
     if len(obj_points_all) == 0:
@@ -864,26 +876,76 @@ def stereo_calibration_charuco(
     logger.info(
         f"Collected {len(obj_points_all)} shared point sets for stereo calibration. Starting stereo calibration..."
     )
+    # Compute the stereo extrinsic (parent-to-child) via per-view PnP rather than
+    # cv2.stereoCalibrate, which is prone to NaN when the two cameras have very
+    # different resolutions or when the IR/depth images produce noisy detections
+    # that destabilise the Essential-matrix initialisation used internally by
+    # stereoCalibrate.  Per-view PnP + SVD averaging is more robust.
     start_time = time.perf_counter()
-    err, _, _, _, _, R, T, _, _ = cv2.stereoCalibrate(
-        obj_points_all,
-        img_points_origin,
-        img_points_reference,
-        camera_parent,
-        coeffs_parent,
-        camera_child,
-        coeffs_child,
-        parent_img_size,
-        criteria=(
-            cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS,
-            100,
-            1e-6,
-        ),
-        flags=cv2.CALIB_USE_LU,
-    )
+    R_rel_list: List[np.ndarray] = []
+    T_rel_list: List[np.ndarray] = []
+    reproj_errors: List[float] = []
+    for op, ip_parent, ip_child in zip(obj_points_all, img_points_origin, img_points_reference):
+        ok_p, rvec_p, tvec_p = cv2.solvePnP(op, ip_parent, camera_parent, coeffs_parent, flags=cv2.SOLVEPNP_ITERATIVE)
+        ok_c, rvec_c, tvec_c = cv2.solvePnP(op, ip_child, camera_child, coeffs_child, flags=cv2.SOLVEPNP_ITERATIVE)
+        if not ok_p or not ok_c:
+            logger.warning("solvePnP failed for a view; skipping.")
+            continue
+        R_p, _ = cv2.Rodrigues(rvec_p)
+        R_c, _ = cv2.Rodrigues(rvec_c)
+        # child_R_parent, child_T_parent  (X_child = R @ X_parent + T)
+        R_i = R_c @ R_p.T
+        T_i = tvec_c.flatten() - R_i @ tvec_p.flatten()
+        R_rel_list.append(R_i)
+        T_rel_list.append(T_i)
+        # per-view reprojection error in parent camera for a rough quality metric
+        proj, _ = cv2.projectPoints(op, rvec_p, tvec_p, camera_parent, coeffs_parent)
+        reproj_errors.append(float(np.mean(np.linalg.norm(proj.reshape(-1, 2) - ip_parent.reshape(-1, 2), axis=1))))
+
+    if len(R_rel_list) < 3:
+        raise ValueError(
+            f"Only {len(R_rel_list)} views produced valid PnP solutions; need at least 3 for stereo extrinsic."
+        )
+
+    T_arr = np.array(T_rel_list)  # (N, 3)
+    R_arr = np.array(R_rel_list)  # (N, 3, 3)
+
+    # --- outlier rejection on T ---
+    # Each T_i = t_child - R_i @ t_parent.  Individual tvec values can be O(1 m),
+    # so a few noisy IR-camera PnP solutions cause catastrophic cancellation and
+    # produce wildly large T_i.  Use the per-component MAD to find and discard them.
+    T_median = np.median(T_arr, axis=0)
+    abs_dev = np.abs(T_arr - T_median)  # (N, 3)
+    mad = np.median(abs_dev, axis=0)  # (3,)
+    mad = np.where(mad < 1e-9, 1e-9, mad)  # avoid division by zero
+    # A view is an inlier only if every component is within 5 MADs of the median
+    inlier_mask = np.all(abs_dev / mad < 5.0, axis=1)
+    n_inliers = int(inlier_mask.sum())
+    if n_inliers < 3:
+        logger.warning(f"Outlier rejection left only {n_inliers} T inliers; using all {len(T_arr)} views.")
+        inlier_mask = np.ones(len(T_arr), dtype=bool)
+
+    T_inliers = T_arr[inlier_mask]
+    R_inliers = R_arr[inlier_mask]
+    reproj_inliers = [e for e, ok in zip(reproj_errors, inlier_mask) if ok]
+    logger.info(f"Stereo extrinsic: {n_inliers}/{len(T_arr)} views kept after outlier rejection.")
+
+    # Robust translation: median of inliers
+    T = np.median(T_inliers, axis=0).reshape(3, 1)
+
+    # Average rotation matrices over inliers and project back to SO(3) via SVD
+    R_mean = np.mean(R_inliers, axis=0)
+    U, _, Vt = np.linalg.svd(R_mean)
+    R = U @ Vt
+    if np.linalg.det(R) < 0:  # fix improper rotation (reflection)
+        R = U @ np.diag([1.0, 1.0, -1.0]) @ Vt
+
+    err = float(np.mean(reproj_inliers))  # mean per-view reprojection error (parent camera)
     elapsed_time = time.perf_counter() - start_time
-    logger.info(f"Stereo calibration completed in {elapsed_time:.4f} seconds.")
-    # unfortunately, have to use origin/reference terminology to use existing code structure downstream
+    logger.info(
+        f"Stereo extrinsic estimated from {n_inliers} inlier views in {elapsed_time:.4f} s, "
+        f"mean parent reproj error: {err:.3f} px."
+    )
 
     # now we will estimate these
     camera_to_robot_R = np.eye(3)  # Extract rotation

@@ -5,8 +5,8 @@ from __future__ import annotations
 # import dataclasses
 import logging
 from dataclasses import dataclass
+from typing import Optional, TypedDict
 
-# from typing import NamedTuple, Optional, Type, TypedDict
 import numpy as np
 import numpy.typing as npt
 import torch

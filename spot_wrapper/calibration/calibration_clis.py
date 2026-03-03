@@ -237,13 +237,6 @@ def calibrator_cli() -> argparse.ArgumentParser:
         ),
     )
 
-    parser.add_argument(
-        "--use_kabsch",
-        action="store_true",
-        default=False,
-        help="Whether to use the Kabsch algorithm for rotation estimation.",
-    )
-
     return parser
 
 
