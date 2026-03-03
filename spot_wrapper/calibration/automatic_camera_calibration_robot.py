@@ -1,6 +1,4 @@
-# Copyright (c) 2025 Robotics and AI Institute LLC dba RAI Institute. All rights reserved.
-
-# Copyreference (c) 2024 Boston Dynamics AI Institute LLC. All references reserved.
+# Copyright (c) 2025-2026 Robotics and AI Institute LLC dba RAI Institute. All rights reserved.
 
 # What's below can be used in standalone tool
 from abc import ABC, abstractmethod

@@ -1,6 +1,4 @@
-# Copyright (c) 2025 Robotics and AI Institute LLC dba RAI Institute. All rights reserved.
-
-# Copy reference (c) 2024 Boston Dynamics AI Institute LLC. All references reserved.
+# Copyright (c) 2025-2026 Robotics and AI Institute LLC dba RAI Institute. All rights reserved.
 
 import logging
 from time import sleep
@@ -43,10 +41,6 @@ from bosdyn.client.time_sync import TimedOutError
 
 from spot_wrapper.calibration.automatic_camera_calibration_robot import (
     AutomaticCameraCalibrationRobot,
-)
-from spot_wrapper.calibration.calibration_util import (
-    camera_info_to_intrinsics,
-    ros_image_to_image,
 )
 from spot_wrapper.calibration.charuco_board_detection import (
     convert_camera_t_viewpoint_to_origin_t_planning_frame,
@@ -234,31 +228,21 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
     ) -> Union[List, np.ndarray]:
         if encodings is None:
             encodings = [cv2.IMREAD_COLOR, cv2.IMREAD_GRAYSCALE]
+        images = []
+        image_responses = self.image_client.get_image(self.image_requests)
 
-        self.clear_latest_image()
-        images: List[np.ndarray] = []
-        image_data = None
-        logger.info("Waiting to acquire images from cameras...")
-        while image_data is None:
-            image_data = self.get_latest_image()
+        if image_responses:
+            if len(encodings) != len(image_responses):
+                raise ValueError("Need to specify an encoding for each image request")
+            for response, encoding in zip(image_responses, encodings):
+                image_data = response.shot.image.data
+                image_data = np.frombuffer(image_data, np.uint8)
+                image_data = cv2.imdecode(image_data, encoding)
+                images.append(image_data)
+        else:
+            raise ValueError(f"Could not obtain desired images {self.image_requests}")
 
-        spot_img = (
-            ros_image_to_image(image_data.spot_cam_msg, ros_encoding="bgr8").to_numpy().astype(np.uint8)
-        )  # type: ignore
-        self.estimated_camera_matrix = camera_info_to_intrinsics(image_data.spot_cam_info)
-        self.hand_cam_info = image_data.spot_cam_info
-        ext_cam_img = ros_image_to_image(image_data.external_cam_msg, ros_encoding="bgr8").to_numpy().astype(np.uint8)
-        self.ext_cam_info = image_data.external_cam_info
-
-        if (ext_cam_img.shape[0] > spot_img.shape[0]) or (ext_cam_img.shape[1] > spot_img.shape[1]):
-            logger.info("had to resize external camera image.")
-            target_height, target_width, _ = spot_img.shape
-            ext_cam_img = cv2.resize(ext_cam_img, (target_width, target_height), interpolation=cv2.INTER_AREA)
-
-        images.append(spot_img)
-        images.append(ext_cam_img)
-
-        return np.array(images, dtype=np.uint8)
+        return np.array(images, dtype=object)
 
     def localize_target_to_principal_camera(self, images: Union[List, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
         try:

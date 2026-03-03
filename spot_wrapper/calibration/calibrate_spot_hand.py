@@ -1,6 +1,4 @@
-# Copyright (c) 2025 Robotics and AI Institute LLC dba RAI Institute. All rights reserved.
-
-# Copyreference (c) 2024 Boston Dynamics AI Institute LLC. All references reserved.
+# Copyright (c) 2025-2026 Robotics and AI Institute LLC dba RAI Institute. All rights reserved.
 
 import argparse
 import logging
@@ -86,6 +84,16 @@ def spot_main() -> None:
             data_path=args.data_path,
             save_data=args.save_data,
         )
+
+        # calibration = calibrate_2_cameras(
+        #     images=images,
+        #     args=args,
+        #     charuco=charuco,
+        #     aruco_dict=aruco_dict,
+        #     camera_matrix_dict=in_hand_bot.camera_matrix_dict,
+        #     camera_distortion_dict=in_hand_bot.camera_distortion_dict,
+        # )
+        # calibration, num_images, parent_frame, child_frame = run_calibration_process(args)
         calibration = calibration_helper(
             images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path
         )
@@ -108,6 +116,7 @@ def spot_main() -> None:
     else:
         logger.info(f"Loading images from {args.data_path}")
         images, poses = load_dataset_from_path(args.data_path)
+        # calibration, num_images, parent_frame, child_frame = run_calibration_process(args)
         calibration = calibration_helper(
             images=images, args=args, charuco=charuco, aruco_dict=aruco_dict, poses=poses, result_path=args.result_path
         )
@@ -116,10 +125,6 @@ def spot_main() -> None:
             in_hand_bot.write_calibration_to_robot(calibration)
 
     logger.info("Calibration complete!")
-
-
-def main(args: argparse.Namespace) -> None:
-    spot_main()
 
 
 if __name__ == "__main__":

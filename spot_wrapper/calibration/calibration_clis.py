@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (c) 2025 Robotics and AI Institute LLC dba RAI Institute. All rights reserved.
+# Copyright (c) 2025-2026 Robotics and AI Institute LLC dba RAI Institute. All rights reserved.
 
 
 import argparse
@@ -224,6 +224,20 @@ def calibrator_cli() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--stereo_pairs",
+        "-sp",
+        dest="stereo_pairs",
+        nargs="+",
+        type=lambda s: tuple(int(x) for x in s.split(",")),
+        default=[(0, 1)],
+        help=(
+            "Stereo camera pairs to calibrate, as comma-separated index pairs. "
+            "E.g. '0,1' for a single stereo pair between camera 0 and camera 1. "
+            "Defaults to [(0, 1)]."
+        ),
+    )
+
+    parser.add_argument(
         "--use_kabsch",
         action="store_true",
         default=False,
@@ -328,6 +342,17 @@ def calibrate_robot_cli(parser: argparse.ArgumentParser | None = None) -> argpar
         dest="save_data",
         default=False,
         help="Whether to save the collected image dataset to data_path.",
+    )
+
+    parser.add_argument(
+        "--from_yaml",
+        "-yaml",
+        dest="from_yaml",
+        action="store_true",
+        help=(
+            "Whether the data is from a yaml file. Use this and the '--from_data' and '--send' args to send a"
+            " previously saved calibration yaml to the robot"
+        ),
     )
 
     return parser

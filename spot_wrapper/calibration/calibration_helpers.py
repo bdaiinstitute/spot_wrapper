@@ -5,12 +5,13 @@ from __future__ import annotations
 # import dataclasses
 import logging
 from dataclasses import dataclass
-# from typing import NamedTuple, Optional, Type, TypedDict
 
+# from typing import NamedTuple, Optional, Type, TypedDict
 import numpy as np
 import numpy.typing as npt
 import torch
 from jaxtyping import Float, Shaped
+
 # from rclpy.qos import QoSProfile
 # from sensor_msgs.msg import CameraInfo
 # from sensor_msgs.msg import Image as ROSImage
@@ -29,18 +30,18 @@ DISTORTION_COEFFICIENT_SIZES = [0, 4, 5, 8, 12, 14]
 #     spot_cam_info: CameraInfo
 
 
-# class CalibrationResults(TypedDict):
-#     dist_coeffs_origin: np.ndarray
-#     camera_matrix_origin: np.ndarray
-#     image_dim_origin: np.ndarray
-#     dist_coeffs_reference: np.ndarray
-#     camera_matrix_reference: np.ndarray
-#     image_dim_reference: np.ndarray
-#     R: np.ndarray
-#     T: np.ndarray
-#     R_handeye: Optional[np.ndarray]
-#     T_handeye: Optional[np.ndarray]
-#     average_reprojection_error: float
+class CalibrationResults(TypedDict):
+    dist_coeffs_origin: np.ndarray
+    camera_matrix_origin: np.ndarray
+    image_dim_origin: np.ndarray
+    dist_coeffs_reference: np.ndarray
+    camera_matrix_reference: np.ndarray
+    image_dim_reference: np.ndarray
+    R: np.ndarray
+    T: np.ndarray
+    R_handeye: Optional[np.ndarray]
+    T_handeye: Optional[np.ndarray]
+    average_reprojection_error: float
 
 
 # class TopicMsgPair(NamedTuple):

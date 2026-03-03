@@ -1,7 +1,5 @@
 # Copyright (c) 2025-2026 Robotics and AI Institute LLC dba RAI Institute. All rights reserved.
 
-# Copyreference (c) 2024 Robotics and AI Institute LLC dba RAI Institute. All references reserved.
-
 import argparse
 import logging
 import os
@@ -27,13 +25,15 @@ from spot_wrapper.calibration.automatic_camera_calibration_robot import (
     AutomaticCameraCalibrationRobot,
 )
 from spot_wrapper.calibration.calibration_helpers import (
-    # CalibrationResults,
+    CalibrationResults,
     CameraIntrinsics,
     Image,
 )
 
 # TopicMsgPair,
 from spot_wrapper.calibration.charuco_board_detection import (
+    charuco_pose_sanity_check,
+    create_charuco_board,
     create_ideal_charuco_image,
     detect_charuco_corners,
     get_relative_viewpoints_from_board_pose_and_param,
@@ -67,6 +67,7 @@ def camera_info_to_dict(camera_info: CameraInfo, camera_name: str) -> dict[str, 
     }
 
 
+# TODO
 def save_CameraInfo_2_file(msg: CameraInfo, camera_name: str, file_path: Path) -> None:
     """Saves a CameraInfo message to a YAML file."""
     cam_info_msg_dict = camera_info_to_dict(camera_info=msg, camera_name=camera_name)
@@ -75,6 +76,7 @@ def save_CameraInfo_2_file(msg: CameraInfo, camera_name: str, file_path: Path) -
         yaml.dump(cam_info_msg_dict, f, default_flow_style=False)
 
 
+# TODO
 def load_CameraInfo_from_file(file_path: Path) -> CameraInfo:
     """Loads a CameraInfo message from a YAML file."""
     logging.info(f"Loading CameraInfo from {file_path}")
@@ -130,20 +132,20 @@ def load_images_from_path(path: Path) -> Dict[str, Dict[str, np.ndarray]]:
             return int(matcha.group())
         return x
 
-    def load_images_from_dir(path: Path) -> Dict[str, np.ndarray]:
+    def load_images_from_dir(path: Path, suffix: str) -> Dict[str, np.ndarray]:
         print(f"-----------------------Loading images from {path}")
         files = sorted(
-            glob(os.path.join(path, "*.png")),
+            glob(os.path.join(path, f"*{suffix}")),
             key=alpha_numeric,
         )
         try:
             return {
                 Path(fn).name: cv2.imread(fn, cv2.IMREAD_GRAYSCALE).astype(np.uint8)
                 for fn in files
-                if fn.lower().endswith(".png")
+                if fn.lower().endswith(suffix)
             }
         except Exception as e:
-            logging.error(f"Error loading images from {files}: {e}")
+            logging.error(f"Error loading images and poses from {files}: {e}")
             return {}
 
     # Initialize an empty dict to store images
@@ -152,60 +154,63 @@ def load_images_from_path(path: Path) -> Dict[str, Dict[str, np.ndarray]]:
     # directories we care about here
     parent_path = os.path.join(path, "parent")
     child_path = os.path.join(path, "child")
+    poses = os.path.join(path, "poses")
 
     # load images from both directories
-    images["parent"] = load_images_from_dir(Path(parent_path))
-    images["child"] = load_images_from_dir(Path(child_path))
+    images["parent"] = load_images_from_dir(Path(parent_path), ".png")
+    images["child"] = load_images_from_dir(Path(child_path), ".png")
+    images["poses"] = load_images_from_dir(Path(poses), ".npy")
 
     return images
 
 
 # TODO
-# def load_calibration_parameters(input_path: Path) -> CalibrationResults:
-#     """
-#     Load calibration parameters from a YAML file.
+def load_calibration_parameters(input_path: Path) -> CalibrationResults:
+    """
+    Load calibration parameters from a YAML file.
 
-#     Args:
-#         input_path (Path): The path to the YAML file containing calibration parameters.
-#     Returns:
-#         CalibrationResults: The loaded calibration parameters.
-#     Throws:
-#         FileNotFoundError: If the specified file does not exist.
-#         KeyError: If required keys are missing in the YAML file.
-#     """
-#     with open(input_path, "r") as file:
-#         calib_data = yaml.safe_load(file)
+    Args:
+        input_path (Path): The path to the YAML file containing calibration parameters.
+    Returns:
+        CalibrationResults: The loaded calibration parameters.
+    Throws:
+        FileNotFoundError: If the specified file does not exist.
+        KeyError: If required keys are missing in the YAML file.
+    """
+    with open(input_path, "r") as file:
+        calib_data = yaml.safe_load(file)
 
-#     parent_camera = np.array(calib_data["default"]["intrinsic"][0]["camera_matrix"]).reshape((3, 3))
-#     parent_dist_coeffs = np.array(calib_data["default"]["intrinsic"][0]["dist_coeffs"]).reshape((-1, 1))
-#     parent_image_dim = np.array(calib_data["default"]["intrinsic"][0]["image_dim"])
-#     child_camera = np.array(calib_data["default"]["intrinsic"][1]["camera_matrix"]).reshape((3, 3))
-#     child_dist_coeffs = np.array(calib_data["default"]["intrinsic"][1]["dist_coeffs"]).reshape((-1, 1))
-#     child_image_dim = np.array(calib_data["default"]["intrinsic"][1]["image_dim"])
-#     R = np.array(calib_data["default"]["extrinsic"][0][1]["R"]).reshape((3, 3))
-#     T = np.array(calib_data["default"]["extrinsic"][0][1]["T"]).reshape((-1, 3))
+    parent_camera = np.array(calib_data["default"]["intrinsic"][0]["camera_matrix"]).reshape((3, 3))
+    parent_dist_coeffs = np.array(calib_data["default"]["intrinsic"][0]["dist_coeffs"]).reshape((-1, 1))
+    parent_image_dim = np.array(calib_data["default"]["intrinsic"][0]["image_dim"])
+    child_camera = np.array(calib_data["default"]["intrinsic"][1]["camera_matrix"]).reshape((3, 3))
+    child_dist_coeffs = np.array(calib_data["default"]["intrinsic"][1]["dist_coeffs"]).reshape((-1, 1))
+    child_image_dim = np.array(calib_data["default"]["intrinsic"][1]["image_dim"])
+    R = np.array(calib_data["default"]["extrinsic"][0][1]["R"]).reshape((3, 3))
+    T = np.array(calib_data["default"]["extrinsic"][0][1]["T"]).reshape((-1, 3))
 
-#     # saving out reproj err not supported, currently.
-#     # does not save out reproj err.
-#     # So we set it to 0 here.
-#     calib_results: CalibrationResults = {
-#         "camera_matrix_origin": parent_camera,
-#         "dist_coeffs_origin": parent_dist_coeffs,
-#         "image_dim_origin": parent_image_dim,
-#         "camera_matrix_reference": child_camera,
-#         "dist_coeffs_reference": child_dist_coeffs,
-#         "image_dim_reference": child_image_dim,
-#         "R": R,
-#         "T": T,
-#         "R_handeye": np.eye(3),
-#         "T_handeye": np.zeros((3, 1)),
-#         "average_reprojection_error": 0,
-#     }
+    # saving out reproj err not supported, currently.
+    # does not save out reproj err.
+    # So we set it to 0 here.
+    calib_results: CalibrationResults = {
+        "camera_matrix_origin": parent_camera,
+        "dist_coeffs_origin": parent_dist_coeffs,
+        "image_dim_origin": parent_image_dim,
+        "camera_matrix_reference": child_camera,
+        "dist_coeffs_reference": child_dist_coeffs,
+        "image_dim_reference": child_image_dim,
+        "R": R,
+        "T": T,
+        "R_handeye": np.eye(3),
+        "T_handeye": np.zeros((3, 1)),
+        "average_reprojection_error": 0,
+    }
 
-#     return calib_results
+    return calib_results
 
 
-def load_dataset_from_path(pathdir: Path) -> Tuple[Dict[str, Dict[str, np.ndarray]], CameraInfo, CameraInfo]:
+# TODO
+def load_dataset_from_path(pathdir: Path) -> Tuple[Dict[str, Dict[str, np.ndarray]], CameraInfo]:
     """
     load the data for images, hand_cam_info, ext_cam_info
 
@@ -247,32 +252,31 @@ def create_calibration_save_folders(path: Path) -> None:
 
 
 # TODO
-# def save_dataset_to_dir(
-#     path: Path, images_dict: dict[str, list[np.ndarray]], camera_info_dict: dict[str, CameraInfo]
-# ) -> None:
-#     """
-#     Save image dataset to path in a way that's compatible with multistereo_calibration_charuco.
+def save_dataset_to_dir(
+    path: Path, images_dict: dict[str, list[np.ndarray]], camera_info_dict: dict[str, CameraInfo]
+) -> None:
+    """
+    Save image dataset to path in a way that's compatible with multistereo_calibration_charuco.
 
-#     Also, save the camera infos.
+    Also, save the camera infos.
 
-#     See Using the CLI Tool To Calibrate On an Existing Dataset section in the README
-#     to see the expected folder/data structure for this method to work
+    See Using the CLI Tool To Calibrate On an Existing Dataset section in the README
+    to see the expected folder/data structure for this method to work
 
-#     Args:
-#         path (str): The parent path
-#         images_dict (dict[int, list[np.ndarray]]): The image dataset by camera index
-#         camera_info_dict (dict[int, CameraInfo]): The camera info by camera index
-#     """
+    Args:
+        path (str): The parent path
+        images_dict (dict[int, list[np.ndarray]]): The image dataset by camera index
+        camera_info_dict (dict[int, CameraInfo]): The camera info by camera index
+    """
 
-#     create_calibration_save_folders(path)
+    create_calibration_save_folders(path)
 
-#     for cam_idx, images in images_dict.items():
-#         cam_dir = path / Path(str(cam_idx))
-#         for img_idx, img in enumerate(images):
-#             img_path = cam_dir / Path(f"{img_idx}.png")
-#             cv2.imwrite(str(img_path), img)
-#             # np.save(cam_dir / Path("camera_info.npy"), camera_info_dict[cam_idx])
-#             save_CameraInfo_2_file(camera_info_dict[cam_idx], str(cam_idx), cam_dir / Path("camera_info.yaml"))
+    for cam_idx, images in images_dict.items():
+        cam_dir = path / Path(str(cam_idx))
+        for img_idx, img in enumerate(images):
+            img_path = cam_dir / Path(f"{img_idx}.png")
+            cv2.imwrite(str(img_path), img)
+            save_CameraInfo_2_file(camera_info_dict[cam_idx], str(cam_idx), cam_dir / Path("camera_info.yaml"))
 
 
 def save_calibration_parameters(
@@ -338,11 +342,11 @@ def save_calibration_parameters(
             }
 
             # Now add R_handeye and T_handeye if they exist in the data
-            """ if "R_handeye" in value and "T_handeye" in value:
+            if "R_handeye" in value and "T_handeye" in value:
                 relations[origin_cam]["planning_frame"] = {
                     "R": flatten_matrix(value["R_handeye"]),
                     "T": flatten_matrix(value["T_handeye"]),
-                } """
+                }
 
         return cameras, relations
 
@@ -392,9 +396,14 @@ def save_calibration_parameters(
     # Process the new calibration data
     cameras, relations = process_data_with_nested_dictionaries(data)
 
+    first_result = next(iter(data.values()))
     xform = np.eye(4)
-    xform[:3, :3] = next(iter(data.values()))["R"]
-    xform[:3, 3] = next(iter(data.values()))["T"].flatten()
+    if "R_handeye" in first_result and "T_handeye" in first_result:
+        xform[:3, :3] = first_result["R_handeye"]
+        xform[:3, 3] = np.array(first_result["T_handeye"]).flatten()
+    else:
+        xform[:3, :3] = first_result["R"]
+        xform[:3, 3] = first_result["T"].flatten()
 
     # Prepare the output data under the specified tag
     run_params: Dict[str, Any] = {}
@@ -527,6 +536,7 @@ def get_multiple_perspective_camera_calibration_dataset(
     return (np.array(calibration_images, dtype=object), poses)
 
 
+# TODO
 def camera_info_to_intrinsics(msg: CameraInfo) -> CameraIntrinsics:
     """Construct a `CameraIntrinsics` instance from a `CameraInfo` message.
 
@@ -610,6 +620,121 @@ def calibration_helper(
         unsafe=args.unsafe_tag_save,
     )
     return calibration_dict
+
+
+def setup_calibration_param(
+    args: argparse.Namespace,
+) -> Tuple[argparse.Namespace, cv2.aruco_Dictionary, cv2.aruco_CharucoBoard]:
+    """Set up calibration parameters from command line arguments.
+
+    Args:
+        parser (argparse.ArgumentParser): The argument parser to set up from command line.
+
+    Raises:
+        ValueError: If the provided ArUco dictionary is invalid.
+
+    Returns:
+        Tuple[argparse.Namespace, cv2.aruco_Dictionary, cv2.aruco_CharucoBoard]:
+        The parsed arguments, ArUco dictionary, and Charuco board.
+    """
+    if hasattr(cv2.aruco, args.dict_size):
+        aruco_dict = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, args.dict_size))
+    else:
+        raise ValueError(f"Invalid ArUco dictionary: {args.dict_size}")
+    charuco = create_charuco_board(
+        num_checkers_width=args.num_checkers_width,
+        num_checkers_height=args.num_checkers_height,
+        checker_dim=args.checker_dim,
+        marker_dim=args.marker_dim,
+        aruco_dict=aruco_dict,
+        legacy=args.legacy_charuco_pattern,
+    )
+
+    if not args.allow_default_internal_corner_ordering:
+        logger.warning("Enforcing bottom up charuco ordering. Pre-computing correlation now...")
+        detect_charuco_corners(
+            create_ideal_charuco_image(charuco_board=charuco),
+            charuco_board=charuco,
+            aruco_dict=aruco_dict,
+            enforce_ascending_ids_from_bottom_left_corner=True,
+        )
+    if args.show_board_pattern:
+        logger.warning("Checking board, you'll need to close a window in a sec (press any key)")
+        charuco_pose_sanity_check(
+            create_ideal_charuco_image(charuco_board=charuco, colorful=True),
+            charuco_board=charuco,
+            aruco_dict=aruco_dict,
+        )
+    return args, aruco_dict, charuco
+
+
+# def run_calibration_process(args: argparse.Namespace, in_hand_bot) -> tuple[CalibrationResults, int, str, str]:
+#     """
+#     This runs the calibration process for either of the two calibration modes.
+#     Just returns the calibration result.
+
+#     :param args: Description
+#     :type args: argparse.Namespace
+#     :return: Description
+#     :rtype: tuple[CalibrationResults, int, Namespace]
+
+#     Raises:
+#         FileNotFoundError: Could not find body_t_spot_camera.npy
+#         ValueError: No data path supplied to load images from
+#     """
+#     args, aruco_dict, charuco = setup_calibration_param(args)
+#     logger.info(f"Loading images from {args.data_path}")
+
+#     if args.from_data and args.data_path is None:
+#         logger.warning("Could not load any images to calibrate from, supply --data_path")
+#         raise ValueError("No data path supplied to load images from")
+
+#     if args.from_data:
+#         images, hand_cam_info, ext_cam_info = load_dataset_from_path(args.data_path)
+#     else:
+#         images, poses = get_multiple_perspective_camera_calibration_dataset(
+#             auto_cam_cal_robot=in_hand_bot,
+#             max_num_images=args.max_num_images,
+#             distances_z=np.arange(*args.dist_from_board_viewpoint_range),
+#             distances_x=np.arange(*args.dist_along_board_width),
+#             x_axis_rots=np.arange(*args.x_axis_rot_viewpoint_range),
+#             y_axis_rots=np.arange(*args.y_axis_rot_viewpoint_range),
+#             z_axis_rots=np.arange(*args.z_axis_rot_viewpoint_range),
+#             use_degrees=args.use_degrees,
+#             settle_time=args.settle_time,
+#             data_path=args.data_path,
+#             save_data=args.save_data,
+#         )
+#     hand_camera_matrix = np.array(hand_cam_info.k).reshape((3, 3))
+#     hand_camera_distortion_coefficients = np.array(hand_cam_info.d)
+#     ext_camera_matrix = np.array(ext_cam_info.k).reshape((3, 3))
+#     ext_camera_distortion_coefficients = np.array(ext_cam_info.d)
+
+#     camera_matrix_dict = {"parent": hand_camera_matrix, "child": ext_camera_matrix}
+#     camera_distortion_dict = {
+#         "parent": hand_camera_distortion_coefficients,
+#         "child": ext_camera_distortion_coefficients,
+#     }
+
+#     try:
+#         calibration_result = calibrate_2_cameras(
+#             images=images,
+#             args=args,
+#             charuco=charuco,
+#             aruco_dict=aruco_dict,
+#             camera_matrix_dict=camera_matrix_dict,
+#             camera_distortion_dict=camera_distortion_dict,
+#         )
+#     except Exception as ex:
+#         logger.error(f"Could not calibrate the two cameras: {ex}")
+#         raise ex
+
+#     return (
+#         calibration_result,
+#         len(images["parent"]) + len(images["child"]),
+#         hand_cam_info.header.frame_id,
+#         ext_cam_info.header.frame_id,
+#     )
 
 
 # def create_time_synchronizer(

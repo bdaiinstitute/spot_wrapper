@@ -1,14 +1,14 @@
 # Copyright (c) 2025-2026 Robotics and AI Institute LLC dba RAI Institute. All rights reserved.
 
-# Copyreference (c) 2024 Boston Dynamics AI Institute LLC. All references reserved.
-
 import logging
+import time
 from copy import deepcopy
 from math import radians
 from typing import Dict, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
+from calibration_helpers import CalibrationResults
 
 logging.basicConfig(
     level=logging.INFO,
@@ -88,6 +88,7 @@ SPOT_DEFAULT_CHARUCO = create_charuco_board(
     aruco_dict=SPOT_DEFAULT_ARUCO_DICT,
     legacy=True,
 )
+
 
 def multistereo_calibration_charuco(
     images: np.ndarray,
@@ -200,21 +201,21 @@ def multistereo_calibration_charuco(
                 )
                 continue
             logging.info(
-                f"Attempting to register {origin_camera_idx}"
-                f"to {reference_camera_idx}, pair {idx} of"
+                f"Attempting to register {origin_camera_idx} "
+                f"to {reference_camera_idx}, pair {idx} of "
                 f" {len(desired_stereo_pairs)}"
             )
             try:
                 key = str(origin_camera_idx) + "_" + str(reference_camera_idx)
                 stereo_dict = stereo_calibration_charuco(
-                    origin_images=images[:, origin_camera_idx],
-                    reference_images=images[:, reference_camera_idx],
+                    parent_images={str(i): img for i, img in enumerate(images[:, origin_camera_idx])},
+                    child_images={str(i): img for i, img in enumerate(images[:, reference_camera_idx])},
                     charuco_board=charuco_board,
                     aruco_dict=aruco_dict,
-                    camera_matrix_origin=camera_matrices[origin_camera_idx],
-                    dist_coeffs_origin=dist_coeffs[origin_camera_idx],
-                    camera_matrix_reference=camera_matrices[reference_camera_idx],
-                    dist_coeffs_reference=dist_coeffs[reference_camera_idx],
+                    camera_matrix_parent=camera_matrices[origin_camera_idx],
+                    dist_coeffs_parent=dist_coeffs[origin_camera_idx],
+                    camera_matrix_child=camera_matrices[reference_camera_idx],
+                    dist_coeffs_child=dist_coeffs[reference_camera_idx],
                     poses=poses,
                 )
                 camera_matrices[origin_camera_idx] = stereo_dict["camera_matrix_origin"]
@@ -494,35 +495,226 @@ def calibrate_single_camera_charuco(
         raise ValueError(f"Not enough valid points to individually calibrate {debug_str}")
 
 
+# def stereo_calibration_charuco(
+#     origin_images: List[np.ndarray],
+#     reference_images: List[np.ndarray],
+#     charuco_board: cv2.aruco_CharucoBoard = SPOT_DEFAULT_CHARUCO,
+#     aruco_dict: cv2.aruco_Dictionary = SPOT_DEFAULT_ARUCO_DICT,
+#     camera_matrix_origin: Optional[np.ndarray] = None,
+#     dist_coeffs_origin: Optional[np.ndarray] = None,
+#     camera_matrix_reference: Optional[np.ndarray] = None,
+#     dist_coeffs_reference: Optional[np.ndarray] = None,
+#     poses: Union[np.ndarray, None] = None,
+# ) -> Dict:
+#     """
+#     Perform a stereo calibration from a set of synchronized stereo images of a charuco calibration
+#     board.
+
+#     Args:
+#         origin_images (List[np.ndarray]): A list of images synced to reference images from camera 0
+#         reference_images (List[np.ndarray]): A list of images synced to origin images from camera 1
+#         charuco_board (cv2.aruco_CharucoBoard, optional): What charuco board to
+#             use for the cal. Defaults to SPOT_DEFAULT_CHARUCO.
+#         aruco_dict (cv2.aruco_Dictionary, optional): What aruco board to use for the cal.
+#             Defaults to SPOT_DEFAULT_ARUCO_DICT.
+#         camera_matrix_origin (Optional[np.ndarray], optional): What camera
+#             matrix to assign to camera 0. If none, is computed. Defaults to None.
+#         dist_coeffs_origin (Optional[np.ndarray], optional): What distortion coefficients
+#             to assign to camera 0. If None, is computed. Defaults to None.
+#         camera_matrix_reference (Optional[np.ndarray], optional): What camera
+#             matrix to assign to camera 1. If none, is computed. . Defaults to None.
+#         dist_coeffs_reference (Optional[np.ndarray], optional): What distortion coefficients
+#             to assign to camera 1. If None, is computed. Defaults to None.
+#         poses (Union[np.ndarray, None]): Either a list of 4x4 homogenous transforms from which
+#             pictures where taken, or None if unknown. Needs to be supplied for robot to camera cal.
+#             (planning frame to base frame), or None
+#     Raises:
+#         ValueError: Could not calibrate a camera individually
+#         ValueError: Not enough points to stereo calibrate
+#         ValueError: Could not stereo calibrate
+
+#     Returns:
+#         Dict: _description_
+#     """
+#     if camera_matrix_origin is None or dist_coeffs_origin is None:
+#         logger.info("Calibrating Origin Camera individually")
+#         (camera_matrix_origin, dist_coeffs_origin, rmats_origin, tvecs_origin) = calibrate_single_camera_charuco(
+#             images=origin_images,
+#             charuco_board=charuco_board,
+#             aruco_dict=aruco_dict,
+#             debug_str="for origin camera",
+#         )
+#     if camera_matrix_reference is None or dist_coeffs_origin is None:
+#         logger.info("Calibrating reference Camera individually ")
+#         (camera_matrix_reference, dist_coeffs_reference, rmats_reference, tvecs_reference) = (
+#             calibrate_single_camera_charuco(
+#                 images=reference_images,
+#                 charuco_board=charuco_board,
+#                 aruco_dict=aruco_dict,
+#                 debug_str="for reference camera",
+#             )
+#         )
+
+#     if camera_matrix_origin is None or camera_matrix_reference is None:
+#         raise ValueError("Could not calibrate one of the cameras as desired")
+
+#     all_corners_origin = []
+#     all_corners_reference = []
+#     all_ids_origin = []
+#     all_ids_reference = []
+#     img_size = None
+
+#     no_poses = poses is None
+#     if no_poses:
+#         poses = [x for x in range(len(origin_images))]
+#     else:
+#         filtered_poses = []
+
+#     no_poses = poses is None
+#     if no_poses:  # fill up poses with dummy values so that you can iterate over poses
+#         # with images zip(origin_images, reference_images, poses) together regardless of if poses
+#         # are actually supplied (for the sake of brevity)
+#         poses = [x for x in range(len(origin_images))]
+#     else:
+#         filtered_poses = []
+
+#     for origin_img, reference_img, pose in zip(origin_images, reference_images, poses):
+#         if img_size is None:
+#             img_size = origin_img.shape[:2][::-1]
+
+#         origin_charuco_corners, origin_charuco_ids = detect_charuco_corners(origin_img, charuco_board, aruco_dict)
+#         reference_charuco_corners, reference_charuco_ids = detect_charuco_corners(
+#             reference_img, charuco_board, aruco_dict
+#         )
+
+#         if not no_poses:
+#             filtered_poses.append(pose)
+#         if origin_charuco_corners is not None and reference_charuco_corners is not None:
+#             all_corners_origin.append(origin_charuco_corners)
+#             all_corners_reference.append(reference_charuco_corners)
+#             all_ids_origin.append(origin_charuco_ids)
+#             all_ids_reference.append(reference_charuco_ids)
+
+#     if len(all_corners_origin) > 0:
+#         obj_points_all = []
+#         img_points_origin = []
+#         img_points_reference = []
+#         for (
+#             origin_corners,
+#             reference_corners,
+#             origin_ids,
+#             reference_ids,
+#         ) in zip(
+#             all_corners_origin,
+#             all_corners_reference,
+#             all_ids_origin,
+#             all_ids_reference,
+#         ):
+#             common_ids = np.intersect1d(origin_ids, reference_ids)
+#             if len(common_ids) >= 6:  # Ensure there are at least 6 points
+#                 obj_points = get_charuco_board_object_points(charuco_board, common_ids)
+#                 obj_points_all.append(obj_points)
+#                 img_points_origin.append(origin_corners[np.isin(origin_ids, common_ids)])
+#                 img_points_reference.append(reference_corners[np.isin(reference_ids, common_ids)])
+
+#         if len(obj_points_all) > 0:
+#             logger.info(f"Collected {len(obj_points_all)} shared point sets for stereo calibration.")
+#             _, _, _, _, _, R, T, _, _ = cv2.stereoCalibrate(
+#                 obj_points_all,
+#                 img_points_origin,
+#                 img_points_reference,
+#                 camera_matrix_origin,
+#                 dist_coeffs_origin,
+#                 camera_matrix_reference,
+#                 dist_coeffs_reference,
+#                 img_size,
+#                 criteria=(
+#                     cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS,
+#                     100,
+#                     1e-6,
+#                 ),
+#                 flags=cv2.CALIB_FIX_INTRINSIC | cv2.CALIB_USE_LU,
+#             )
+#             logger.info("Stereo calibration completed.")
+#             result_dict = {
+#                 "dist_coeffs_origin": dist_coeffs_origin,
+#                 "camera_matrix_origin": camera_matrix_origin,
+#                 "image_dim_origin": np.array(origin_images[0].shape[:2]),
+#                 "dist_coeffs_reference": dist_coeffs_reference,
+#                 "camera_matrix_reference": camera_matrix_reference,
+#                 "image_dim_reference": np.array(reference_images[0].shape[:2]),
+#                 "R": R,
+#                 "T": T,
+#             }
+
+#             if not no_poses:
+#                 logger.info("Attempting hand-eye calibation....")
+#                 # filtered_poses = np.array([np.linalg.inv(pose) for pose in filtered_poses])
+#                 filtered_poses = np.array(filtered_poses)
+#                 # Use the filtered poses for the target-to-camera transformation
+#                 R_gripper2base = np.array([pose[:3, :3] for pose in filtered_poses])
+#                 t_gripper2base = np.array([pose[:3, 3] for pose in filtered_poses])
+
+#                 R_handeye, T_handeye = cv2.calibrateHandEye(
+#                     R_gripper2base=R_gripper2base,
+#                     t_gripper2base=t_gripper2base,
+#                     R_target2cam=rmats_origin,
+#                     t_target2cam=tvecs_origin,
+#                     method=cv2.CALIB_HAND_EYE_DANIILIDIS,
+#                 )
+#                 robot_to_cam = np.eye(4)  # Initialize 4x4 identity matrix
+#                 robot_to_cam[:3, :3] = R_handeye  # Populate rotation
+#                 robot_to_cam[:3, 3] = T_handeye.flatten()  # Populate translation
+
+#                 # Invert the homogeneous matrix
+#                 cam_to_robot = np.linalg.inv(robot_to_cam)
+
+#                 # Extract rotation and translation from the inverted matrix
+#                 camera_to_robot_R = cam_to_robot[:3, :3]  # Extract rotation
+#                 camera_to_robot_T = cam_to_robot[:3, 3]  # Extract translation
+#                 logger.info("Hand-eye calibration completed.")
+
+#                 # Add the hand-eye calibration results to the final result dictionary
+#                 result_dict["R_handeye"] = camera_to_robot_R
+#                 result_dict["T_handeye"] = camera_to_robot_T
+#             return result_dict
+#         else:
+#             raise ValueError("Not enough valid points for stereo calibration.")
+#     else:
+#         raise ValueError("Not enough shared points for stereo calibration.")
+
+
 def stereo_calibration_charuco(
-    origin_images: List[np.ndarray],
-    reference_images: List[np.ndarray],
+    parent_images: Dict[str, np.ndarray],
+    child_images: Dict[str, np.ndarray],
     charuco_board: cv2.aruco_CharucoBoard = SPOT_DEFAULT_CHARUCO,
     aruco_dict: cv2.aruco_Dictionary = SPOT_DEFAULT_ARUCO_DICT,
-    camera_matrix_origin: Optional[np.ndarray] = None,
-    dist_coeffs_origin: Optional[np.ndarray] = None,
-    camera_matrix_reference: Optional[np.ndarray] = None,
-    dist_coeffs_reference: Optional[np.ndarray] = None,
+    camera_matrix_parent: Optional[np.ndarray] = None,
+    dist_coeffs_parent: Optional[np.ndarray] = None,
+    camera_matrix_child: Optional[np.ndarray] = None,
+    dist_coeffs_child: Optional[np.ndarray] = None,
     poses: Union[np.ndarray, None] = None,
-) -> Dict:
+) -> CalibrationResults:
     """
     Perform a stereo calibration from a set of synchronized stereo images of a charuco calibration
     board.
 
     Args:
-        origin_images (List[np.ndarray]): A list of images synced to reference images from camera 0
-        reference_images (List[np.ndarray]): A list of images synced to origin images from camera 1
+        parent_images (List[np.ndarray]): A list of images synced to reference images from camera 0
+        child_images (List[np.ndarray]): A list of images synced to origin images from camera 1
         charuco_board (cv2.aruco_CharucoBoard, optional): What charuco board to
             use for the cal. Defaults to SPOT_DEFAULT_CHARUCO.
         aruco_dict (cv2.aruco_Dictionary, optional): What aruco board to use for the cal.
             Defaults to SPOT_DEFAULT_ARUCO_DICT.
-        camera_matrix_origin (Optional[np.ndarray], optional): What camera
+        camera_matrix_parent (Optional[np.ndarray], optional): What camera
             matrix to assign to camera 0. If none, is computed. Defaults to None.
-        dist_coeffs_origin (Optional[np.ndarray], optional): What distortion coefficients
+        dist_coeffs_parent (Optional[np.ndarray], optional): What distortion coefficients
             to assign to camera 0. If None, is computed. Defaults to None.
-        camera_matrix_reference (Optional[np.ndarray], optional): What camera
+        projection_matrix_origin (Optional[np.ndarray], optional): What projection
+            matrix to assign to camera 0. If None, is computed. Defaults to None.
+        camera_matrix_child (Optional[np.ndarray], optional): What camera
             matrix to assign to camera 1. If none, is computed. . Defaults to None.
-        dist_coeffs_reference (Optional[np.ndarray], optional): What distortion coefficients
+        dist_coeffs_child (Optional[np.ndarray], optional): What distortion coefficients
             to assign to camera 1. If None, is computed. Defaults to None.
         poses (Union[np.ndarray, None]): Either a list of 4x4 homogenous transforms from which
             pictures where taken, or None if unknown. Needs to be supplied for robot to camera cal.
@@ -535,152 +727,210 @@ def stereo_calibration_charuco(
     Returns:
         Dict: _description_
     """
-    if camera_matrix_origin is None or dist_coeffs_origin is None:
-        logger.info("Calibrating Origin Camera individually")
-        (camera_matrix_origin, dist_coeffs_origin, rmats_origin, tvecs_origin) = calibrate_single_camera_charuco(
-            images=origin_images,
-            charuco_board=charuco_board,
-            aruco_dict=aruco_dict,
-            debug_str="for origin camera",
-        )
-    if camera_matrix_reference is None or dist_coeffs_origin is None:
-        logger.info("Calibrating reference Camera individually ")
-        (camera_matrix_reference, dist_coeffs_reference, rmats_reference, tvecs_reference) = (
-            calibrate_single_camera_charuco(
-                images=reference_images,
-                charuco_board=charuco_board,
-                aruco_dict=aruco_dict,
-                debug_str="for reference camera",
-            )
-        )
+    camera_child: np.ndarray = np.eye(3)
+    coeffs_child: np.ndarray = np.zeros((5,))
+    camera_parent: np.ndarray = np.eye(3)
+    coeffs_parent: np.ndarray = np.zeros((5,))
 
-    if camera_matrix_origin is None or camera_matrix_reference is None:
-        raise ValueError("Could not calibrate one of the cameras as desired")
+    # Pre-filter parent images to frames with enough corners, and simultaneously
+    # filter poses so they remain aligned with the rmats/tvecs returned by
+    # calibrate_single_camera_charuco (which silently drops frames with < 8 corners).
+    valid_parent_imgs: Dict[str, np.ndarray] = {}
+    poses_aligned_with_parent: Optional[List] = [] if poses is not None else None
+    for i, (fname, img) in enumerate(parent_images.items()):
+        corners, _ = detect_charuco_corners(img, charuco_board, aruco_dict)
+        if corners is not None and len(corners) >= 8:
+            valid_parent_imgs[fname] = img
+            if poses is not None:
+                poses_aligned_with_parent.append(poses[i])
 
-    all_corners_origin = []
-    all_corners_reference = []
-    all_ids_origin = []
-    all_ids_reference = []
-    img_size = None
+    # first do single camera cal for parent. rotation and tvecs are used, and camera matrix, dist coeffs
+    logger.info("Calibrating Parent Camera individually")
+    (camera_matrix_parent_new, dist_coeffs_parent_new, rmats_origin, tvecs_origin) = calibrate_single_camera_charuco(
+        images=valid_parent_imgs.values(),
+        charuco_board=charuco_board,
+        aruco_dict=aruco_dict,
+        debug_str="for parent camera",
+    )
 
-    no_poses = poses is None
-    if no_poses:
-        poses = [x for x in range(len(origin_images))]
+    if camera_matrix_parent_new is None:
+        raise ValueError("Could not obtain cam matrix parent camera to charuco board, needed for pose")
+    if dist_coeffs_parent_new is None:
+        raise ValueError("Could not obtain dist coeffs of parent camera to charuco board, needed for pose")
+
+    # if None passed in, use these newly computed values
+    if camera_matrix_parent is None:
+        camera_parent = camera_matrix_parent_new
     else:
-        filtered_poses = []
-
-    no_poses = poses is None
-    if no_poses:  # fill up poses with dummy values so that you can iterate over poses
-        # with images zip(origin_images, reference_images, poses) together regardless of if poses
-        # are actually supplied (for the sake of brevity)
-        poses = [x for x in range(len(origin_images))]
+        camera_parent = camera_matrix_parent
+    if dist_coeffs_parent is None:
+        coeffs_parent = dist_coeffs_parent_new
     else:
-        filtered_poses = []
+        coeffs_parent = dist_coeffs_parent
 
-    for origin_img, reference_img, pose in zip(origin_images, reference_images, poses):
-        if img_size is None:
-            img_size = origin_img.shape[:2][::-1]
+    # next do single camera cal for child. rotation and tvecs are used, and camera matrix, dist coeffs
+    start_time = time.perf_counter()
+    logger.info("Calibrating Child Camera individually")
+    (camera_matrix_child_new, dist_coeffs_child_new, _, _) = calibrate_single_camera_charuco(
+        images=child_images.values(),
+        charuco_board=charuco_board,
+        aruco_dict=aruco_dict,
+        debug_str="for child camera",
+    )
+    elapsed_time = time.perf_counter() - start_time
+    logger.info(f"Finished calibration child camera in {elapsed_time:.4f} seconds")
+
+    if camera_matrix_child_new is None:
+        raise ValueError("Could not obtain cam matrix child camera to charuco board, needed for pose")
+    if dist_coeffs_child_new is None:
+        raise ValueError("Could not obtain dist coeffs of child camera to charuco board, needed for pose")
+
+    logger.info("Finished individual camera calibrations, starting stereo calibration")
+
+    # if None passed in, use these newly computed values
+    if camera_matrix_child is None:
+        camera_child = camera_matrix_child_new
+    else:
+        camera_child = camera_matrix_child
+    if dist_coeffs_child is None:
+        coeffs_child = dist_coeffs_child_new
+    else:
+        coeffs_child = dist_coeffs_child
+
+    all_corners_parent = []
+    all_corners_child = []
+    all_ids_parent = []
+    all_ids_child = []
+    parent_img_size = None
+    child_img_size = None
+
+    # let gets corresponding images
+    parent_keys = set(parent_images.keys())
+    child_keys = set(child_images.keys())
+    common_keys = parent_keys.intersection(child_keys)
+
+    logger.info("Collecting shared points for stereo calibration")
+    if len(common_keys) == 0:
+        raise ValueError("No common images between parent and child cameras for stereo calibration")
+
+    for fname in list(common_keys):
+        origin_img = parent_images[fname]
+        reference_img = child_images[fname]
+        if parent_img_size is None:
+            parent_img_size = origin_img.shape[:2][::-1]
+        if child_img_size is None:
+            child_img_size = reference_img.shape[:2][::-1]
 
         origin_charuco_corners, origin_charuco_ids = detect_charuco_corners(origin_img, charuco_board, aruco_dict)
         reference_charuco_corners, reference_charuco_ids = detect_charuco_corners(
             reference_img, charuco_board, aruco_dict
         )
 
-        if not no_poses:
-            filtered_poses.append(pose)
         if origin_charuco_corners is not None and reference_charuco_corners is not None:
-            all_corners_origin.append(origin_charuco_corners)
-            all_corners_reference.append(reference_charuco_corners)
-            all_ids_origin.append(origin_charuco_ids)
-            all_ids_reference.append(reference_charuco_ids)
+            all_corners_parent.append(origin_charuco_corners)
+            all_corners_child.append(reference_charuco_corners)
+            all_ids_parent.append(origin_charuco_ids)
+            all_ids_child.append(reference_charuco_ids)
 
-    if len(all_corners_origin) > 0:
-        obj_points_all = []
-        img_points_origin = []
-        img_points_reference = []
-        for (
-            origin_corners,
-            reference_corners,
-            origin_ids,
-            reference_ids,
-        ) in zip(
-            all_corners_origin,
-            all_corners_reference,
-            all_ids_origin,
-            all_ids_reference,
-        ):
-            common_ids = np.intersect1d(origin_ids, reference_ids)
-            if len(common_ids) >= 6:  # Ensure there are at least 6 points
-                obj_points = get_charuco_board_object_points(charuco_board, common_ids)
-                obj_points_all.append(obj_points)
-                img_points_origin.append(origin_corners[np.isin(origin_ids, common_ids)])
-                img_points_reference.append(reference_corners[np.isin(reference_ids, common_ids)])
-
-        if len(obj_points_all) > 0:
-            logger.info(f"Collected {len(obj_points_all)} shared point sets for stereo calibration.")
-            _, _, _, _, _, R, T, _, _ = cv2.stereoCalibrate(
-                obj_points_all,
-                img_points_origin,
-                img_points_reference,
-                camera_matrix_origin,
-                dist_coeffs_origin,
-                camera_matrix_reference,
-                dist_coeffs_reference,
-                img_size,
-                criteria=(
-                    cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS,
-                    100,
-                    1e-6,
-                ),
-                flags=cv2.CALIB_USE_LU,
-            )
-            logger.info("Stereo calibration completed.")
-            result_dict = {
-                "dist_coeffs_origin": dist_coeffs_origin,
-                "camera_matrix_origin": camera_matrix_origin,
-                "image_dim_origin": np.array(origin_images[0].shape[:2]),
-                "dist_coeffs_reference": dist_coeffs_reference,
-                "camera_matrix_reference": camera_matrix_reference,
-                "image_dim_reference": np.array(reference_images[0].shape[:2]),
-                "R": R,
-                "T": T,
-            }
-
-            if not no_poses:
-                logger.info("Attempting hand-eye calibation....")
-                # filtered_poses = np.array([np.linalg.inv(pose) for pose in filtered_poses])
-                filtered_poses = np.array(filtered_poses)
-                # Use the filtered poses for the target-to-camera transformation
-                R_gripper2base = np.array([pose[:3, :3] for pose in filtered_poses])
-                t_gripper2base = np.array([pose[:3, 3] for pose in filtered_poses])
-
-                R_handeye, T_handeye = cv2.calibrateHandEye(
-                    R_gripper2base=R_gripper2base,
-                    t_gripper2base=t_gripper2base,
-                    R_target2cam=rmats_origin,
-                    t_target2cam=tvecs_origin,
-                    method=cv2.CALIB_HAND_EYE_DANIILIDIS,
-                )
-                robot_to_cam = np.eye(4)  # Initialize 4x4 identity matrix
-                robot_to_cam[:3, :3] = R_handeye  # Populate rotation
-                robot_to_cam[:3, 3] = T_handeye.flatten()  # Populate translation
-
-                # Invert the homogeneous matrix
-                cam_to_robot = np.linalg.inv(robot_to_cam)
-
-                # Extract rotation and translation from the inverted matrix
-                camera_to_robot_R = cam_to_robot[:3, :3]  # Extract rotation
-                camera_to_robot_T = cam_to_robot[:3, 3]  # Extract translation
-                logger.info("Hand-eye calibration completed.")
-
-                # Add the hand-eye calibration results to the final result dictionary
-                result_dict["R_handeye"] = camera_to_robot_R
-                result_dict["T_handeye"] = camera_to_robot_T
-            return result_dict
-        else:
-            raise ValueError("Not enough valid points for stereo calibration.")
-    else:
+    if len(all_corners_parent) == 0:
         raise ValueError("Not enough shared points for stereo calibration.")
+    logger.info("about to find common ids...")
+    obj_points_all = []
+    img_points_origin = []
+    img_points_reference = []
+    for (
+        origin_corners,
+        reference_corners,
+        origin_ids,
+        reference_ids,
+    ) in zip(
+        all_corners_parent,
+        all_corners_child,
+        all_ids_parent,
+        all_ids_child,
+        strict=True,
+    ):
+        common_ids = np.intersect1d(origin_ids, reference_ids)
+        if len(common_ids) >= 6:  # Ensure there are at least 6 points
+            obj_points = get_charuco_board_object_points(charuco_board, common_ids)
+            obj_points_all.append(obj_points)
+            img_points_origin.append(origin_corners[np.isin(origin_ids, common_ids)])
+            img_points_reference.append(reference_corners[np.isin(reference_ids, common_ids)])
+
+    # sanity check
+    if len(obj_points_all) == 0:
+        raise ValueError("Not enough valid points for stereo calibration.")
+
+    logger.info(
+        f"Collected {len(obj_points_all)} shared point sets for stereo calibration. Starting stereo calibration..."
+    )
+    start_time = time.perf_counter()
+    err, _, _, _, _, R, T, _, _ = cv2.stereoCalibrate(
+        obj_points_all,
+        img_points_origin,
+        img_points_reference,
+        camera_parent,
+        coeffs_parent,
+        camera_child,
+        coeffs_child,
+        parent_img_size,
+        criteria=(
+            cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS,
+            100,
+            1e-6,
+        ),
+        flags=cv2.CALIB_USE_LU,
+    )
+    elapsed_time = time.perf_counter() - start_time
+    logger.info(f"Stereo calibration completed in {elapsed_time:.4f} seconds.")
+    # unfortunately, have to use origin/reference terminology to use existing code structure downstream
+
+    # now we will estimate these
+    camera_to_robot_R = np.eye(3)  # Extract rotation
+    camera_to_robot_T = np.eye(3)  # Extract translation
+
+    if poses is not None:
+        logger.info("Attempting hand-eye calibation....")
+        # poses_aligned_with_parent was pre-filtered above to match rmats_origin/tvecs_origin
+        filtered_poses = np.array(poses_aligned_with_parent)
+        # Use the filtered poses for the target-to-camera transformation
+        R_gripper2base = np.array([pose[:3, :3] for pose in filtered_poses])
+        t_gripper2base = np.array([pose[:3, 3] for pose in filtered_poses])
+
+        R_handeye, T_handeye = cv2.calibrateHandEye(
+            R_gripper2base=R_gripper2base,
+            t_gripper2base=t_gripper2base,
+            R_target2cam=rmats_origin,
+            t_target2cam=tvecs_origin,
+            method=cv2.CALIB_HAND_EYE_DANIILIDIS,
+        )
+        robot_to_cam = np.eye(4)  # Initialize 4x4 identity matrix
+        robot_to_cam[:3, :3] = R_handeye  # Populate rotation
+        robot_to_cam[:3, 3] = T_handeye.flatten()  # Populate translation
+
+        # Invert the homogeneous matrix
+        cam_to_robot = np.linalg.inv(robot_to_cam)
+
+        # Extract rotation and translation from the inverted matrix
+        camera_to_robot_R = cam_to_robot[:3, :3]  # Extract rotation
+        camera_to_robot_T = cam_to_robot[:3, 3]  # Extract translation
+        logger.info("Hand-eye calibration completed.")
+
+    # save off our work
+    calibration_results: CalibrationResults = {
+        "camera_matrix_reference": camera_child,
+        "dist_coeffs_reference": coeffs_child,
+        "dist_coeffs_origin": coeffs_parent,
+        "camera_matrix_origin": camera_parent,
+        "image_dim_origin": np.array(parent_img_size),
+        "image_dim_reference": np.array(child_img_size),
+        "R": R,
+        "T": T,
+        "R_handeye": camera_to_robot_R,
+        "T_handeye": camera_to_robot_T,
+        "average_reprojection_error": float(np.linalg.norm(err)),
+    }
+    return calibration_results
 
 
 def est_camera_t_charuco_board_center(
@@ -875,6 +1125,7 @@ def get_relative_viewpoints_from_board_pose_and_param(
 
     logger.info(f"Calculated {len(poses)} relative viewpoints to visit relative to the target.")
     return poses
+
 
 def create_ideal_charuco_image(charuco_board: cv2.aruco_CharucoBoard, dim=(500, 700), colorful=False):
     if OPENCV_VERSION < OPENCV_CHARUCO_LIBRARY_CHANGE_VERSION:
