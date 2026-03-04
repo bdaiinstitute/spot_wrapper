@@ -122,13 +122,13 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
             calibration["rgb_intrinsic"] = np.asarray(calibration_dict[tag]["intrinsic"][0]["camera_matrix"]).reshape(
                 (3, 3)
             )
-            rgb_to_depth_T = np.array(calibration_dict[tag]["extrinsic"][1][0]["T"]).reshape((3, 1))
-            rgb_to_depth_R = np.array(calibration_dict[tag]["extrinsic"][1][0]["R"]).reshape((3, 3))
+            rgb_to_depth_T = np.array(calibration_dict[tag]["extrinsic"][0][1]["T"]).reshape((3, 1))
+            rgb_to_depth_R = np.array(calibration_dict[tag]["extrinsic"][0][1]["R"]).reshape((3, 3))
             calibration["rgb_to_depth"] = np.vstack(
                 (np.hstack((rgb_to_depth_R, rgb_to_depth_T)), np.array([0, 0, 0, 1]))
             )
-            depth_to_hand_T = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["T"]).reshape((3, 1))
-            depth_to_hand_R = np.array(calibration_dict[tag]["extrinsic"][1]["planning_frame"]["R"]).reshape((3, 3))
+            depth_to_hand_T = np.array(calibration_dict[tag]["extrinsic"][0]["planning_frame"]["T"]).reshape((3, 1))
+            depth_to_hand_R = np.array(calibration_dict[tag]["extrinsic"][0]["planning_frame"]["R"]).reshape((3, 3))
             calibration["depth_to_hand"] = np.vstack(
                 (np.hstack((depth_to_hand_R, depth_to_hand_T)), np.array([0, 0, 0, 1]))
             )
@@ -155,8 +155,10 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         def convert_pinhole_intrinsic_to_proto(intrinsic_matrix: np.ndarray) -> ImageSource.PinholeModel:
             """Converts a 3x3 intrinsic matrix to a PinholeModel protobuf."""
             pinhole_model = ImageSource.PinholeModel()
-            pinhole_model.CameraIntrinsics.focal_length = intrinsic_matrix[0, :1]
-            pinhole_model.CameraIntrinsics.principal_point = (intrinsic_matrix[0, 2], intrinsic_matrix[1, 2])
+            pinhole_model.intrinsics.focal_length.x = float(intrinsic_matrix[0, 0])
+            pinhole_model.intrinsics.focal_length.y = float(intrinsic_matrix[1, 1])
+            pinhole_model.intrinsics.principal_point.x = float(intrinsic_matrix[0, 2])
+            pinhole_model.intrinsics.principal_point.y = float(intrinsic_matrix[1, 2])
             return pinhole_model
 
         hand_t_wr1_pose = get_a_tform_b(
@@ -179,11 +181,13 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         rgb_intrinsics = cal["rgb_intrinsic"]
         rgb_t_depth = cal["rgb_to_depth"]
 
-        depth_to_planning = cal["depth_to_hand"] @ hand_t_planning
-        rgb_to_planning = rgb_t_depth @ depth_to_planning
-
-        planning_t_depth = np.linalg.inv(depth_to_planning)
-        planning_t_rgb = np.linalg.inv(rgb_to_planning)
+        # hand_t_depth: depth camera expressed in hand frame (from hand-eye calibration)
+        # hand_t_planning: wr1 expressed in hand frame
+        # wr1_t_depth = wr1_t_hand @ hand_t_depth = inv(hand_t_planning) @ hand_t_depth
+        wr1_t_hand = np.linalg.inv(hand_t_planning)
+        planning_t_depth = wr1_t_hand @ cal["depth_to_hand"]
+        # rgb_t_depth maps depth->rgb; wr1_t_rgb = wr1_t_depth @ depth_t_rgb = wr1_t_depth @ inv(rgb_t_depth)
+        planning_t_rgb = planning_t_depth @ np.linalg.inv(rgb_t_depth)
 
         # Converting calibration data to protobuf format
         depth_intrinsics_proto = convert_pinhole_intrinsic_to_proto(depth_intrinsics)
@@ -191,7 +195,7 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         planning_t_depth_frame_proto = SE3Pose.from_matrix(planning_t_depth).to_proto()
         planning_t_rgb_frame_proto = SE3Pose.from_matrix(planning_t_rgb).to_proto()
 
-        gripper_camera_param_pb2.SetGripperCameraCalibrationRequest(
+        set_req = gripper_camera_param_pb2.SetGripperCameraCalibrationRequest(
             gripper_cam_cal=gripper_camera_param_pb2.GripperCameraCalibrationProto(
                 depth=gripper_camera_param_pb2.GripperDepthCameraCalibrationParams(
                     wr1_tform_sensor=planning_t_depth_frame_proto,
@@ -209,10 +213,11 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
                 ),
             )
         )
+        logger.info(f" Request to send: \n{set_req}\n")
         # Send the request to the robot
         try:
-            # result = self.gripper_camera_client.set_camera_calib(set_req)
-            logger.info(f" Set Parameters: \n{result}")
+            result = self.gripper_camera_client.set_camera_calib(set_req)
+            logger.info(f" Set Parameters: \n{result}\n")
         except Exception as e:
             raise ValueError(f"Failed to set calibration parameters on the robot: {e}")
 

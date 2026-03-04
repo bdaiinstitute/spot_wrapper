@@ -66,7 +66,7 @@ def create_robot_parser() -> argparse.ArgumentParser:
     return spot_cli(parser=parser)  # Replace with robot specific parsing
 
 
-def spot_main() -> None:
+def calibrate_spot_hand() -> None:
     parser = create_robot_parser()
     args, aruco_dict, charuco = setup_calibration_param(parser)
 
@@ -135,4 +135,4 @@ def spot_main() -> None:
 
 
 if __name__ == "__main__":
-    spot_main()
+    calibrate_spot_hand()

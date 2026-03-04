@@ -12,22 +12,9 @@ import numpy.typing as npt
 import torch
 from jaxtyping import Float, Shaped
 
-# from rclpy.qos import QoSProfile
-# from sensor_msgs.msg import CameraInfo
-# from sensor_msgs.msg import Image as ROSImage
-
 logger = logging.getLogger(__name__)
 
 DISTORTION_COEFFICIENT_SIZES = [0, 4, 5, 8, 12, 14]
-
-
-# @dataclasses.dataclass
-# class CameraCalCapture:
-#     capture_time: float
-#     external_cam_msg: ROSImage
-#     external_cam_info: CameraInfo
-#     spot_cam_msg: ROSImage
-#     spot_cam_info: CameraInfo
 
 
 class CalibrationResults(TypedDict):
@@ -42,12 +29,6 @@ class CalibrationResults(TypedDict):
     R_handeye: Optional[np.ndarray]
     T_handeye: Optional[np.ndarray]
     average_reprojection_error: float
-
-
-# class TopicMsgPair(NamedTuple):
-#     topic_name: str
-#     msg_type: Type
-#     qos_profile: QoSProfile | int = 10
 
 
 @dataclass

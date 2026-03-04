@@ -193,26 +193,6 @@ def load_calibration_parameters(input_path: Path) -> CalibrationResults:
     return calib_results
 
 
-# TODO
-# def load_dataset_from_path(pathdir: Path) -> Tuple[Dict[str, Dict[str, np.ndarray]], CameraInfo]:
-#     """
-#     load the data for images, hand_cam_info, ext_cam_info
-
-#     Args:
-#         pathdir (Path): The absolute pathname to directory containing the dataset.
-
-#     Returns:
-#         Tuple[np.ndarray, CameraInfo, CameraInfo]: The loaded images, hand camera info, and external camera info.
-#     """
-#     images = load_images_from_path(pathdir)
-#     hciyaml = os.path.join(pathdir, Path("parent"), Path("camera_info.yaml"))
-#     eciyaml = os.path.join(pathdir, Path("child"), Path("camera_info.yaml"))
-#     hand_cam_info = load_CameraInfo_from_file(Path(hciyaml))
-#     ext_cam_info = load_CameraInfo_from_file(Path(eciyaml))
-
-#     return images, hand_cam_info, ext_cam_info
-
-
 def load_dataset_from_path(path: str) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     """
     Load image dataset from path in a way that's compatible with multistereo_calibration_charuco.
@@ -592,7 +572,7 @@ def calibration_helper(
     logger.info("Saving calibration param...")
 
     if result_path is None:
-        result_path = input("Please provide a path to save the calibration results (or type 'No' to skip): ")
+        result_path = "calibration_result.yaml"  # default file name if none provided
 
     args.result_path = result_path
 
