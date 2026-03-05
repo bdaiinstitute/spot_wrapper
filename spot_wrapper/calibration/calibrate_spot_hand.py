@@ -71,7 +71,7 @@ def calibrate_spot_hand() -> None:
     args, aruco_dict, charuco = setup_calibration_param(parser)
 
     # Collect new data and calibrate
-    if not args.from_data:
+    if not args.from_data and not args.from_yaml:
         in_hand_bot, args = create_robot(args, charuco=charuco, aruco_dict=aruco_dict)
 
         logger.warning("This script moves the robot around. !!! USE AT YOUR OWN RISK !!!")
@@ -108,7 +108,7 @@ def calibrate_spot_hand() -> None:
     elif args.from_yaml:
         try:
             in_hand_bot, args = create_robot(args, charuco=charuco, aruco_dict=aruco_dict)
-            with open(args.data_path, "r") as file:
+            with open(args.result_path, "r") as file:
                 calibration = yaml.safe_load(file)
                 send_to_robot = input(
                     f"Loaded calibration data:\n{calibration}\nDo you want to send this calibration to the robot?"
