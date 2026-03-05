@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 import yaml
 
-from spot_wrapper.calibration.automatic_camera_calibration_robot import (
+from spot_wrapper.calibration.calibration_helpers import (
     AutomaticCameraCalibrationRobot,
 )
 from spot_wrapper.calibration.charuco_board_detection import (

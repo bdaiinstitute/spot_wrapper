@@ -8,12 +8,12 @@ import cv2
 import numpy as np
 import yaml
 
-from spot_wrapper.calibration.automatic_camera_calibration_robot import AutomaticCameraCalibrationRobot
 from spot_wrapper.calibration.calibration_clis import (
     calibrate_robot_cli,
     setup_calibration_param,
     spot_cli,
 )
+from spot_wrapper.calibration.calibration_helpers import AutomaticCameraCalibrationRobot
 from spot_wrapper.calibration.calibration_util import (
     calibration_helper,
     get_multiple_perspective_camera_calibration_dataset,
