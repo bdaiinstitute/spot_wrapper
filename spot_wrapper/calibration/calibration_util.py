@@ -6,27 +6,17 @@ import os
 import re
 from datetime import datetime
 from glob import glob
-from pathlib import Path
 from time import sleep
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
 import yaml
-from cv_bridge import CvBridge
-from sensor_msgs.msg import CameraInfo
-from sensor_msgs.msg import Image as RosImage
 
 from spot_wrapper.calibration.automatic_camera_calibration_robot import (
     AutomaticCameraCalibrationRobot,
 )
-from spot_wrapper.calibration.calibration_helpers import (
-    CalibrationResults,
-    Image,
-)
 from spot_wrapper.calibration.charuco_board_detection import (
-    charuco_pose_sanity_check,
-    create_charuco_board,
     create_ideal_charuco_image,
     detect_charuco_corners,
     get_relative_viewpoints_from_board_pose_and_param,
@@ -36,161 +26,6 @@ from spot_wrapper.calibration.charuco_board_detection import (
 logger = logging.getLogger(__name__)
 
 directories = ["parent", "child", "poses", "depth"]
-
-
-def camera_info_to_dict(camera_info: CameraInfo, camera_name: str) -> dict[str, Any]:
-    return {
-        "image_width": camera_info.width,
-        "image_height": camera_info.height,
-        "camera_name": camera_name,
-        "camera_matrix": {"rows": 3, "cols": 3, "data": camera_info.k},
-        "distortion_model": camera_info.distortion_model,
-        "distortion_coefficients": {"rows": 1, "cols": len(camera_info.d), "data": camera_info.d},
-        "rectification_matrix": {"rows": 3, "cols": 3, "data": camera_info.r},
-        "projection_matrix": {"rows": 3, "cols": 4, "data": camera_info.p},
-        "binning_x": camera_info.binning_x,
-        "binning_y": camera_info.binning_y,
-        "roi": {
-            "x_offset": camera_info.roi.x_offset,
-            "y_offset": camera_info.roi.y_offset,
-            "height": camera_info.roi.height,
-            "width": camera_info.roi.width,
-            "do_rectify": camera_info.roi.do_rectify,
-        },
-    }
-
-
-# TODO
-def load_CameraInfo_from_file(file_path: Path) -> CameraInfo:
-    """Loads a CameraInfo message from a YAML file."""
-    logging.info(f"Loading CameraInfo from {file_path}")
-    with open(file_path, "r") as f:
-        cam_info_msg_dict = yaml.unsafe_load(f)
-
-    cam_info_msg = CameraInfo()
-    cam_info_msg.width = cam_info_msg_dict["image_width"]
-    cam_info_msg.height = cam_info_msg_dict["image_height"]
-    cam_info_msg.header.frame_id = cam_info_msg_dict["camera_name"]
-    cam_info_msg.k = cam_info_msg_dict["camera_matrix"]["data"]
-    cam_info_msg.distortion_model = cam_info_msg_dict["distortion_model"]
-    cam_info_msg.d = cam_info_msg_dict["distortion_coefficients"]["data"]
-    cam_info_msg.r = cam_info_msg_dict["rectification_matrix"]["data"]
-    cam_info_msg.p = cam_info_msg_dict["projection_matrix"]["data"]
-    cam_info_msg.binning_x = cam_info_msg_dict["binning_x"]
-    cam_info_msg.binning_y = cam_info_msg_dict["binning_y"]
-    roi_dict = cam_info_msg_dict["roi"]
-    cam_info_msg.roi.x_offset = roi_dict["x_offset"]
-    cam_info_msg.roi.y_offset = roi_dict["y_offset"]
-    cam_info_msg.roi.height = roi_dict["height"]
-    cam_info_msg.roi.width = roi_dict["width"]
-    cam_info_msg.roi.do_rectify = roi_dict["do_rectify"]
-
-    return cam_info_msg
-
-
-def load_images_from_path(path: Path) -> Dict[str, Dict[str, np.ndarray]]:
-    """
-    Load images dataset from path in a way that's compatible with multistereo_calibration_charuco.
-
-    Also, load the poses if they are available.
-
-    See Using the CLI Tool To Calibrate On an Existing Dataset section in the README
-    to see the expected folder/data structure for this method to work
-
-    Args:
-        path (str): The parent path
-
-    Raises:
-        ValueError: Not possible to load the images
-
-    Returns:
-        dict[str, np.ndarray]: The image dataset
-    """
-
-    def alpha_numeric(x: str) -> Any:
-        matcha = re.search("(\\d+)(?=\\D*$)", x)
-        # \\d+ Matches one or more digits (0-9),
-        # \\D* Matches zero or more non-digit characters,
-        # $ asserts position at the end of the string.
-        if matcha:
-            return int(matcha.group())
-        return x
-
-    def load_images_from_dir(path: Path, suffix: str) -> Dict[str, np.ndarray]:
-        print(f"-----------------------Loading images from {path}")
-        files = sorted(
-            glob(os.path.join(path, f"*{suffix}")),
-            key=alpha_numeric,
-        )
-        try:
-            return {
-                Path(fn).name: cv2.imread(fn, cv2.IMREAD_GRAYSCALE).astype(np.uint8)
-                for fn in files
-                if fn.lower().endswith(suffix)
-            }
-        except Exception as e:
-            logging.error(f"Error loading images and poses from {files}: {e}")
-            return {}
-
-    # Initialize an empty dict to store images
-    images = dict()
-
-    # directories we care about here
-    parent_path = os.path.join(path, "parent")
-    child_path = os.path.join(path, "child")
-    poses = os.path.join(path, "poses")
-
-    # load images from both directories
-    images["parent"] = load_images_from_dir(Path(parent_path), ".png")
-    images["child"] = load_images_from_dir(Path(child_path), ".png")
-    images["poses"] = load_images_from_dir(Path(poses), ".npy")
-
-    return images
-
-
-# TODO
-def load_calibration_parameters(input_path: Path) -> CalibrationResults:
-    """
-    Load calibration parameters from a YAML file.
-
-    Args:
-        input_path (Path): The path to the YAML file containing calibration parameters.
-    Returns:
-        CalibrationResults: The loaded calibration parameters.
-    Throws:
-        FileNotFoundError: If the specified file does not exist.
-        KeyError: If required keys are missing in the YAML file.
-    """
-    with open(input_path, "r") as file:
-        calib_data = yaml.safe_load(file)
-
-    parent_camera = np.array(calib_data["default"]["intrinsic"][0]["camera_matrix"]).reshape((3, 3))
-    parent_dist_coeffs = np.array(calib_data["default"]["intrinsic"][0]["dist_coeffs"]).reshape((-1, 1))
-    parent_image_dim = np.array(calib_data["default"]["intrinsic"][0]["image_dim"])
-    child_camera = np.array(calib_data["default"]["intrinsic"][1]["camera_matrix"]).reshape((3, 3))
-    child_dist_coeffs = np.array(calib_data["default"]["intrinsic"][1]["dist_coeffs"]).reshape((-1, 1))
-    child_image_dim = np.array(calib_data["default"]["intrinsic"][1]["image_dim"])
-    R = np.array(calib_data["default"]["extrinsic"][0][1]["R"]).reshape((3, 3))
-    T = np.array(calib_data["default"]["extrinsic"][0][1]["T"]).reshape((-1, 3))
-
-    # saving out reproj err not supported, currently.
-    # does not save out reproj err.
-    # So we set it to 0 here.
-    calib_results: CalibrationResults = {
-        "camera_matrix_origin": parent_camera,
-        "dist_coeffs_origin": parent_dist_coeffs,
-        "image_dim_origin": parent_image_dim,
-        "camera_matrix_reference": child_camera,
-        "dist_coeffs_reference": child_dist_coeffs,
-        "image_dim_reference": child_image_dim,
-        "R": R,
-        "T": T,
-        "R_handeye": np.eye(3),
-        "T_handeye": np.zeros((3, 1)),
-        "average_reprojection_error": 0,
-    }
-
-    return calib_results
 
 
 def load_dataset_from_path(path: str) -> Tuple[np.ndarray, Optional[np.ndarray]]:
@@ -244,28 +79,6 @@ def load_dataset_from_path(path: str) -> Tuple[np.ndarray, Optional[np.ndarray]]
     images = np.transpose(images, (1, 0))
 
     return images, poses
-
-
-def create_calibration_save_folders(path: Path) -> None:
-    """
-    Create a folder hierarchy to record a calibration
-
-    Args:
-        path (Path): The parent path
-
-    Raises:
-        ValueError: Not possible to create the folders, or no path specified
-    """
-    if path is None:
-        raise ValueError("No path to save to. you can do better than this.")
-    else:
-        for folder in directories:
-            cam_path = os.path.join(path, folder)
-
-            logger.info(f"Creating image folder at {cam_path}")
-            os.makedirs(cam_path, exist_ok=True)
-        os.makedirs(os.path.join(path, "poses"), exist_ok=True)
-        logger.info("Done creating folders.")
 
 
 def save_calibration_parameters(
@@ -525,18 +338,6 @@ def get_multiple_perspective_camera_calibration_dataset(
     return (np.array(calibration_images, dtype=object), poses)
 
 
-def ros_image_to_image(ros_image: RosImage, cv_bridge: CvBridge | None = None, ros_encoding: str = "rgb8") -> Image:
-    """
-    Converts from ros image to our generic image datatype
-    """
-    if cv_bridge is None:
-        cv_bridge = CvBridge()
-
-    img = cv_bridge.imgmsg_to_cv2(ros_image, desired_encoding=ros_encoding)
-
-    return Image.from_numpy(img)
-
-
 def calibration_helper(
     images: Union[List[np.ndarray], np.ndarray],
     args: argparse.Namespace,
@@ -588,49 +389,3 @@ def calibration_helper(
         unsafe=args.unsafe_tag_save,
     )
     return calibration_dict
-
-
-def setup_calibration_param(
-    args: argparse.Namespace,
-) -> Tuple[argparse.Namespace, cv2.aruco_Dictionary, cv2.aruco_CharucoBoard]:
-    """Set up calibration parameters from command line arguments.
-
-    Args:
-        parser (argparse.ArgumentParser): The argument parser to set up from command line.
-
-    Raises:
-        ValueError: If the provided ArUco dictionary is invalid.
-
-    Returns:
-        Tuple[argparse.Namespace, cv2.aruco_Dictionary, cv2.aruco_CharucoBoard]:
-        The parsed arguments, ArUco dictionary, and Charuco board.
-    """
-    if hasattr(cv2.aruco, args.dict_size):
-        aruco_dict = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, args.dict_size))
-    else:
-        raise ValueError(f"Invalid ArUco dictionary: {args.dict_size}")
-    charuco = create_charuco_board(
-        num_checkers_width=args.num_checkers_width,
-        num_checkers_height=args.num_checkers_height,
-        checker_dim=args.checker_dim,
-        marker_dim=args.marker_dim,
-        aruco_dict=aruco_dict,
-        legacy=args.legacy_charuco_pattern,
-    )
-
-    if not args.allow_default_internal_corner_ordering:
-        logger.warning("Enforcing bottom up charuco ordering. Pre-computing correlation now...")
-        detect_charuco_corners(
-            create_ideal_charuco_image(charuco_board=charuco),
-            charuco_board=charuco,
-            aruco_dict=aruco_dict,
-            enforce_ascending_ids_from_bottom_left_corner=True,
-        )
-    if args.show_board_pattern:
-        logger.warning("Checking board, you'll need to close a window in a sec (press any key)")
-        charuco_pose_sanity_check(
-            create_ideal_charuco_image(charuco_board=charuco, colorful=True),
-            charuco_board=charuco,
-            aruco_dict=aruco_dict,
-        )
-    return args, aruco_dict, charuco

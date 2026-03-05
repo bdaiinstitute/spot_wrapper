@@ -181,13 +181,17 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         rgb_intrinsics = cal["rgb_intrinsic"]
         rgb_t_depth = cal["rgb_to_depth"]
 
-        # hand_t_depth: depth camera expressed in hand frame (from hand-eye calibration)
-        # hand_t_planning: wr1 expressed in hand frame
-        # wr1_t_depth = wr1_t_hand @ hand_t_depth = inv(hand_t_planning) @ hand_t_depth
-        wr1_t_hand = np.linalg.inv(hand_t_planning)
-        planning_t_depth = wr1_t_hand @ cal["depth_to_hand"]
-        # rgb_t_depth maps depth->rgb; wr1_t_rgb = wr1_t_depth @ depth_t_rgb = wr1_t_depth @ inv(rgb_t_depth)
-        planning_t_rgb = planning_t_depth @ np.linalg.inv(rgb_t_depth)
+        # cal["depth_to_hand"] is rgb_M_hand: the hand frame expressed in RGB camera coords.
+        # hand_t_planning is hand_M_wr1 (hand->wr1 transform built above).
+        # rgb_M_wr1 = rgb_M_hand @ hand_M_wr1
+        rgb_M_wr1 = cal["depth_to_hand"] @ hand_t_planning
+        # rgb_t_depth is depth_M_rgb (stereo extrinsic: maps RGB points → depth frame).
+        # depth_M_wr1 = depth_M_rgb @ rgb_M_wr1
+        depth_M_wr1 = rgb_t_depth @ rgb_M_wr1
+
+        # API wants wr1_tform_sensor = wr1_M_sensor for each camera
+        planning_t_rgb = np.linalg.inv(rgb_M_wr1)  # wr1_M_rgb → color.wr1_tform_sensor
+        planning_t_depth = np.linalg.inv(depth_M_wr1)  # wr1_M_depth → depth.wr1_tform_sensor
 
         # Converting calibration data to protobuf format
         depth_intrinsics_proto = convert_pinhole_intrinsic_to_proto(depth_intrinsics)
@@ -221,11 +225,17 @@ class SpotInHandCalibration(AutomaticCameraCalibrationRobot):
         except Exception as e:
             raise ValueError(f"Failed to set calibration parameters on the robot: {e}")
 
-        # Optionally, verify by retrieving the parameters back with the following lines
-        # get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
-        # cal = self.gripper_camera_client.get_camera_calib(get_req)
-        # logger.info(f"Post-Set Cal (get cam param req): \n {cal}")
+        # Optionally, verify by retrieving the parameters back with the following line
+        # self.get_calibration_from_robot()
         logger.info("Calibration parameters successfully sent to the robot.")
+
+    def get_calibration_from_robot(self) -> None:
+        """Utility function to retrieve and print the current gripper camera calibration
+        from the robot for verification.
+        """
+        get_req = gripper_camera_param_pb2.GripperCameraGetParamRequest()
+        cal = self.gripper_camera_client.get_camera_calib(get_req)
+        logger.info(f"Retrieved calibration from robot: \n{cal}\n")
 
     def capture_images(
         self,

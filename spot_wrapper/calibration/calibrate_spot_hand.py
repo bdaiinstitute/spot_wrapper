@@ -80,7 +80,6 @@ def calibrate_spot_hand() -> None:
         logger.warning("The robot should NOT be docked, and nobody should have robot control")
         logger.warning(f"the ip is: {args.ip}")
         input("Press Enter to continue...")
-        # sleep(5)
 
         images, poses = get_multiple_perspective_camera_calibration_dataset(
             auto_cam_cal_robot=in_hand_bot,
@@ -104,19 +103,24 @@ def calibrate_spot_hand() -> None:
             in_hand_bot.write_calibration_to_robot(calibration)
         in_hand_bot.shutdown()
 
-    # Send previously computed and saved calibration data to the robot
+    # Load and send previously computed and saved calibration data to the robot
+    # Assumes the user wants to send the calibration to the robot so the -send flag is not needed/checked
     elif args.from_yaml:
         try:
             in_hand_bot, args = create_robot(args, charuco=charuco, aruco_dict=aruco_dict)
             with open(args.data_path, "r") as file:
                 calibration = yaml.safe_load(file)
-                logger.info(f"Loaded calibration data:\n{calibration}")
-                if args.save_to_robot:
+                send_to_robot = input(
+                    f"Loaded calibration data:\n{calibration}\nDo you want to send this calibration to the robot?"
+                    " (y/n): "
+                )
+                if send_to_robot.strip().lower() == "y":
                     logger.info("Saving calibration to robot...")
                     in_hand_bot.write_calibration_to_robot(calibration)
+                else:
+                    logger.info("Calibration not sent to robot. Shutting down.")
         except Exception as e:
-            raise ValueError(f"Failed to load calibration from {args.data_path}: {e}\nIs it a calibration yaml file?")
-        in_hand_bot.shutdown()
+            raise ValueError(f"Failed to load calibration from {args.data_path}:\n{e}\n")
     # Load previously collected data and compute calibration
     else:
         logger.info(f"Loading images from {args.data_path}")
@@ -129,7 +133,6 @@ def calibrate_spot_hand() -> None:
             in_hand_bot, args = create_robot(args, charuco=charuco, aruco_dict=aruco_dict)
             logger.info("Saving calibration to robot...")
             in_hand_bot.write_calibration_to_robot(calibration)
-            in_hand_bot.shutdown()
 
     logger.info("Calibration complete!")
 
