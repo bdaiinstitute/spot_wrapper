@@ -119,7 +119,7 @@ If you have a previously computed calibration YAML and only want to upload it to
 ```bash
 python3 spot_wrapper/calibration/calibrate_spot_hand.py \
   --ip <ROBOT_IP> -u <USER> -pw <PASSWORD> \
-  --from_data --from_yaml --data_path <PATH/TO/result.yaml> --save_to_robot
+  --from_data --from_yaml --result_path <PATH/TO/result.yaml> --save_to_robot
 ```
 
 > [!NOTE] If you are using a legacy charuco board (Only relevant for OpenCV ≥ 4.7) you should also be adding the `--legacy_charuco_pattern`. More information and how to check is below in [Check if You Have a Legacy Charuco Board](#check-if-you-have-a-legacy-charuco-board).
@@ -229,13 +229,13 @@ python3 spot_wrapper/calibration/calibrate_spot_hand.py -h
 | `--data_path` | `-dp` | `None` | Directory for dataset images/poses, or YAML path when `--from_yaml` |
 | `--save_data` | `-sd` | off | Save captured images and poses to `--data_path` |
 | `--from_data` | `-fd` | off | Skip data collection; calibrate from existing dataset at `--data_path` |
-| `--from_yaml` | `-yaml` | off | Used with `--from_data` and `--save_to_robot` to push a saved YAML to the robot |
+| `--from_yaml` | `-yaml` | off | Used with `--result_path` to push a saved YAML to the robot |
 | `--result_path` | `-rp` | `calibration_result.yaml` | Where to write the calibration YAML |
 | `--tag` | `-t` | `default` | Tag name for this run within the YAML file |
 | `--unsafe_tag_save` | | off | Skip overwrite confirmation prompts |
 
 ### Robot connection (required when connecting to the robot)
-
+and `--save_to_robot`
 | Flag | Short | Description |
 |---|---|---|
 | `--ip` | `-i` / `-ip` | Robot IP address |
