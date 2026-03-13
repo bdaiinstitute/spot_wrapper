@@ -1314,20 +1314,16 @@ class SpotWrapper:
         """
         start_time = now_sec() if timestamp is None else timestamp
         end_time = start_time + cmd_duration
+        mobility_params = spot_command_pb2.MobilityParams()
+        mobility_params.CopyFrom(self.get_mobility_params())
+        if not use_obstacle_params:
+            mobility_params.ClearField("obstacle_params")
         if body_height:
-            current_mobility_params = self.get_mobility_params()
-            height_adjusted_params = RobotCommandBuilder.mobility_params(
-                body_height=body_height,
-                locomotion_hint=current_mobility_params.locomotion_hint,
-                stair_hint=current_mobility_params.stair_hint,
-                external_force_params=current_mobility_params.external_force_params,
-                stairs_mode=current_mobility_params.stairs_mode,
+            mobility_params.body_control.CopyFrom(
+                RobotCommandBuilder.mobility_params(body_height=body_height).body_control
             )
-            if use_obstacle_params:
-                height_adjusted_params.obstacle_params.CopyFrom(current_mobility_params.obstacle_params)
-            self.set_mobility_params(height_adjusted_params)
         response = self._robot_command(
-            RobotCommandBuilder.synchro_velocity_command(v_x=v_x, v_y=v_y, v_rot=v_rot, params=self._mobility_params),
+            RobotCommandBuilder.synchro_velocity_command(v_x=v_x, v_y=v_y, v_rot=v_rot, params=mobility_params),
             end_time_secs=end_time,
             timesync_endpoint=self._robot.time_sync.endpoint,
         )
