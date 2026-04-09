@@ -1,5 +1,8 @@
 # Spot Wrapper
 
+> [!IMPORTANT]
+> This repository has moved from [`bdaiinstitute/spot_wrapper`](https://github.com/bdaiinstitute/spot_wrapper) to [`rai-opensource/spot_wrapper`](https://github.com/rai-opensource/spot_wrapper).
+
 ![Python](https://img.shields.io/badge/python-3.10-blue)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
