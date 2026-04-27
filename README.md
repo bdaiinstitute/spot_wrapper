@@ -1,3 +1,24 @@
+# Repository Migration Notice
+
+> [!IMPORTANT]
+> This repository has moved to the **RAI-Opensource** GitHub organization!
+>
+> Current status: **Migrated**.
+>
+> - Migration target org: <https://github.com/RAI-Opensource>
+> - Previous target org: <https://github.com/bdaiinstitute>
+>
+> What to do now:
+>
+> - Update your git remote:
+>
+>   ```bash
+>   git remote set-url origin https://github.com/RAI-Opensource/spot_wrapper
+>   ```
+>
+> - If you maintain downstream docs/scripts, update links from this repository to the new org.
+>
+
 # Spot Wrapper
 
 ![Python](https://img.shields.io/badge/python-3.10-blue)
