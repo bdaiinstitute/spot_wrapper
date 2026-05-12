@@ -1,24 +1,3 @@
-# Repository Migration Notice
-
-> [!IMPORTANT]
-> This repository has moved to the **RAI-Opensource** GitHub organization!
->
-> Current status: **Migrated**.
->
-> - Migration target org: <https://github.com/RAI-Opensource>
-> - Previous target org: <https://github.com/bdaiinstitute>
->
-> What to do now:
->
-> - Update your git remote:
->
->   ```bash
->   git remote set-url origin https://github.com/RAI-Opensource/spot_wrapper
->   ```
->
-> - If you maintain downstream docs/scripts, update links from this repository to the new org.
->
-
 # Spot Wrapper
 
 ![Python](https://img.shields.io/badge/python-3.10-blue)
@@ -49,6 +28,16 @@ To update requirements.txt, use
 ```commandline
 pipreqs . --force
 ```
+
+# Migration Notice
+
+On April 28, 2026 this repository moved to the **RAI-Opensource** GitHub organization.  If you are still pulling from the previous bdaiinstitute GitHub organization, please update your git remote:
+   ```bash
+   git remote set-url origin https://github.com/RAI-Opensource/spot_wrapper
+   ```
+
+If you maintain downstream docs/scripts, update links from this repository to the new org.
+
 
 # Contributing
 This repository enforces `ruff` and `black` linting. To verify that your code will pass inspection, install `pre-commit` and run:
