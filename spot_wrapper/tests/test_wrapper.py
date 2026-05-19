@@ -198,9 +198,10 @@ def test_mobility_command_feedback(simple_spot: SpotFixture, simple_spot_wrapper
     assert simple_spot_wrapper.last_stand_command is None
     assert simple_spot_wrapper.is_standing
     assert not simple_spot_wrapper.is_sitting
+    logging.info(f"is standing? {simple_spot_wrapper.is_standing}")
 
     # stand command with non-processing status - should reset the command and leave state unchanged
-    assert_non_processing_stand_status(simple_spot_wrapper.is_standing)
+    assert_non_processing_stand_status(simple_spot_wrapper.is_standing)  # BUG HERE
 
     # initial sitting state
     assert simple_spot_wrapper.last_sit_command is None

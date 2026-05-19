@@ -192,6 +192,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                 if command_feedback.status == basic_command_pb2.RobotCommandFeedbackStatus.STATUS_PROCESSING:
                     self._spot_wrapper.is_sitting = False
                     stand_status = command_feedback.stand_feedback.status
+                    logging.info(f"Stand command status: {stand_status}")
                     if stand_status == basic_command_pb2.StandCommand.Feedback.STATUS_IS_STANDING:
                         self._spot_wrapper.is_standing = True
                         self._spot_wrapper.last_stand_command = None
@@ -200,6 +201,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                     else:
                         self._logger.warning("Stand command in unknown state")
                         self._spot_wrapper.is_standing = False
+                        self._spot_wrapper.last_stand_command = None
                 else:
                     self._logger.warning(
                         f"Stand command is not being processed anymore, current status: {command_feedback.status}"
@@ -224,6 +226,7 @@ class AsyncIdle(AsyncPeriodicQuery):
                     else:
                         self._logger.warning("Sit command in unknown state")
                         self._spot_wrapper.is_sitting = False
+                        self._spot_wrapper.last_sit_command = None
                 else:
                     self._logger.warning(
                         f"Sit command is not being processed anymore, current status: {command_feedback.status}"
